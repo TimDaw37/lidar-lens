@@ -18,7 +18,7 @@ for(const [bn,bt] of [['chromium',chromium],['firefox',firefox]]){
     const px=await p.evaluate(()=>{const c=document.querySelector('canvas#cv')||document.querySelector('canvas');return c?c.width:0});ok(t+'lens canvas',px>0);
     await p.evaluate(()=>document.getElementById('whatis').click());const box=await p.locator('#map').boundingBox();await p.mouse.click(box.x+box.width*0.5,box.y+box.height*0.5);
     await p.waitForSelector('#card .desc',{timeout:20000}).catch(()=>{});const card=await p.evaluate(()=>({n:(document.querySelector('#card .hd b')||{}).textContent,d:(document.querySelector('#card .desc')||{}).textContent,g:!!document.querySelector('#card details.heur')}));
-    ok(t+'What's here? card',card.n==='What's here?'&&!!card.d&&!card.g,JSON.stringify(card).slice(0,140));
+    ok(t+"What's here? card",card.n==="What's here?"&&!!card.d&&!card.g,JSON.stringify(card).slice(0,140));
     ok(t+'no JS errors',!errs.length,errs[0]||'');await ctx.close()}
   await b.close()}
 console.log(pass+'/'+(pass+fail));
