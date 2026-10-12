@@ -4,7 +4,7 @@
 window.LENS_CONFIG={
   title:'LiDAR Lens - Wiltshire',
   pageTitle:'LiDAR Lens - Wiltshire',
-  link:{text:'lidarlens.sarsen.org',href:'https://lidarlens.sarsen.org'},
+  link:{text:'lidar-lens-public.tim-daw.workers.dev',href:'https://lidar-lens-public.tim-daw.workers.dev/'},
   areaName:'Wiltshire',
   private:false,                                   // true shows "(private)" on the controls
   repoUrl:'https://github.com/TimDaw37/lidar-lens',

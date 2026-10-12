@@ -9,7 +9,7 @@ A lightweight web viewer for 1 m LiDAR terrain models, built for spotting and ch
 
 Everything is static files: the viewer, terrain tiles as lossless WebP (Terrarium encoding) and small JSON layer chunks. They can be hosted on a Cloudflare R2 bucket behind a tiny Worker, which can password-protect the site or serve it publicly. A county-sized site (~3,800 km², ~142k tiles, ~3.2 GB) fits inside Cloudflare's free tier.
 
-Example: Wiltshire (public version planned at lidarlens.sarsen.org).
+Example: Wiltshire, live at https://lidar-lens-public.tim-daw.workers.dev/
 
 ## Repository layout
 | Path | What |
