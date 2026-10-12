@@ -25,7 +25,8 @@ html=html.replace(/<script src="compat\.js"><\/script>\s*<script src="config\.js
 let pre='';if(cfg){const c=fs.readFileSync(cfg,'utf8');const m=c.match(/url:\s*'(https:\/\/[^/'{]+)/);if(m)pre='<link rel="preconnect" href="'+m[1]+'">\n';
   const h=c.match(/link:\{[^}]*href:'(https:[^']+)'/);if(h)pre+='<link rel="canonical" href="'+h[1]+'">\n<meta property="og:url" content="'+h[1]+'">\n';
   const tn=c.match(/toolName:\s*'((?:[^'\\]|\\.)*)'/);if(tn){const n=tn[1].replace(/\\'/g,"'").replace(/&/g,'&amp;');html=html.split('What is it?').join(n)}
-  fs.copyFileSync(cfg,OUT+'/config.js')}
+  const cfgName='config.'+hash(c)+'.js';fs.writeFileSync(OUT+'/assets/'+cfgName,c);fs.copyFileSync(cfg,OUT+'/config.js');
+  html=html.replace('<script defer src="config.js"></script>','<script defer src="assets/'+cfgName+'"></script>')}
 html=html.replace('<title>',pre+'<title>');fs.writeFileSync(OUT+'/index.html',html.replace(/\n\s*\n/g,'\n'));
 const sz=f=>(fs.statSync(OUT+'/'+f).size/1024).toFixed(0)+' KB';
 console.log('dist/index.html',sz('index.html'),'| assets/'+jsName,sz('assets/'+jsName),'| assets/'+cssName,sz('assets/'+cssName),'| assets/'+compatName,sz('assets/'+compatName));

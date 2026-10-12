@@ -8,6 +8,11 @@
   var modern=!!(window.fetch&&window.Promise&&window.Map&&window.URL&&Array.from&&window.requestAnimationFrame);
   window.__lensCompat={modern:modern};
   if(!modern){note('This browser is too old to run the LiDAR Lens. Please use an up-to-date Chrome, Firefox, Edge, Safari (iOS 12 or later) or Samsung Internet.');return}
+  // Phones keep tabs alive for days: when the tab comes back, check whether a newer build is live and reload
+  // (the view is kept in the URL hash). At most once every 10 minutes; production build only.
+  var last=0;document.addEventListener('visibilitychange',function(){if(document.visibilityState!=='visible'||Date.now()-last<600000)return;last=Date.now();
+    var ids=function(t){return (t.match(/assets\/[a-z]+\.[0-9a-f]{8}\.js/g)||[]).join()};var mine=ids(document.documentElement.innerHTML);if(!mine||!window.fetch)return;
+    fetch(location.pathname,{cache:'no-store'}).then(function(r){return r.text()}).then(function(h){var n=ids(h);if(n&&n!==mine)location.reload()})['catch'](function(){})});
   // LiDAR tiles are lossless WebP (Safari 14+, all current browsers). Check once and explain if unsupported.
   var im=new Image();im.onload=function(){if(im.width!==1){window.__lensCompat.webp=false;fail()}else window.__lensCompat.webp=true};im.onerror=function(){window.__lensCompat.webp=false;fail()};
   function fail(){note('This browser cannot decode WebP images, so the LiDAR layer cannot be shown (the background maps still work). Safari needs iOS/macOS 14 or later.')}

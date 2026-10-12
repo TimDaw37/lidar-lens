@@ -68,6 +68,7 @@ export default {
     if (key.includes("..") || key.includes("\\") || key.length > 300) return plain(env, isPrivate, "Bad path", 400);
     // Never serve HER data, tests or key-like files, whatever the bucket holds.
     if (/(^|\/)(her|tests?|private)(\/|$)|\.(key|pem|env|p12)$|(^|\/)\./i.test(key)) return plain(env, isPrivate, "Not found", 404);
+    const rel = key; // path as requested, before any SITE_PREFIX mapping (used for cache rules)
     if (env.SITE_PREFIX) { // strict allowlist mode for a public Worker sharing a bucket
       if (env.SHARED && new RegExp(env.SHARED).test(key)) { /* shared tiles / open layers: key unchanged */ }
       else key = env.SITE_PREFIX + key;
@@ -75,7 +76,7 @@ export default {
 
     // Public mode: serve repeat requests for never-changing files from the Cloudflare edge cache (custom domains only;
     // the Cache API is a no-op on workers.dev). Cuts R2 reads and absorbs bursts.
-    const immutable = key.startsWith("assets/") || key.startsWith("tiles/") || key.startsWith("terrain/") || (key.startsWith("layers/") && !key.endsWith("index.json"));
+    const immutable = rel.startsWith("assets/") || rel.startsWith("tiles/") || rel.startsWith("terrain/") || (rel.startsWith("layers/") && !rel.endsWith("index.json"));
     const useEdge = !isPrivate && immutable && request.method === "GET" && !request.headers.get("range");
     const cache = caches.default, cacheKey = new Request(url.origin + "/" + key, { method: "GET" });
     if (useEdge) { const hit = await cache.match(cacheKey); if (hit) return hit; }
@@ -90,8 +91,8 @@ export default {
     if (TYPES[ext]) headers.set("Content-Type", TYPES[ext]);
     const scope = isPrivate ? "private" : "public";
     // assets/ have content-hashed names; tiles and chunks never change in place -> long cache. Everything else revalidates.
-    headers.set("Cache-Control", key.startsWith("assets/") ? scope + ", max-age=31536000, immutable"
-      : immutable ? scope + ", max-age=2592000, immutable" : scope + ", no-cache");
+    headers.set("Cache-Control", rel.startsWith("assets/") ? scope + ", max-age=31536000, immutable"
+      : immutable ? scope + ", max-age=2592000, immutable" : scope + ", no-cache, must-revalidate");
     secure(headers, env, isPrivate);
     const origin = request.headers.get("Origin");
     if (env.ALLOW_ORIGIN) { // only needed if the viewer is hosted on a different origin
