@@ -63,4 +63,8 @@ $('about').insertAdjacentHTML('beforeend','<br><br>Code and replication protocol
 if(map.attributionControl)map.attributionControl.addAttribution('<a href="'+REPO+'" target="_blank" rel="noopener noreferrer">LiDAR Lens code</a>');
 if(innerWidth<700)document.querySelectorAll('#panel details.sec').forEach(d=>{d.open=/Tools/.test(d.querySelector('summary').textContent)});
 if(!LC.private){const t=$('privtag');if(t)t.remove()}
+{const n=LC.toolName||'What is it?';const a=$('helptn'),k=$('keytn');if(a)a.textContent=n;if(k)k.textContent=n+' on/off';LZ.updateToolButtons&&LZ.updateToolButtons()}
+// phone: collapse the credit line to a 'Credits' button
+{const ac=document.querySelector('.leaflet-control-attribution');if(ac){const wrap=()=>{if(!ac.querySelector('.credbtn')){const b=document.createElement('button');b.className='credbtn';b.type='button';b.setAttribute('aria-label','Show or hide map credits');b.textContent=ac.classList.contains('short')?'ⓘ Credits':'× hide';b.onclick=e=>{e.stopPropagation();ac.classList.toggle('short');b.textContent=ac.classList.contains('short')?'ⓘ Credits':'× hide'};ac.appendChild(b)}};
+  ac.classList.add('short');wrap();new MutationObserver(wrap).observe(ac,{childList:true})}}
 LZ.ui={showHelp,mark};})();

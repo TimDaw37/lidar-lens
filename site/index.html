@@ -51,8 +51,9 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 #card .hd .x{float:right;cursor:pointer;font-size:18px;line-height:16px;padding:0 2px}
 #card .hd small{color:#cbd5e1}
 #card .bd{padding:8px 10px}
+#card .desc{font-size:14px;line-height:1.35;margin:2px 0 6px;font-weight:500}#card .meas{display:flex;gap:8px;align-items:flex-start}#card .meas table{flex:1}#card details.heur{margin-top:8px;border:1px dashed #cbd5e1;border-radius:6px;padding:4px 8px}#card details.heur summary{cursor:pointer;font-size:12px;color:#475569;padding:4px 0}
 #card .guess{display:flex;gap:8px;align-items:flex-start}
-#card .guess canvas{width:120px;height:120px;border-radius:6px;flex:none;background:#eee}
+#card .meas canvas,#card .guess canvas{width:120px;height:120px;border-radius:6px;flex:none;background:#eee}
 #card .gt{font-size:14px;line-height:1.35}
 #card .conf{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;margin-top:4px;background:#e5e7eb}
 #card .conf.low{background:#fde68a}#card .conf.moderate{background:#bbf7d0}#card .conf.na{background:#e5e7eb}
@@ -81,6 +82,8 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 #panel.hide{display:none}body.panelhidden #toggle{display:block}
 @media (max-width:700px){#prof{top:auto;bottom:40px}}
 @media (max-width:700px){#prof{height:200px}#panel details.sec>summary{padding:8px 0}#swatches button{height:22px}}
+.leaflet-control-attribution .credbtn{display:none;border:0;background:none;color:#1d4ed8;font:inherit;cursor:pointer;padding:0}
+@media (max-width:700px){.leaflet-control-attribution.short{max-width:none;white-space:nowrap}.leaflet-control-attribution.short>*:not(.credbtn){display:none}.leaflet-control-attribution.short .credbtn{display:inline}.leaflet-control-attribution:not(.short) .credbtn{display:inline;margin-left:4px}}
 </style></head><body>
 <div id="map"></div>
 <canvas id="gl"></canvas>
@@ -127,7 +130,7 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
  <button id="lensreset" title="Recentre lens: put it back in the middle (C)" aria-label="Recentre lens">Recentre lens</button>
  </details>
  <details class="sec" open><summary>Tools</summary>
- <button id="whatis" aria-pressed="false" title="Click a spot for a best guess and nearby records (W)">What is it? (off)</button>
+ <button id="whatis" aria-pressed="false" title="Click a spot for measurements and nearby records (W)">What is it? (off)</button>
  <button id="profile" aria-pressed="false" title="Click two points to draw a height profile (P)">Elevation profile (off)</button>
  <button id="share" title="Copy a link to this exact view">Copy share link (this view)</button>
  <button id="reset" title="Reset all display settings">Reset to defaults</button>
@@ -145,9 +148,9 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 </div>
 <div id="help" role="dialog" aria-modal="false" aria-labelledby="helph" hidden><button class="x" id="helpx" aria-label="Close help">&times;</button><h2 id="helph">How to use the LiDAR Lens</h2>
 <p>The circle is a <b>lens</b> showing the 1 m LiDAR ground model over the aerial photo. Drag its rim or top grip to move it; drag the white dot to resize. Use <b>Go to</b> for a grid ref, postcode or place, or <b>Use my location</b>.</p>
-<p><b>What is it?</b> gives nearby records and a cautious automatic best guess for the spot you click. <b>Elevation profile</b>: click two points.</p>
+<p><b id="helptn">What is it?</b> shows the shape of the ground (measured from the LiDAR) and nearby records for the spot you click. <b>Elevation profile</b>: click two points.</p>
 <h3>Keyboard shortcuts</h3><table class="keys">
-<tr><td>1–8</td><td>Visualisation mode</td></tr><tr><td>W</td><td>What is it? on/off</td></tr><tr><td>P</td><td>Elevation profile on/off</td></tr>
+<tr><td>1–8</td><td>Visualisation mode</td></tr><tr><td>W</td><td id="keytn">What is it? on/off</td></tr><tr><td>P</td><td>Elevation profile on/off</td></tr>
 <tr><td>F</td><td>LiDAR full screen</td></tr><tr><td>S</td><td>Scheduled monuments</td></tr><tr><td>C</td><td>Recentre lens</td></tr><tr><td>/</td><td>Go to box</td></tr>
 <tr><td>H</td><td>Hide/show controls</td></tr><tr><td>?</td><td>This help</td></tr><tr><td>Esc</td><td>Close / tool off</td></tr></table></div>
 <div id="loading" role="status" aria-live="polite" hidden><span class="spin"></span><span id="loadt">Loading LiDAR…</span></div>

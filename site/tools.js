@@ -275,11 +275,25 @@ function thumb(cv,W,a){const n=W.n,mpp=W.mpp,span=Math.min(n,Math.round(120/mpp)
     const F=a&&!a.nodata&&a.foot;if(F&&F[k]){const e=Math.max(1,Math.round(span/S*2));const kk=[k-e,k+e,k-e*n,k+e*n];if(kk.some(q=>!F[q])){im.data[o]=255;im.data[o+1]=215;im.data[o+2]=0}}}
   g.putImageData(im,0,0);g.strokeStyle='#111';g.lineWidth=2;const c=S/2;g.beginPath();g.moveTo(c-9,c);g.lineTo(c-3,c);g.moveTo(c+3,c);g.lineTo(c+9,c);g.moveTo(c,c-9);g.lineTo(c,c-3);g.moveTo(c,c+3);g.lineTo(c,c+9);g.stroke();
   g.fillStyle='rgba(255,255,255,.85)';g.fillRect(4,S-20,92,16);g.fillStyle='#111';g.font='12px system-ui';g.fillText('LRM, 120 m wide',8,S-8);if(a&&!a.nodata&&a.foot){g.fillStyle='rgba(255,255,255,.85)';g.fillRect(S-112,S-20,108,16);g.fillStyle='#111';g.fillText('yellow = outline',S-108,S-8)}}
-let wiMk=null,wiSeq=0;const card=$('card');
+let wiMk=null,wiSeq=0;const card=$('card');const TN=LZ.LC.toolName||'What is it?',SHOWG=LZ.LC.showGuess!==false;
+const SRC=LZ.LC.recordSources||'NHLE (Historic England, scheduled + listed), HE Aerial Investigation & Mapping, OSM (community map)';
+function compass8(b){return ['N–S','NNE–SSW','NE–SW','ENE–WSW','E–W','ESE–WNW','SE–NW','SSE–NNW'][Math.round(((b%180)+180)%180/22.5)%8]}
+function q05(v){return Math.max(0.05,Math.round(v*20)/20)}
+function describe(a){if(a.nodata)return 'No LiDAR data here (outside the tile coverage or a data gap).';
+  if(a.H<0.1||a.eqD<3)return 'Relief under ~0.1 m: too subtle for a 1 m DTM to show; absence here does not mean nothing is there.';
+  const lo=q05(a.H*0.75),hi=q05(a.H*1.25),hs=v=>v<1?v.toFixed(2).replace(/0$/,''):v.toFixed(1);
+  const kind=a.sign>0?'raised':'sunken';const size=a.touches?'over more than ~60 m':(a.elong<1.5?'over ~'+Math.round(a.eqD)+' m':'over ~'+Math.round(a.len)+' × '+Math.round(a.wid)+' m');
+  const parts=['Local relief '+hs(lo)+'–'+hs(hi)+' m ('+kind+') '+size];
+  parts.push(a.elong<1.25?'roughly circular':a.elong<1.5?'slightly oval':(a.elong>3.2?'linear':'elongated')+' '+compass8(a.axisDeg));
+  parts.push(a.sl90>20?'steep, crisp edges':a.sl90>9?'moderate edges':'gentle, spread edges');
+  if(a.step>Math.max(0.3,0.8*a.H))parts.push('ground '+hs(a.step)+' m higher on one side (terrace-like step)');
+  if(a.sign<0&&a.rim>Math.max(0.12,0.2*a.H)&&a.rimFrac>=0.55)parts.push('raised rim on '+Math.round(a.rimFrac*100)+'% of sides');
+  if(a.regSlope>=3)parts.push('on ground sloping '+a.regSlope.toFixed(0)+'° to the '+compass(a.regAspect));
+  return parts.join('; ')+'.'}
 function closeCard(){card.style.display='none';if(wiMk){map.removeLayer(wiMk);wiMk=null}}
 const CTX_NAMES={building:'a building',wood:'woodland',water:'mapped water',stream:'a stream/drain',road:'a road',track:'a track/path',fieldedge:'a field edge',settled:'a settlement/farmyard',rail:'railway',embankment:'a mapped embankment'};
 async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L.circleMarker(ll,{radius:6,color:'#facc15',weight:3,fill:false,interactive:false}).addTo(map);
-  const [E,N]=ll2en(ll.lat,ll.lng);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>What is it?</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small></div><div class="bd">Looking at the LiDAR and records…</div>';
+  const [E,N]=ll2en(ll.lat,ll.lng);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small></div><div class="bd">Looking at the LiDAR and records…</div>';
   card.querySelector('.x').onclick=closeCard;
   const [W,D]=await Promise.all([dtmWindow(ll,100),dataNear(E,N,180)]);if(seq!==wiSeq)return;const CTX=D.ctx;
   const a=analyse(W);const elev=await LZ.heightAt(ll);
@@ -294,23 +308,25 @@ async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L
   else recLine=recs.length?'Not recorded at this spot (nearest record '+Math.round(recs[0].d)+' m away)':'Not recorded (nothing within 100 m)';
   const ctxList=Object.entries(ctx).filter(([k,v])=>v.d<=100).sort((x,y)=>x[1].d-y[1].d).slice(0,4).map(([k,v])=>v.d<1?(k==='wood'||k==='settled'||k==='water'?'in '+CTX_NAMES[k]:'on '+CTX_NAMES[k]):Math.round(v.d)+' m from '+CTX_NAMES[k]);
   const confTxt={low:'low confidence',moderate:'moderate confidence',na:''}[cls.conf];
-  let h='<div class="hd"><span class="x" title="close">&times;</span><b>What is it?</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':'')+'</small></div><div class="bd">';
+  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':'')+'</small></div><div class="bd">';
   const recRow=({f,d})=>{let h='';h+='<div class="rec"><span class="b '+f.s+'">'+f.s+'</span><b>'+esc(f.n||f.t||'(unnamed)')+'</b> <span class="m">&middot; '+(d<0.5?'here':Math.round(d)+' m')+'</span><div class="m">'+esc([f.t&&f.t!==f.n?f.t:'',f.p,f.s==='OSM'?'OSM '+f.id:f.s==='NHLE'||f.s==='LB'?'List entry '+f.id:f.s==='AIM'?'HE UID '+f.id:f.id].filter(Boolean).join(' · '))+
     (f.u?' &middot; <a href="'+esc(f.u)+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':'OSM')+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
   h+='<h3>Recorded within 30 m</h3><div class="m snap" style="font-size:11px;margin:-2px 0 4px">Records from the '+esc(HLL)+', NHLE, HE aerial mapping and OSM</div>';
   if(!near30.length)h+='<div class="m">Nothing in the '+esc(HL)+', NHLE, HE aerial mapping or OSM within 30 m'+(far.length?'':' (or within 100 m)')+'.</div>';
   near30.forEach(r=>{h+=recRow(r)});
   if(far.length)h+='<details class="more"><summary>+ '+far.length+' more within 100 m</summary>'+far.map(recRow).join('')+'</details>';
+  h+='<h3>Measured from the DTM</h3><div class="desc">'+esc(describe(a))+'</div><div class="meas">'+(a.nodata?'':'<canvas></canvas>');
   if(!a.nodata&&cls.kind!=='flat'){const rows=[['Form',(a.sign>0?'Mound / bank':'Hollow / ditch')+(a.touches?' (extends beyond 60 m)':'')],['Size',a.elong<1.5&&!a.touches?'~'+a.eqD.toFixed(0)+' m across (area '+Math.round(a.area)+' m²)':a.len.toFixed(0)+' x '+a.wid.toFixed(0)+' m, long axis '+Math.round(a.axisDeg)+'°'],
       [a.sign>0?'Height':'Depth',a.H.toFixed(2)+' m (vs. ground just outside)'],['Roundness','length/width '+a.elong.toFixed(2)+(a.rectness>0.86?', squarish':'')],['Profile',cls.prof+(a.sign<0&&a.rim>0.05?'; rim '+a.rim.toFixed(2)+' m on '+Math.round(a.rimFrac*100)+'% of sides':'')],
       ['Edges',cls.edges+' (90th pct slope '+a.sl90.toFixed(0)+'°)'],['Setting','ground slopes '+a.regSlope.toFixed(1)+'°'+(a.regSlope>1?' to the '+compass(a.regAspect):'')+(elev!=null?', '+elev.toFixed(0)+' m OD':'')],['Scale used','relief model σ '+a.sigm+' m']];
-    h+='<h3>Measured from the DTM</h3><table>'+rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')+'</table>'}
-  h+='<h3>Best guess</h3><div class="guess"><canvas></canvas><div><div class="gt"><b>Best guess:</b> '+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div></div></div>';
-  h+='<div class="ft">Automatic best guess from the shape of the 1 m EA DTM and mapped context; not a field identification, and it can be wrong. Records: '+esc(HLL)+', NHLE (scheduled, listed), HE Aerial Investigation &amp; Mapping, OSM (community map). Context: OS OpenMap Local, OSM.</div></div>';
-  card.innerHTML=h;card.querySelector('.x').onclick=closeCard;thumb(card.querySelector('canvas'),W,a);
-  LZ.lastWhatIs={cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
+    h+='<table>'+rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')+'</table>'}
+  h+='</div>';
+  if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
+  h+='<div class="ft">Measurements from the 1 m EA LiDAR DTM at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC)+'.</div></div>';
+  card.innerHTML=h;card.querySelector('.x').onclick=closeCard;{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
+  LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
 function compass(d){return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(d/45)%8]}
-LZ.toolHooks.whatis={click:whatIs,on(){loadData();msg('What is it? ON: click any spot (inside or outside the lens). Esc or the button turns it off.',3500)},off(){closeCard()}};
+LZ.toolHooks.whatis={click:whatIs,on(){loadData();msg(TN+' ON: click any spot (inside or outside the lens). Esc or the button turns it off.',3500)},off(){closeCard()}};
 $('whatis').onclick=()=>LZ.setTool('whatis');LZ.whatIs=whatIs;
 // ---- evaluation hook (used by the offline training harness; no UI effect) ----
 LZ.evalAt=async function(E,N,opts){const [la,lo]=en2ll(E,N);const ll=L.latLng(la,lo);const [W,D]=await Promise.all([dtmWindow(ll,100),dataNear(E,N,180)]);

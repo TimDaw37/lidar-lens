@@ -291,7 +291,7 @@ function setTool(t){if(t===tool)t=null;const prev=tool;tool=t;
   else if(prev==='profile'&&!t)msg('Elevation profile off',1200)}
 function updateToolButtons(){const pb=$('profile'),on=tool==='profile';pb.classList.toggle('on',on);pb.setAttribute('aria-pressed',on);
   pb.textContent=on?(profPts.length===1?'Elevation profile ON: click end point':'Elevation profile ON: click start point'):'Elevation profile (off)';
-  const wb=$('whatis');if(wb){const w=tool==='whatis';wb.classList.toggle('on',w);wb.setAttribute('aria-pressed',w);wb.textContent=w?'What is it? ON: click a spot':'What is it? (off)'}}
+  const wb=$('whatis');if(wb){const w=tool==='whatis';wb.classList.toggle('on',w);wb.setAttribute('aria-pressed',w);{const n=LC.toolName||'What is it?';wb.textContent=w?n+' ON: click a spot':n+' (off)'}}}
 function clearProfile(hideChart){profPts=[];profMk.forEach(m=>map.removeLayer(m));profMk=[];if(profLine){map.removeLayer(profLine);profLine=null}if(hideChart)$('prof').style.display='none'}
 $('profile').onclick=()=>setTool('profile');
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&tool){if(tool==='profile'&&profPts.length===1){/* cancel the half-drawn line and switch off */}setTool(null)}});

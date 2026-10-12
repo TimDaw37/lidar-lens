@@ -29,7 +29,7 @@ LENS_ROOT=build LENS_AREA=build/data/area_27700.geojson WORKERS=4 python scripts
 - Each tile is read back and checked after writing. Wiltshire took a few hours on 4 workers.
 - Then `LENS_ROOT=build LENS_AREA=… python scripts/overview_summary.py` builds the z8–11 overview tiles, the coverage/gaps GeoJSON and a SUMMARY.md. `python scripts/validate.py` spot-checks random tiles against the source.
 
-## 4. Build the "What is it?" layers (open data only)
+## 4. Build the "Shape & records" layers (open data only)
 Download open records for your area's bounding box (EPSG:27700):
 ```
 B="xmin ymin xmax ymax"
@@ -87,7 +87,8 @@ In `config.js`, set the title, `areaName`, `bounds` (from your tiles), `start`, 
 
 ## 9. Check it
 - Test Go to with a grid ref, a postcode and *Use my location* on a phone.
-- Try *What is it?* on a few known features (a scheduled barrow, a dew pond, a quarry).
+- Try *Shape & records* on a few known features (a scheduled barrow, a dew pond, a quarry) and a flat field; check the description reads sensibly and quiet spots say the relief is too subtle to show.
+- Keep `showGuess:false` for any public build: the measurements and records are facts; an automatic guess is not.
 - Check the "outside coverage" message and the private/public behaviour (401 without the password when private).
 
 ## 10. Please

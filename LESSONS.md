@@ -1,6 +1,6 @@
-# What is it? — lessons from a training round against recorded features
+# Shape heuristics — lessons from a training round against recorded features
 
-These general lessons come from testing the LiDAR Lens "What is it?" best guess against about 1,700 recorded monuments across one English county (Wiltshire). The records used were the Wiltshire and Swindon Historic Environment Record and Historic England's open data (scheduled monuments and Aerial Investigation & Mapping). No HER records, IDs or locations are published here; ask your own HER for access to its data. Credit: contains information from the Wiltshire and Swindon Historic Environment Record, © Wiltshire Council.
+These general lessons come from testing the LiDAR Lens "What is it?" best guess (since replaced in the public build by *Shape & records*, which shows measurements and records only) against about 1,700 recorded monuments across one English county (Wiltshire). The records used were the Wiltshire and Swindon Historic Environment Record and Historic England's open data (scheduled monuments and Aerial Investigation & Mapping). No HER records, IDs or locations are published here; ask your own HER for access to its data. Credit: contains information from the Wiltshire and Swindon Historic Environment Record, © Wiltshire Council.
 
 ## How it was tested
 - Each recorded feature became one test "click" at its recorded point, or at its centroid if it was mapped as a shape. Linear features like lynchets were clicked on the line, and enclosures and hillforts on their boundary. We also added random "nothing recorded" points.
@@ -19,3 +19,8 @@ These general lessons come from testing the LiDAR Lens "What is it?" best guess 
 
 ## Overall
 On held-out test clicks with LiDAR coverage, the share of best guesses matching the recorded class went from 27% to 29%. Round barrows went from 38% to 41% and dew ponds from 20% to 37%. Hollows are no longer misread as mounds. The guess is still an aid to looking, not an identification.
+
+
+## Outcome
+
+At ~29% agreement with recorded classes, an automatic guess is not reliable enough to show the public. The public build therefore shows only what the DTM measures, a neutral description of it, and nearby records. The heuristic survives only as an optional, collapsed "pointer" (`showGuess:true`) for private use.
