@@ -1,0 +1,11 @@
+{
+  "name": "lidar-lens",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "account_id": "<YOUR_CLOUDFLARE_ACCOUNT_ID>",
+  "workers_dev": true,
+  "r2_buckets": [{ "binding": "LENS_BUCKET", "bucket_name": "<YOUR_PRIVATE_BUCKET>" }]
+  // Private site:  npx wrangler secret put PASSWORD   (never put it in this file)
+  // Public site:   leave PASSWORD unset; optional var PUBLIC_INDEX = "1" to allow search engines
+}

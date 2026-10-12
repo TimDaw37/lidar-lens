@@ -1,0 +1,89 @@
+# Build a LiDAR Lens for your own area
+
+This walks through one county end to end. The worked example is Wiltshire + Swindon with a 1 km buffer: about 3,830 km², roughly 142,000 tiles, about 3.2 GB. Expect a day of mostly unattended processing.
+
+## 0. What you need
+- A Linux/macOS machine (or WSL) with Python 3.11+, about 30 GB free disk and a decent connection.
+- `pip install numpy rasterio geopandas shapely pyproj mercantile pillow requests osmium`
+- A free Cloudflare account (R2 + Workers). Node.js 20+ for `npx wrangler`.
+
+## 1. Define the area
+Make a single polygon in **EPSG:27700** (British National Grid), already buffered (1 km is good so features on the edge aren't cut). A county boundary from OS Boundary-Line (OGL) works well.
+```
+ogr2ogr -t_srs EPSG:27700 build/data/area_27700.geojson county.shp -where "NAME='My County'"
+# buffer 1 km (e.g. in QGIS, or geopandas: gdf.buffer(1000))
+```
+Also save a WGS84 copy of the outline as `site/coverage_outline.geojson` for the dashed boundary and the "outside coverage" message.
+
+## 2. Get the terrain model (DTM)
+- **England:** Environment Agency *LiDAR Composite DTM 1 m* (OGL). `scripts/build_tiles.py` downloads it directly from the EA WCS, one z12 web-mercator tile at a time, so you never hold the whole county.
+- **Wales:** NRW LiDAR on DataMapWales (OGL). **Scotland:** Scottish Remote Sensing Portal. **Northern Ireland and elsewhere:** any 1–2 m DTM GeoTIFF works. Replace `fetch()` in `build_tiles.py` with a read from your local mosaic (a GDAL VRT of the tiles is easiest).
+- Use the **DTM** (bare earth), not the DSM.
+
+## 3. Build the terrain tiles
+```
+LENS_ROOT=build LENS_AREA=build/data/area_27700.geojson WORKERS=4 python scripts/build_tiles.py
+```
+- Output: `build/tiles/{z}/{x}/{y}.webp`, z8–17, Terrarium encoding (height = R×256 + G + B/256 − 32768 m), heights quantised to 1/64 m, alpha 0 = no data, lossless WebP.
+- Resumable: progress is kept in `build/manifest.json`, so just rerun it after an interruption.
+- Each tile is read back and checked after writing. Wiltshire took a few hours on 4 workers.
+- Then `LENS_ROOT=build LENS_AREA=… python scripts/overview_summary.py` builds the z8–11 overview tiles, the coverage/gaps GeoJSON and a SUMMARY.md. `python scripts/validate.py` spot-checks random tiles against the source.
+
+## 4. Build the "What is it?" layers (open data only)
+Download open records for your area's bounding box (EPSG:27700):
+```
+B="xmin ymin xmax ymax"
+NHLE=https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer
+AIM=https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/HE_AIM_data/FeatureServer
+python scripts/fetch_arcgis.py $NHLE/6 build/raw/nhle_sched.geojson $B        # scheduled monuments
+python scripts/fetch_arcgis.py $NHLE/0 build/raw/nhle_listed_pts.geojson $B   # listed buildings
+python scripts/fetch_arcgis.py $AIM/0  build/raw/aim_detailed.geojson $B      # HE aerial mapping, detailed
+python scripts/fetch_arcgis.py $AIM/1  build/raw/aim_extents.geojson $B       # HE aerial mapping, extents
+```
+(Check the layer numbers on the service page; they occasionally change.)
+
+Next, OpenStreetMap context and historic features from a Geofabrik extract:
+```
+python scripts/extract_osm.py england-latest.osm.pbf build/raw/osm/osm_whatis.geojsonl
+```
+Then OS OpenMap Local shapefiles for your grid squares (OGL), unzipped under `build/raw/os/`.
+
+Finally, package everything into 5 km chunks:
+```
+python scripts/build_layer_chunks.py build/data/area_27700.geojson build/raw build/site/layers
+```
+**Local HER data:** HERs generally have no open licence. Don't include HER data in a public site. If your HER gives you permission for a *private* site, add `--include-her` (with `--her-guid` / `--her-prefix` for Heritage Gateway links) and add `'her'` to `layers.names` in the config. Links to HER and Heritage Gateway records are fine anywhere.
+
+## 5. OS grid accuracy (GB only)
+```
+BBOX="lat0,lat1,lng0,lng1" OSTN_OUT=build/site/data/ostn_grid.json python scripts/build_ostn_grid.py
+```
+This gives a ~100 KB grid that brings browser grid refs to OSTN15 accuracy (centimetres instead of ~2 m).
+
+## 6. Assemble the site
+```
+cp -r site/* build/site/ && cp configs/example.js build/site/config.js   # then edit config.js
+ln -s ../tiles build/site/terrain     # or copy
+```
+In `config.js`, set the title, `areaName`, `bounds` (from your tiles), `start`, `outline`, `geocoder.viewbox` and `private`. Test locally with `cd build/site && python -m http.server 8000`.
+
+## 7. Host on Cloudflare R2 + a Worker
+1. Create a **private** R2 bucket (don't enable public access). The Worker is the only way in.
+2. Upload: `CF_ACCOUNT_ID=… CLOUDFLARE_API_TOKEN=… R2_BUCKET=… python scripts/upload_r2.py build/site`. The token needs R2 edit rights only. For >100k files, `rclone` with R2's S3 API is faster.
+3. Worker: `cp worker/wrangler.example.jsonc worker/wrangler.jsonc`, fill in the account ID and bucket, then `cd worker && npx wrangler deploy`.
+4. **Private site:** `npx wrangler secret put PASSWORD` (Basic auth, any username; the password is never in code). **Public site:** leave PASSWORD unset. Set the var `PUBLIC_INDEX=1` if you want search engines to index the viewer.
+5. Optional custom domain (e.g. `lidarlens.example.org`): add it as a Worker custom domain in the Cloudflare dashboard.
+
+## 8. Costs (Cloudflare, 2026 free tier)
+- **R2:** 10 GB storage free (a county is ~3–4 GB), no egress fees, 1M writes/month free (one full upload ≈ 150k writes) and 10M reads/month free.
+- **Workers:** 100k requests/day free. One busy viewing session is a few hundred to a few thousand tile requests, and browsers cache tiles for 30 days.
+- A small group will almost certainly pay nothing. A popular public site might need Workers Paid (about $5/month).
+
+## 9. Check it
+- Test Go to with a grid ref, a postcode and *Use my location* on a phone.
+- Try *What is it?* on a few known features (a scheduled barrow, a dew pond, a quarry).
+- Check the "outside coverage" message and the private/public behaviour (401 without the password when private).
+
+## 10. Please
+- Don't publish lists or maps of *possible new sites*. Report them to your HER (nighthawking risk).
+- Credit the data providers (see README). Credit your HER if you use its records for anything, even summaries.

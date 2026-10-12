@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>LiDAR Lens</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<style>
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;background:#111}
+#map{position:absolute;inset:0}
+#gl{position:absolute;left:0;top:0;pointer-events:none;z-index:450}
+#lens{position:absolute;z-index:460;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.9),0 0 0 4px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.5);pointer-events:none;box-sizing:border-box}
+#lens svg.rim{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+#lens svg.rim circle{fill:none;stroke:rgba(255,255,255,0);stroke-width:18px;vector-effect:non-scaling-stroke;pointer-events:stroke;cursor:grab;touch-action:none}
+#lens svg.rim circle:hover{stroke:rgba(255,255,255,.28)}
+#lens.dragging svg.rim circle{cursor:grabbing;stroke:rgba(255,255,255,.35)}
+#lens .g{position:absolute;left:50%;top:-13px;transform:translateX(-50%);width:34px;height:22px;border-radius:11px;background:#fff;border:2px solid #333;cursor:grab;touch-action:none;box-sizing:border-box;pointer-events:auto;font:13px/18px system-ui;text-align:center;color:#333;user-select:none}
+#lens.dragging .g{cursor:grabbing}
+#lens.fs{box-shadow:none}#lens.fs svg.rim circle,#lens.fs .g{display:none}
+.tool-on #map,.tool-on #map .leaflet-interactive{cursor:crosshair}
+#lens .h{pointer-events:auto;position:absolute;width:22px;height:22px;right:calc(14.6% - 11px);bottom:calc(14.6% - 11px);border-radius:50%;background:#fff;border:2px solid #333;cursor:nwse-resize;touch-action:none;box-sizing:border-box}
+#lens .h::after{content:'';position:absolute;inset:5px;border-right:2px solid #333;border-bottom:2px solid #333}
+#lens.fs .h{display:none}
+#panel{position:absolute;z-index:1000;top:10px;right:10px;width:270px;max-height:calc(100% - 20px);overflow:auto;background:rgba(255,255,255,.96);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.4);font-size:13px;padding:8px 10px;box-sizing:border-box}
+#panel h1{font-size:14px;margin:0 0 4px}
+#panel label{display:block;margin:6px 0 1px;color:#333}
+#panel select,#panel input[type=range]{width:100%;box-sizing:border-box}
+#panel .row{display:flex;gap:6px;align-items:center}
+#panel .row>*{flex:1}
+#panel button{font-size:13px;padding:5px 6px;margin:2px 0;width:100%;cursor:pointer}
+#panel .v{float:right;color:#555;font-variant-numeric:tabular-nums}
+#panel small{color:#666}
+#panel details{margin-top:4px}
+#dial{width:90px;height:90px;touch-action:none;cursor:pointer;display:block;margin:2px auto}
+#toggle{position:absolute;z-index:1001;top:10px;right:10px;display:none;padding:8px 10px;font-size:14px;border-radius:6px;border:0;box-shadow:0 2px 6px rgba(0,0,0,.4);background:#fff}
+#prof{position:absolute;z-index:1000;left:10px;bottom:84px;width:min(560px,calc(100% - 20px));height:170px;background:rgba(255,255,255,.96);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.4);display:none}
+#prof canvas{width:100%;height:100%}
+#prof .x{position:absolute;right:6px;top:2px;cursor:pointer;font-size:16px}
+#msg{position:absolute;z-index:1002;left:50%;top:10px;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:6px 10px;border-radius:6px;font-size:13px;display:none;max-width:80%}
+#panel button.on{background:#f59e0b;color:#111;border:1px solid #b45309;font-weight:600}
+#titlebox{background:rgba(255,255,255,.96);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.4);padding:7px 9px;width:290px;box-sizing:border-box;font-size:13px}
+#titlebox h1{font-size:15px;margin:0;line-height:1.2}
+#titlebox .sub{font-size:12px;margin:1px 0 5px}#titlebox .sub a{color:#1d4ed8}
+#goto{display:flex;gap:4px}#goto input{flex:1;min-width:0;font-size:13px;padding:4px 6px;border:1px solid #bbb;border-radius:4px}
+#goto button{font-size:13px;padding:3px 7px;cursor:pointer;border:1px solid #bbb;border-radius:4px;background:#f3f4f6}
+#myloc{display:block;width:100%;margin-top:5px;font-size:13px;padding:6px 8px;cursor:pointer;border:1px solid #2563eb;border-radius:6px;background:#eff6ff;color:#1e3a8a;font-weight:600}#myloc:disabled{opacity:.6;cursor:wait}
+#gores{margin-top:4px;max-height:150px;overflow:auto;font-size:12px}#gores div{padding:3px 4px;border-radius:3px;cursor:pointer}#gores div:hover{background:#e5e7eb}#gores .err{color:#b91c1c;cursor:default}
+#where{background:rgba(255,255,255,.94);border-radius:6px;box-shadow:0 1px 6px rgba(0,0,0,.35);padding:3px 6px;font-size:12px;font-variant-numeric:tabular-nums;display:flex;gap:6px;align-items:center;max-width:calc(100vw - 30px)}
+#where b{font-weight:600}#where button{font-size:11px;padding:1px 6px;cursor:pointer}
+#card{position:absolute;z-index:1001;top:10px;right:292px;width:360px;max-height:calc(100% - 20px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.45);font-size:13px;display:none;box-sizing:border-box}
+#card .hd{background:#1f2937;color:#fff;padding:7px 10px;border-radius:10px 10px 0 0;position:sticky;top:0}
+#card .hd .x{float:right;cursor:pointer;font-size:18px;line-height:16px;padding:0 2px}
+#card .hd small{color:#cbd5e1}
+#card .bd{padding:8px 10px}
+#card .guess{display:flex;gap:8px;align-items:flex-start}
+#card .guess canvas{width:120px;height:120px;border-radius:6px;flex:none;background:#eee}
+#card .gt{font-size:14px;line-height:1.35}
+#card .conf{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;margin-top:4px;background:#e5e7eb}
+#card .conf.low{background:#fde68a}#card .conf.moderate{background:#bbf7d0}#card .conf.na{background:#e5e7eb}
+#card details.more summary{cursor:pointer;color:#1d4ed8;font-size:12px;padding:4px 0;min-height:24px}
+#card h3{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin:10px 0 4px}
+#card table{border-collapse:collapse;width:100%;font-size:12px}#card td{padding:2px 4px;border-top:1px solid #f1f5f9;vertical-align:top}#card td:first-child{color:#6b7280;white-space:nowrap;width:1%}
+#card .rec{padding:4px 0;border-top:1px solid #f1f5f9}#card .rec .b{display:inline-block;font-size:10px;font-weight:700;padding:0 4px;border-radius:3px;color:#fff;margin-right:4px}
+#card .b.HER{background:#7c3aed}#card .b.NHLE{background:#dc2626}#card .b.AIM{background:#0369a1}#card .b.OSM{background:#65a30d}#card .b.LB{background:#b45309}
+#card .rec .m{color:#4b5563;font-size:12px}#card a{color:#1d4ed8}
+#card .ft{font-size:11px;color:#6b7280;margin-top:8px}
+@media (max-width:700px){#myloc{min-height:44px;font-size:15px}#goto input,#goto button{min-height:36px;font-size:15px}#titlebox{width:min(290px,calc(100vw - 110px));padding:5px 7px}#titlebox h1{font-size:13px}#card{left:6px;right:6px;width:auto;top:auto;bottom:6px;max-height:62%}#where{font-size:11px}.leaflet-control-attribution{font-size:9px;max-width:70vw}#panel{width:min(270px,calc(100% - 20px));max-height:55%;top:auto;bottom:24px;right:10px}#panel.hide{display:none}#toggle{display:block}#prof{bottom:auto;top:56px;height:140px}}
+
+#panel .ph{display:flex;align-items:center;justify-content:space-between}#panel .ph h1{margin:0}
+#panel button.q{width:28px;height:28px;padding:0;border-radius:50%;font-weight:700;margin:0;flex:none}
+#panel details.sec{border-top:1px solid #e5e7eb;margin-top:6px;padding-top:4px}#panel details.sec>summary{font-weight:600;cursor:pointer;padding:4px 0;font-size:13px}
+#swatches{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}#swatches button{flex:1 0 30%;height:16px;min-width:0;padding:0;margin:0;border:2px solid transparent;border-radius:3px;cursor:pointer}#swatches button.sel{border-color:#111}
+#help{position:absolute;z-index:1003;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,calc(100% - 24px));max-height:calc(100% - 40px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.5);padding:12px 16px;font-size:13px;box-sizing:border-box}
+#help h2{font-size:16px;margin:0 0 6px}#help h3{font-size:13px;margin:10px 0 4px}#help .x{position:absolute;right:8px;top:6px;border:0;background:none;font-size:22px;cursor:pointer}
+#help table.keys td{padding:2px 8px 2px 0}#help table.keys td:first-child{font-weight:700;font-family:ui-monospace,monospace}
+#loading{position:absolute;z-index:1002;left:10px;bottom:34px;background:rgba(0,0,0,.75);color:#fff;padding:5px 9px;border-radius:6px;font-size:12px;display:flex;gap:6px;align-items:center}#loading[hidden]{display:none}
+.spin{width:12px;height:12px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp 0.8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+#status{position:absolute;z-index:1001;left:50%;bottom:34px;transform:translateX(-50%);background:#fef3c7;color:#78350f;border:1px solid #f59e0b;padding:6px 10px;border-radius:6px;font-size:13px;max-width:80%;text-align:center}
+:focus-visible{outline:3px solid #2563eb;outline-offset:1px}
+#prof{height:260px}
+#panel.hide{display:none}body.panelhidden #toggle{display:block}
+@media (max-width:700px){#prof{top:auto;bottom:40px}}
+@media (max-width:700px){#prof{height:200px}#panel details.sec>summary{padding:8px 0}#swatches button{height:22px}}
+</style></head><body>
+<div id="map"></div>
+<canvas id="gl"></canvas>
+<div id="lens"><svg class="rim" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="50"/></svg><div class="g" title="drag to move the lens">&#x2725;</div><div class="h" title="drag to resize"></div></div>
+<button id="toggle" aria-label="Show or hide controls (H)" title="Show or hide controls (H)">Controls</button>
+<div id="msg"></div>
+<div id="titlebox"><h1>LiDAR Lens</h1><div class="sub"><a href="#" target="_blank" rel="noopener noreferrer"></a></div>
+ <form id="goto" autocomplete="off"><input id="gotoq" type="search" placeholder="Go to: grid ref, E/N, lat,long, place, postcode" aria-label="Go to location"><button type="submit">Go</button><button type="button" id="gps" title="My location (device GPS)" aria-label="My location">&#x25CE;</button></form>
+ <button type="button" id="myloc" aria-label="Use my location">&#x1F4CD; Use my location</button>
+ <div id="gores"></div></div>
+<div id="where"><span id="wlab">Centre</span> <b id="wgr">-</b> <span id="wll"></span> <span id="wh"></span><button id="wcopy" title="Copy grid ref and lat/long">Copy</button></div>
+<div id="card"></div>
+<div id="prof"><span class="x" title="close">&times;</span><canvas id="profc"></canvas></div>
+<div id="panel" role="region" aria-label="Controls">
+ <div class="ph"><h1>Controls <small id="privtag">(private)</small></h1><button id="helpbtn" class="q" title="Help and keyboard shortcuts (?)" aria-label="Help and keyboard shortcuts" aria-expanded="false">?</button></div>
+ <details class="sec" open><summary>Visualisation</summary>
+ <label for="mode">Visualisation</label>
+ <select id="mode" title="How the LiDAR is drawn inside the lens (keys 1-8)">
+  <option value="0">Hillshade (single sun)</option>
+  <option value="1">Multi-direction hillshade</option>
+  <option value="2">Slope</option>
+  <option value="3">Local relief model (LRM)</option>
+  <option value="4">Sky-view factor / openness</option>
+  <option value="5">Aspect colour</option>
+  <option value="6">Red relief (LRM + slope)</option>
+  <option value="7">Combined (LRM colour x hillshade)</option>
+ </select>
+ <div id="sunbox"><label for="dial">Sun azimuth <span class="v" id="azv"></span></label>
+ <canvas id="dial" width="180" height="180" role="slider" tabindex="0" aria-label="Sun azimuth: drag or use arrow keys" title="Drag to set the sun direction (arrow keys when focused)"></canvas>
+ <label for="el">Sun elevation <span class="v" id="elv"></span></label><input type="range" id="el" min="5" max="80" step="1" title="Low sun picks out subtle earthworks"></div>
+ <label for="ve">Vertical exaggeration <span class="v" id="vev"></span></label><input type="range" id="ve" min="1" max="20" step="0.5" title="Exaggerates height differences">
+ <div id="radbox"><label for="rad">Radius (LRM / SVF) <span class="v" id="radv"></span></label><input type="range" id="rad" min="3" max="50" step="1" title="Feature size the relief model looks for, in metres"></div>
+ </details>
+ <details class="sec" open><summary>Lens &amp; appearance</summary>
+ <label for="ramp">Colour ramp</label>
+ <select id="ramp" title="Colour scale"><option value="grey">Grey</option><option value="greyinv">Grey (inverted)</option><option value="viridis">Viridis</option><option value="magma">Magma</option><option value="rdbu">Blue-white-red (diverging)</option><option value="terrain">Terrain</option><option value="cividis">Cividis</option></select>
+ <div id="swatches" role="group" aria-label="Colour ramp previews"></div>
+ <div class="row" style="margin-top:6px"><label style="margin:0" title="Stretch contrast to what is inside the lens"><input type="checkbox" id="auto"> Auto-stretch to lens</label></div>
+ <label for="ct">Contrast <span class="v" id="ctv"></span></label><input type="range" id="ct" min="0.25" max="5" step="0.05" title="Contrast">
+ <label for="gm">Gamma <span class="v" id="gmv"></span></label><input type="range" id="gm" min="0.3" max="3" step="0.05" title="Brightens or darkens mid-tones">
+ <label for="op">LiDAR opacity over aerial <span class="v" id="opv"></span></label><input type="range" id="op" min="0" max="1" step="0.05" title="See the aerial photo through the LiDAR">
+ <label for="ls">Lens size <span class="v" id="lsv"></span></label><input type="range" id="ls" min="150" max="600" step="10" title="Lens diameter in pixels">
+ <div class="row" style="margin-top:6px"><label style="margin:0" title="LiDAR over the whole map (F)"><input type="checkbox" id="fs"> LiDAR full screen</label></div>
+ <button id="lensreset" title="Put the lens back in the middle (C)">Reset lens position</button>
+ </details>
+ <details class="sec" open><summary>Tools</summary>
+ <button id="whatis" aria-pressed="false" title="Click a spot for a best guess and nearby records (W)">What is it? (off)</button>
+ <button id="profile" aria-pressed="false" title="Click two points to draw a height profile (P)">Elevation profile (off)</button>
+ <button id="share" title="Copy a link to this exact view">Copy share link (this view)</button>
+ <button id="reset" title="Reset all display settings">Reset to defaults</button>
+ </details>
+ <details class="sec"><summary>Overlays</summary>
+ <div class="row"><label style="margin:0" title="Outline scheduled monuments (S)"><input type="checkbox" id="sm"> Scheduled monuments</label></div>
+ </details>
+ <details class="sec"><summary>About / data</summary><small id="about"></small></details>
+</div>
+<div id="help" role="dialog" aria-modal="false" aria-labelledby="helph" hidden><button class="x" id="helpx" aria-label="Close help">&times;</button><h2 id="helph">How to use the LiDAR Lens</h2>
+<p>The circle is a <b>lens</b> showing the 1 m LiDAR ground model over the aerial photo. Drag its rim or top grip to move it; drag the white dot to resize. Use <b>Go to</b> for a grid ref, postcode or place, or <b>Use my location</b>.</p>
+<p><b>What is it?</b> gives nearby records and a cautious automatic best guess for the spot you click. <b>Elevation profile</b>: click two points.</p>
+<h3>Keyboard shortcuts</h3><table class="keys">
+<tr><td>1–8</td><td>Visualisation mode</td></tr><tr><td>W</td><td>What is it? on/off</td></tr><tr><td>P</td><td>Elevation profile on/off</td></tr>
+<tr><td>F</td><td>LiDAR full screen</td></tr><tr><td>S</td><td>Scheduled monuments</td></tr><tr><td>C</td><td>Reset lens position</td></tr><tr><td>/</td><td>Go to box</td></tr>
+<tr><td>H</td><td>Hide/show controls</td></tr><tr><td>?</td><td>This help</td></tr><tr><td>Esc</td><td>Close / tool off</td></tr></table></div>
+<div id="loading" role="status" aria-live="polite" hidden><span class="spin"></span><span id="loadt">Loading LiDAR…</span></div>
+<div id="status" role="status" aria-live="polite" hidden></div>
+<script src="config.js"></script>
+<script src="vendor/leaflet.js"></script>
+<script src="lens.js"></script>
+<script src="tools.js"></script>
+<script src="ui.js"></script>
+</body></html>

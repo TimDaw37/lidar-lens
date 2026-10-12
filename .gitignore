@@ -1,0 +1,13 @@
+wrangler.jsonc
+.wrangler/
+node_modules/
+build/
+site/config.js
+site/terrain/
+site/layers/
+site/data/
+.uploaded
+*.tif
+*.env
+.dev.vars
+__pycache__/
