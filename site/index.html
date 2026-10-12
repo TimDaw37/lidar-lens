@@ -77,6 +77,7 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 #status{position:absolute;z-index:1001;left:50%;bottom:34px;transform:translateX(-50%);background:#fef3c7;color:#78350f;border:1px solid #f59e0b;padding:6px 10px;border-radius:6px;font-size:13px;max-width:80%;text-align:center}
 :focus-visible{outline:3px solid #2563eb;outline-offset:1px}
 #prof{height:260px}
+#panel .key{font-size:11px;color:#444;margin:2px 0 4px;line-height:1.6}#panel .key span{display:inline-block;width:14px;height:3px;background:var(--c);vertical-align:middle;margin:0 3px 0 6px}#panel .key span:first-child{margin-left:0}
 #panel.hide{display:none}body.panelhidden #toggle{display:block}
 @media (max-width:700px){#prof{top:auto;bottom:40px}}
 @media (max-width:700px){#prof{height:200px}#panel details.sec>summary{padding:8px 0}#swatches button{height:22px}}
@@ -133,6 +134,12 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
  </details>
  <details class="sec"><summary>Overlays</summary>
  <div class="row"><label style="margin:0" title="Outline scheduled monuments (S)"><input type="checkbox" id="sm"> Scheduled monuments</label></div>
+ <div id="prowbox" class="row"><label style="margin:0" title="Public footpaths, bridleways and byways (working copy of the Definitive Map)"><input type="checkbox" id="prow"> Public rights of way</label></div>
+ <div id="prowkey" class="key" hidden><span style="--c:#d6336c"></span>Footpath <span style="--c:#2f9e44"></span>Bridleway <span style="--c:#e8590c"></span>Restricted byway <span style="--c:#1971c2"></span>Byway</div>
+ <div id="histbox"><label for="hist">Historic OS map</label>
+ <select id="hist" title="Old Ordnance Survey map from the National Library of Scotland, shown outside the lens"><option value="">None</option></select>
+ <label for="histop">Historic map opacity <span class="v" id="histopv"></span></label><input type="range" id="histop" min="0.1" max="1" step="0.05" value="0.8" title="Fade the historic map over the background"></div>
+ <small id="ovlnote">Overlays show outside the lens; the lens always shows LiDAR. Change the background with the layers button on the map.</small>
  </details>
  <details class="sec"><summary>About / data</summary><small id="about"></small></details>
 </div>

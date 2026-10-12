@@ -32,6 +32,30 @@ document.addEventListener('keydown',e=>{const t=e.target;if(e.ctrlKey||e.metaKey
   else if(k==='h'||k==='H'){const h=$('panel').classList.toggle('hide');document.body.classList.toggle('panelhidden',h)}
   else if(k==='?')showHelp(help.hidden);else if(k==='Escape'&&!help.hidden){showHelp(false)}else done=false;
   if(done&&k!=='Escape')e.preventDefault()});
+// ---- overlays: historic OS maps (NLS) + public rights of way (configurable per area) ----
+// Defaults cover all of Great Britain; the NLS 25-inch tiles are per county, so add them in the area config (see configs/wiltshire.js).
+const HIST=LC.historicMaps!==undefined?LC.historicMaps:[
+  {id:'6in',name:'Six-inch, 1888–1913',url:'https://mapseries-tilesets.s3.amazonaws.com/os/6inchsecond/{z}/{x}/{y}.png',minZoom:11,maxNativeZoom:17},
+  {id:'1in',name:'One-inch, 1885–1903',url:'https://mapseries-tilesets.s3.amazonaws.com/1inch_2nd_ed/{z}/{x}/{y}.png',minZoom:8,maxNativeZoom:16}];
+const NLS_ATTR='Historic map: <a href="https://maps.nls.uk/" target="_blank" rel="noopener noreferrer">Reproduced with the permission of the National Library of Scotland</a> (CC-BY)';
+const hs=$('hist'),hop=$('histop');let histL=null;
+if(!HIST.length)$('histbox').hidden=true;
+HIST.forEach(h=>{const o=document.createElement('option');o.value=h.id;o.textContent=h.name;hs.appendChild(o)});
+function setHist(id){if(histL){map.removeLayer(histL);histL=null}const h=HIST.find(x=>x.id===id);hop.disabled=!h;
+  if(h){histL=L.tileLayer(h.url,{maxZoom:20,minZoom:h.minZoom||0,maxNativeZoom:h.maxNativeZoom||17,opacity:+hop.value,attribution:h.attribution||NLS_ATTR,zIndex:5}).addTo(map);
+    if(h.minZoom&&map.getZoom()<h.minZoom)LZ.msg('Zoom in to see the '+h.name+' map (from zoom '+h.minZoom+')',3500)}}
+hs.onchange=()=>{setHist(hs.value);LZ.saveHashSoon()};hop.oninput=()=>{$('histopv').textContent=Math.round(hop.value*100)+'%';if(histL)histL.setOpacity(+hop.value);LZ.saveHashSoon()};
+const PROW=LC.prow||null;   // {url, attribution}: per-area rights of way GeoJSON (property t: 1 byway, 2 restricted byway, 3 bridleway, 4 footpath)
+const PCOL={1:'#1971c2',2:'#e8590c',3:'#2f9e44',4:'#d6336c'},PNAME={1:'Byway open to all traffic',2:'Restricted byway',3:'Bridleway',4:'Footpath'};let prowL=null,prowP=null;
+if(!PROW)$('prowbox').hidden=true;
+function setProw(on){$('prowkey').hidden=!on;if(!on){if(prowL)map.removeLayer(prowL);return}
+  if(prowL){prowL.addTo(map);return}LZ.msg('Loading rights of way…');
+  prowP=prowP||fetch(PROW.url).then(r=>r.json());prowP.then(g=>{prowL=L.geoJSON(g,{renderer:L.canvas({tolerance:6}),attribution:PROW.attribution,style:f=>({color:PCOL[f.properties.t]||'#d6336c',weight:3,opacity:.9,dashArray:f.properties.t===4?'6 4':null}),
+    onEachFeature:(f,l)=>l.bindPopup('<b>'+PNAME[f.properties.t]+'</b>'+(f.properties.r?'<br>'+f.properties.r.replace(/[<>&]/g,''):'')+'<br><small>Working copy of the Definitive Map; check the council\'s map before relying on it.</small>')});
+    if($('prow').checked)prowL.addTo(map);LZ.msg('',1)}).catch(()=>LZ.msg('Could not load rights of way',3000))}
+$('prow').onchange=e=>{setProw(e.target.checked);LZ.saveHashSoon()};
+window.__lensHashExtra=p=>{if(hs.value){p.set('hist',hs.value);p.set('histop',hop.value)}if($('prow').checked)p.set('prow',1)};
+{const H=LZ.H0||{};if(H.histop)hop.value=H.histop;$('histopv').textContent=Math.round(hop.value*100)+'%';if(H.hist&&HIST.some(x=>x.id===H.hist)){hs.value=H.hist;setHist(H.hist)}else setHist('');if(H.prow==='1'&&PROW){$('prow').checked=true;setProw(true)}}
 // public repo link (help, About, map footer)
 const REPO=LC.repoUrl||'https://github.com/TimDaw37/lidar-lens';const rl='<a href="'+REPO+'" target="_blank" rel="noopener noreferrer">GitHub</a>';
 help.insertAdjacentHTML('beforeend','<p style="margin-top:10px">Open source: the code and a step-by-step protocol to build your own LiDAR Lens for another area are on '+rl+'.</p>');

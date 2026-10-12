@@ -4,6 +4,7 @@ A lightweight web viewer for 1 m LiDAR terrain models, built for spotting and ch
 
 - **Go to**: grid ref, easting/northing, lat/long, postcode or place, plus *Use my location*.
 - **What is it?**: click a spot to see nearby open records (Historic England scheduled monuments, listed buildings, aerial mapping, OpenStreetMap), measurements of the feature from the terrain model, and a cautious automatic best guess.
+- **Backgrounds and overlays**: aerial photo, OpenTopoMap, historic OS maps (National Library of Scotland: 25-inch, six-inch, one-inch) with opacity, and public rights of way where the council's data is open. All configured per area.
 - **Elevation profile**, share links, keyboard shortcuts, and a mobile-friendly layout.
 
 Everything is static files: the viewer, terrain tiles as lossless WebP (Terrarium encoding) and small JSON layer chunks. They can be hosted on a Cloudflare R2 bucket behind a tiny Worker, which can password-protect the site or serve it publicly. A county-sized site (~3,800 km², ~142k tiles, ~3.2 GB) fits inside Cloudflare's free tier.
@@ -29,7 +30,7 @@ See **[PROTOCOL.md](PROTOCOL.md)**. In short: build tiles, build layers, copy a 
 
 ## Data and licences
 - Code: MIT (see LICENSE). Leaflet: BSD-2-Clause.
-- Terrain: Environment Agency LiDAR Composite DTM, Open Government Licence. Historic England NHLE and Aerial Investigation & Mapping data: OGL. OpenStreetMap: ODbL. OS OpenMap Local: OGL.
+- Terrain: Environment Agency LiDAR Composite DTM, Open Government Licence. Historic England NHLE and Aerial Investigation & Mapping data: OGL. OpenStreetMap: ODbL. OS OpenMap Local: OGL. Historic OS maps: National Library of Scotland, CC-BY. OpenTopoMap: CC-BY-SA. Wiltshire rights of way (example): Wiltshire Council, OGL v3.0, contains OS data © Crown copyright.
 - **Local Historic Environment Records (HERs) are not included and generally have no open licence.** Linking to HER and Heritage Gateway records is fine; republishing HER data is not without permission. Ask your HER.
 - The analysis lessons credit the Wiltshire and Swindon Historic Environment Record (© Wiltshire Council). No HER data is in this repository.
 

@@ -67,6 +67,12 @@ ln -s ../tiles build/site/terrain     # or copy
 ```
 In `config.js`, set the title, `areaName`, `bounds` (from your tiles), `start`, `outline`, `geocoder.viewbox` and `private`. Test locally with `cd build/site && python -m http.server 8000`.
 
+
+## 6b. Background maps and overlays (optional, per area in config.js)
+- **`basemaps`**: a list of `{id,name,url,maxNativeZoom,attribution}`. On a public site don't use `tile.openstreetmap.org`: the OSMF tile policy forbids heavy use. OpenTopoMap (CC-BY-SA, shows paths and contours) or a commercial/self-hosted OSM tile provider are safer, but check each provider's usage policy.
+- **`historicMaps`**: National Library of Scotland georeferenced OS maps. The default layers cover all of Great Britain: six-inch 1888–1913 and one-inch 1885–1903. The 25-inch 1890s–1920s tiles are per county, e.g. `.../25_inch/wiltshire/{z}/{x}/{y}.png`; find yours in the NLS Georeferenced Maps viewer (Overlay tab). NLS re-use terms: CC-BY. Credit "Reproduced with the permission of the National Library of Scotland" with a link to maps.nls.uk (the viewer does this automatically). For heavy traffic, NLS's supported route is the MapTiler Cloud API (free tier: 100k tiles/month for non-commercial use; needs a key).
+- **`prow`**: public rights of way GeoJSON from your council, if it is openly licensed. Many publish under OGL, e.g. Wiltshire's ArcGIS open data. `python scripts/fetch_prow.py …` (see the script header) makes a compact file. Credit the council and OS, and say it's a working copy, not the legal Definitive Map.
+
 ## 7. Host on Cloudflare R2 + a Worker
 1. Create a **private** R2 bucket (don't enable public access). The Worker is the only way in.
 2. Upload: `CF_ACCOUNT_ID=… CLOUDFLARE_API_TOKEN=… R2_BUCKET=… python scripts/upload_r2.py build/site`. The token needs R2 edit rights only. For >100k files, `rclone` with R2's S3 API is faster.

@@ -8,6 +8,14 @@ window.LENS_CONFIG={
   areaName:'Wiltshire',
   private:false,                                   // true shows "(private)" on the controls
   repoUrl:'https://github.com/TimDaw37/lidar-lens',
+  basemaps:[   // no tile.openstreetmap.org on a public site (OSMF tile policy); OpenTopoMap for paths/contours
+    {id:'sat',name:'Aerial (Esri World Imagery)',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',maxNativeZoom:19,attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics, GIS User Community'},
+    {id:'otm',name:'OpenTopoMap (paths, contours)',url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',maxNativeZoom:17,attribution:'Map: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA), data &copy; OpenStreetMap contributors, SRTM'}],
+  historicMaps:[
+    {id:'25in',name:'25-inch, 1890s–1920s',url:'https://mapseries-tilesets.s3.amazonaws.com/25_inch/wiltshire/{z}/{x}/{y}.png',minZoom:14,maxNativeZoom:18},
+    {id:'6in',name:'Six-inch, 1888–1913',url:'https://mapseries-tilesets.s3.amazonaws.com/os/6inchsecond/{z}/{x}/{y}.png',minZoom:11,maxNativeZoom:17},
+    {id:'1in',name:'One-inch, 1885–1903',url:'https://mapseries-tilesets.s3.amazonaws.com/1inch_2nd_ed/{z}/{x}/{y}.png',minZoom:8,maxNativeZoom:16}],
+  prow:{url:'prow.geojson',attribution:'Rights of way: Wiltshire Council (OGL v3.0), contains OS data &copy; Crown copyright 2026; working copy, not the legal Definitive Map'},
   tiles:{url:'terrain/{z}/{x}/{y}.webp',minzoom:8,maxzoom:17,crossOrigin:null},
   // herShort:'HER (2022 snapshot)',               // PRIVATE deployments only, with your HER's permission
   // herLong:'Wiltshire & Swindon HER (2022 snapshot, information only)',
