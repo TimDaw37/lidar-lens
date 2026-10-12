@@ -123,7 +123,7 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
  <label for="op">LiDAR opacity over aerial <span class="v" id="opv"></span></label><input type="range" id="op" min="0" max="1" step="0.05" title="See the aerial photo through the LiDAR">
  <label for="ls">Lens size <span class="v" id="lsv"></span></label><input type="range" id="ls" min="150" max="600" step="10" title="Lens diameter in pixels">
  <div class="row" style="margin-top:6px"><label style="margin:0" title="LiDAR over the whole map (F)"><input type="checkbox" id="fs"> LiDAR full screen</label></div>
- <button id="lensreset" title="Put the lens back in the middle (C)">Reset lens position</button>
+ <button id="lensreset" title="Recentre lens: put it back in the middle (C)" aria-label="Recentre lens">Recentre lens</button>
  </details>
  <details class="sec" open><summary>Tools</summary>
  <button id="whatis" aria-pressed="false" title="Click a spot for a best guess and nearby records (W)">What is it? (off)</button>
@@ -141,7 +141,7 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 <p><b>What is it?</b> gives nearby records and a cautious automatic best guess for the spot you click. <b>Elevation profile</b>: click two points.</p>
 <h3>Keyboard shortcuts</h3><table class="keys">
 <tr><td>1–8</td><td>Visualisation mode</td></tr><tr><td>W</td><td>What is it? on/off</td></tr><tr><td>P</td><td>Elevation profile on/off</td></tr>
-<tr><td>F</td><td>LiDAR full screen</td></tr><tr><td>S</td><td>Scheduled monuments</td></tr><tr><td>C</td><td>Reset lens position</td></tr><tr><td>/</td><td>Go to box</td></tr>
+<tr><td>F</td><td>LiDAR full screen</td></tr><tr><td>S</td><td>Scheduled monuments</td></tr><tr><td>C</td><td>Recentre lens</td></tr><tr><td>/</td><td>Go to box</td></tr>
 <tr><td>H</td><td>Hide/show controls</td></tr><tr><td>?</td><td>This help</td></tr><tr><td>Esc</td><td>Close / tool off</td></tr></table></div>
 <div id="loading" role="status" aria-live="polite" hidden><span class="spin"></span><span id="loadt">Loading LiDAR…</span></div>
 <div id="status" role="status" aria-live="polite" hidden></div>
