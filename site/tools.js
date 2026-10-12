@@ -295,12 +295,13 @@ const CTX_NAMES={building:'a building',wood:'woodland',water:'mapped water',stre
 async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L.circleMarker(ll,{radius:6,color:'#facc15',weight:3,fill:false,interactive:false}).addTo(map);
   const [E,N]=ll2en(ll.lat,ll.lng);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small></div><div class="bd">Looking at the LiDAR and records…</div>';
   card.querySelector('.x').onclick=closeCard;
-  const [W,D]=await Promise.all([dtmWindow(ll,100),dataNear(E,N,180)]);if(seq!==wiSeq)return;const CTX=D.ctx;
+  const HA=LZ.LC.herApi;const herP=HA?fetch(HA.url+'?e='+Math.round(E)+'&n='+Math.round(N),{credentials:'same-origin'}).then(r=>r.ok?r.json():{r:[],err:r.status}).catch(()=>({r:[],err:1})):Promise.resolve(null);
+  const [W,D,HJ]=await Promise.all([dtmWindow(ll,100),dataNear(E,N,180),herP]);if(seq!==wiSeq)return;const CTX=D.ctx;
   const a=analyse(W);const elev=await LZ.heightAt(ll);
   const ref=a.nodata?[E,N]:ll2en(a.centreLL.lat,a.centreLL.lng);
   const ctx={};for(const k in CTX){const r=nearest(CTX[k],ref[0],ref[1],150);if(r)ctx[k]=r}
   const cls=classify(a,ctx,elev==null?0:elev);
-  const recs=recordsNear(D.recs,E,N,100);const featR=a.nodata||cls.kind==='flat'?12:Math.max(12,(a.len||0)/2);
+  const recs=recordsNear(D.recs,E,N,100);if(HJ&&HJ.r){for(const r of HJ.r)recs.push({f:{s:'HER',id:r.id,n:r.n,t:r.t,u:r.u},d:r.d});recs.sort((x,y)=>x.d-y.d)}const featR=a.nodata||cls.kind==='flat'?12:Math.max(12,(a.len||0)/2);
   const atSpot=recs.filter(r=>r.d<=featR);
   let recLine;const official=atSpot.filter(r=>r.f.s!=='OSM');
   if(official.length){const r=official[0].f;recLine='Recorded here: '+esc(r.n||r.t)+' ('+r.s+' '+esc(r.id)+')'}
@@ -315,6 +316,10 @@ async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L
   if(!near30.length)h+='<div class="m">Nothing in the '+esc(HL)+', NHLE, HE aerial mapping or OSM within 30 m'+(far.length?'':' (or within 100 m)')+'.</div>';
   near30.forEach(r=>{h+=recRow(r)});
   if(far.length)h+='<details class="more"><summary>+ '+far.length+' more within 100 m</summary>'+far.map(recRow).join('')+'</details>';
+  if(HJ&&HJ.err)h+='<div class="m" style="font-size:11px">HER lookup unavailable just now'+(HJ.err===429?' (too many lookups; wait a minute)':'')+'.</div>';
+  if(LZ.LC.herLinks&&LZ.LC.herLinks.length){const gr=gridRef(E,N).replace(/\s+/g,''),dl=0.0027,dg=0.0043,v={e:Math.round(E),n:Math.round(N),gr,lat:ll.lat.toFixed(5),lng:ll.lng.toFixed(5),lat1:(ll.lat+dl).toFixed(5),lng1:(ll.lng-dg).toFixed(5),lat2:(ll.lat-dl).toFixed(5),lng2:(ll.lng+dg).toFixed(5)};
+    const fill=t=>t.replace(/\{(\w+)\}/g,(m,k)=>k in v?encodeURIComponent(v[k]):m);
+    h+='<div class="herlinks" style="margin-top:6px;font-size:13px">'+LZ.LC.herLinks.map(L=>'<a href="'+esc(fill(L.url))+'" target="_blank" rel="noopener noreferrer">'+esc(L.label)+' &#x2197;</a>'+(L.note?' <span class="m" style="font-size:11px">('+esc(fill(L.note).replace(/%20/g,' '))+')</span>':'')).join(' &middot; ')+'</div>'}
   h+='<h3>Measured from the DTM</h3><div class="desc">'+esc(describe(a))+'</div><div class="meas">'+(a.nodata?'':'<canvas></canvas>');
   if(!a.nodata&&cls.kind!=='flat'){const rows=[['Form',(a.sign>0?'Mound / bank':'Hollow / ditch')+(a.touches?' (extends beyond 60 m)':'')],['Size',a.elong<1.5&&!a.touches?'~'+a.eqD.toFixed(0)+' m across (area '+Math.round(a.area)+' m²)':a.len.toFixed(0)+' x '+a.wid.toFixed(0)+' m, long axis '+Math.round(a.axisDeg)+'°'],
       [a.sign>0?'Height':'Depth',a.H.toFixed(2)+' m (vs. ground just outside)'],['Roundness','length/width '+a.elong.toFixed(2)+(a.rectness>0.86?', squarish':'')],['Profile',cls.prof+(a.sign<0&&a.rim>0.05?'; rim '+a.rim.toFixed(2)+' m on '+Math.round(a.rimFrac*100)+'% of sides':'')],

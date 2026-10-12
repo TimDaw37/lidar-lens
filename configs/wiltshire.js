@@ -18,11 +18,19 @@ window.LENS_CONFIG={
   prow:{url:'prow.geojson',attribution:'Rights of way: Wiltshire Council (OGL v3.0), contains OS data &copy; Crown copyright 2026; working copy, not the legal Definitive Map'},
   toolName:'What\'s here?',                     // public: facts only
   showGuess:false,                                 // no heuristic best guess in the public build
-  recordSources:'NHLE scheduled + listed and HE Aerial Investigation & Mapping (Historic England, OGL; retrieved Oct 2026); OSM (ODbL, Oct 2026)',
+  recordSources:'Wiltshire & Swindon HER (Wiltshire Council, 2022 snapshot; IDs and links only, information only); NHLE scheduled + listed and HE Aerial Investigation & Mapping (Historic England, OGL; retrieved Oct 2026); OSM (ODbL, Oct 2026)',
   tiles:{url:'terrain/{z}/{x}/{y}.webp',minzoom:8,maxzoom:17,crossOrigin:null},
   // herShort:'HER (2022 snapshot)',               // PRIVATE deployments only, with your HER's permission
   // herLong:'Wiltshire & Swindon HER (2022 snapshot, information only)',
-  herShort:'local HER', herLong:'local HER (not included in this public version)',
+  herShort:'HER', herLong:'Wiltshire & Swindon HER (Wiltshire Council; IDs and links only)',
+  // HER: no HER data is hosted. The Worker's /api/her returns only ID, name, type and record link for records within
+  // 100 m of a click (rate limited); herLinks open outside searches at the clicked spot. Placeholders: {e} {n} {gr}
+  // {lat} {lng} and a ~600 m box {lat1},{lng1} (top-left) / {lat2},{lng2} (bottom-right).
+  herApi:{url:'api/her'},
+  herLinks:[
+    {label:'Search Wiltshire HER here',url:'https://services.wiltshire.gov.uk/HistoryEnvRecord/Home/Index',note:'enter Easting {e}, Northing {n}'},
+    {label:'Heritage Gateway',url:'https://historicengland.org.uk/listing/heritage-gateway/results/?q=&size=n_24_n&filters%5B0%5D%5Bfield%5D=layoutView&filters%5B0%5D%5Bvalues%5D%5B0%5D=map&filters%5B0%5D%5Btype%5D=all&filters%5B1%5D%5Bfield%5D=mapZoom&filters%5B1%5D%5Bvalues%5D%5B0%5D=16&filters%5B1%5D%5Btype%5D=all&filters%5B2%5D%5Bfield%5D=mapBoundsTopLeft&filters%5B2%5D%5Bvalues%5D%5B0%5D={lat1}%2C{lng1}&filters%5B2%5D%5Btype%5D=all&filters%5B3%5D%5Bfield%5D=mapBoundsBottomRight&filters%5B3%5D%5Bvalues%5D%5B0%5D={lat2}%2C{lng2}&filters%5B3%5D%5Btype%5D=all'}],
+
   scheduledOverlay:'scheduled_monuments.geojson',  // NHLE scheduled monuments (OGL), clipped to the area
   bounds:[[50.9360,-2.3799],[51.7121,-1.4712]],
   outline:'coverage_outline.geojson',
