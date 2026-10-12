@@ -2,6 +2,8 @@
 // Private mode: set the Worker secret PASSWORD (Basic auth, any username). Public mode: leave PASSWORD unset.
 // Optional vars: PUBLIC_INDEX="1" (allow search engines, public mode only), ALLOW_ORIGIN (one extra origin
 // allowed to read tiles cross-origin), CSP_CONNECT / CSP_IMG (extra space-separated hosts for the CSP).
+// Optional SITE_PREFIX (e.g. "public/"): serve viewer files from that prefix and only keys matching SHARED
+// (regex, e.g. "^(terrain/|layers/(rec|ctx)/)") unprefixed; everything else in the bucket is unreachable.
 // Optional binding RATE_LIMITER (Workers Rate Limiting API) to cap requests per IP. No secrets in this file.
 import { Buffer } from "node:buffer";
 const enc = new TextEncoder();
@@ -64,6 +66,12 @@ export default {
     let key; try { key = decodeURIComponent(url.pathname.slice(1)); } catch (e) { return plain(env, isPrivate, "Bad path", 400); }
     if (key === "" || key.endsWith("/")) key += "index.html";
     if (key.includes("..") || key.includes("\\") || key.length > 300) return plain(env, isPrivate, "Bad path", 400);
+    // Never serve HER data, tests or key-like files, whatever the bucket holds.
+    if (/(^|\/)(her|tests?|private)(\/|$)|\.(key|pem|env|p12)$|(^|\/)\./i.test(key)) return plain(env, isPrivate, "Not found", 404);
+    if (env.SITE_PREFIX) { // strict allowlist mode for a public Worker sharing a bucket
+      if (env.SHARED && new RegExp(env.SHARED).test(key)) { /* shared tiles / open layers: key unchanged */ }
+      else key = env.SITE_PREFIX + key;
+    }
 
     // Public mode: serve repeat requests for never-changing files from the Cloudflare edge cache (custom domains only;
     // the Cache API is a no-op on workers.dev). Cuts R2 reads and absorbs bursts.

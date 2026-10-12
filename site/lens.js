@@ -284,7 +284,7 @@ $('share').onclick=()=>{saveHash();const u=location.href;(navigator.clipboard?na
 // ---------- elevation profile ----------
 const ptile=new Map();
 function tileData(z,x,y){const k=z+'/'+x+'/'+y;if(ptile.has(k))return ptile.get(k);
-  const pr=new Promise(res=>{const im=new Image();if(CFG.xo)im.crossOrigin=CFG.xo;im.onload=()=>{const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(im,0,0);res(g.getImageData(0,0,256,256).data)};im.onerror=()=>res(null);im.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)});ptile.set(k,pr);return pr}
+  const pr=new Promise(res=>{const im=new Image();if(CFG.xo)im.crossOrigin=CFG.xo;im.onload=()=>{const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d',{willReadFrequently:true});if(!g)return res(null);g.drawImage(im,0,0);res(g.getImageData(0,0,256,256).data)};im.onerror=()=>res(null);im.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)});ptile.set(k,pr);return pr}
 async function heightAt(ll){const z=CFG.maxz,p=map.project(ll,z),x=Math.floor(p.x/256),y=Math.floor(p.y/256),d=await tileData(z,x,y);if(!d)return null;
   const i=Math.min(255,Math.floor(p.x-x*256)),j=Math.min(255,Math.floor(p.y-y*256)),o=(j*256+i)*4;if(d[o+3]<128)return null;return d[o]*256+d[o+1]+d[o+2]/256-32768}
 let tool=null,profPts=[],profLine=null,profMk=[];const toolHooks={};
