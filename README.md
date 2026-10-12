@@ -3,7 +3,7 @@
 A lightweight web viewer for 1 m LiDAR terrain models, built for spotting and checking earthworks (barrows, lynchets, enclosures, dew ponds, pits, hollow ways). It's a "lens" you drag over an aerial photo. Inside it you see the ground model in a choice of visualisations: hillshade, multi-direction hillshade, slope, local relief model, sky-view factor, red relief and more. It also has:
 
 - **Go to**: grid ref, easting/northing, lat/long, postcode or place, plus *Use my location*.
-- **Shape & records**: click a spot to see measurements of the ground there from the 1 m DTM (relief, size, roundness, orientation, edge steepness, slope), a short neutral description generated from those numbers, and nearby open records (Historic England scheduled monuments, listed buildings, aerial mapping, OpenStreetMap) with source and date. It does not guess what a feature is. Config: `toolName`, `showGuess` (default `false`; a private build can set `true` to add a collapsed heuristic pointer), `recordSources`.
+- **What's here?**: click a spot to see measurements of the ground there from the 1 m DTM (relief, size, roundness, orientation, edge steepness, slope), a short neutral description generated from those numbers, and nearby open records (Historic England scheduled monuments, listed buildings, aerial mapping, OpenStreetMap) with source and date. It does not guess what a feature is. Config: `toolName`, `showGuess` (default `false`; a private build can set `true` to add a collapsed heuristic pointer), `recordSources`.
 - **Backgrounds and overlays**: aerial photo, OpenTopoMap, historic OS maps (National Library of Scotland: 25-inch, six-inch, one-inch) with opacity, and public rights of way where the council's data is open. All configured per area.
 - **Elevation profile**, share links, keyboard shortcuts, and a mobile-friendly layout.
 
@@ -14,12 +14,12 @@ Example: Wiltshire, live at https://lidar-lens-public.tim-daw.workers.dev/
 ## Repository layout
 | Path | What |
 |---|---|
-| `site/` | Viewer: `index.html`, `lens.js` (WebGL renderer, lens, profile), `tools.js` (OS grid, Go to, Shape & records), `ui.js` (help, shortcuts, status), `vendor/` (Leaflet) |
+| `site/` | Viewer: `index.html`, `lens.js` (WebGL renderer, lens, profile), `tools.js` (OS grid, Go to, What's here?), `ui.js` (help, shortcuts, status), `vendor/` (Leaflet) |
 | `configs/` | One config per area. `wiltshire.js` is a worked example; `example.js` is a template. Copy one to `site/config.js` |
 | `scripts/build_tiles.py` | EA LiDAR Composite DTM 1 m (WCS) → Terrarium WebP XYZ tiles z8–17 for an area polygon; resumable |
 | `scripts/build_site.mjs` | Production build: minified, hashed, long-cached bundle in `dist/` |
-| `tests/compat.test.mjs` | Playwright checks in Chromium + Firefox (fallbacks, CSP, Shape & records) |
-| `scripts/build_layer_chunks.py` | Open records + context → 5 km chunks for *Shape & records* |
+| `tests/compat.test.mjs` | Playwright checks in Chromium + Firefox (fallbacks, CSP, What's here?) |
+| `scripts/build_layer_chunks.py` | Open records + context → 5 km chunks for *What's here?* |
 | `scripts/fetch_arcgis.py`, `scripts/extract_osm.py` | Download ArcGIS REST layers (NHLE, HE aerial mapping) and OSM features |
 | `scripts/build_ostn_grid.py` | Small OSTN15 correction grid for accurate OS grid refs in the browser |
 | `scripts/upload_r2.py` | Upload the built site to R2 (or use rclone) |

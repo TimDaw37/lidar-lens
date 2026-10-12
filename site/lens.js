@@ -280,7 +280,7 @@ function hashStr(){const c=map.getCenter(),ll=map.containerPointToLatLng(lensC);
   ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>p.set(k,S[k]));p.set('ramp',S.ramp);p.set('auto',S.auto?1:0);p.set('fs',S.fs?1:0);p.set('sm',S.sm?1:0);p.set('base',S.base);if(window.__lensHashExtra)window.__lensHashExtra(p);return p.toString()}
 let suppressHash=false;function saveHash(){if(suppressHash)return;try{history.replaceState(null,'','#'+hashStr())}catch(e){}}
 let hT=null;function saveHashSoon(){clearTimeout(hT);hT=setTimeout(saveHash,300)}
-$('share').onclick=()=>{saveHash();const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>msg('Link copied (the site still needs the password)',2500),()=>{prompt('Copy this link:',u)})};
+$('share').onclick=()=>{saveHash();const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>msg(LC.private===false?'Link copied':'Link copied (the site still needs the password)',2500),()=>{prompt('Copy this link:',u)})};
 // ---------- elevation profile ----------
 const ptile=new Map();
 function tileData(z,x,y){const k=z+'/'+x+'/'+y;if(ptile.has(k))return ptile.get(k);
