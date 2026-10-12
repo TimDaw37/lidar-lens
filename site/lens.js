@@ -33,7 +33,7 @@ const titleCtl=L.control({position:'topleft'});titleCtl.onAdd=()=>{const d=$('ti
 L.control.zoom({position:'topleft'}).addTo(map);
 L.control.layers(baseLayers,{},{position:'topleft'}).addTo(map);
 map.on('baselayerchange',e=>{S.base=e.layer._lensId;saveHash()});
-if(LC.outline){fetch(LC.outline).then(r=>r.json()).then(g=>L.geoJSON(g,{style:{color:'#fff',weight:1.5,dashArray:'4 4',fill:false},interactive:false}).addTo(map)).catch(()=>{})}else L.rectangle(CFG.bounds,{color:'#fff',weight:1,dashArray:'4 4',fill:false,interactive:false}).addTo(map);
+window.__outlineP=LC.outline?fetch(LC.outline).then(r=>r.json()):null;if(LC.outline){window.__outlineP.then(g=>L.geoJSON(g,{style:{color:'#fff',weight:1.5,dashArray:'4 4',fill:false},interactive:false}).addTo(map)).catch(()=>{})}else L.rectangle(CFG.bounds,{color:'#fff',weight:1,dashArray:'4 4',fill:false,interactive:false}).addTo(map);
 document.title=LC.pageTitle||LC.title;{const h=document.querySelector('#titlebox h1'),a=document.querySelector('#titlebox .sub a');if(h)h.textContent=LC.title;if(a&&LC.link){a.textContent=LC.link.text;a.href=LC.link.href}else if(a)a.parentNode.style.display='none'}
 L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
 const whereCtl=L.control({position:'bottomleft'});whereCtl.onAdd=()=>{const d=$('where');L.DomEvent.disableClickPropagation(d);return d};whereCtl.addTo(map);
@@ -96,7 +96,8 @@ function rampBytes(name){const st=(RAMPS[name]||RAMPS.grey).map(h=>[1,3,5].map(i
 let R=null; const forceCPU=/[?&]cpu=1/.test(location.search);
 function msg(t,ms){const m=$('msg');m.textContent=t;m.style.display=t?'block':'none';if(ms)setTimeout(()=>{if(m.textContent===t)m.style.display='none'},ms)}
 // ===== WebGL2 =====
-function makeGL(){const gl=cv.getContext('webgl2',{premultipliedAlpha:false,preserveDrawingBuffer:true,antialias:false,alpha:true});
+function glOK(){try{const t=document.createElement('canvas').getContext('webgl2');return !!(t&&t.getExtension('EXT_color_buffer_float'))}catch(e){return false}}
+function makeGL(){if(!glOK())return null;const gl=cv.getContext('webgl2',{premultipliedAlpha:false,preserveDrawingBuffer:true,antialias:false,alpha:true});
   if(!gl)return null; if(!gl.getExtension('EXT_color_buffer_float'))return null;
   const VS=`#version 300 es
 void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.0-1.0,0.0,1.0);}`;
@@ -216,7 +217,10 @@ function makeCPU(){const ctx=cv.getContext('2d');const mc=document.createElement
       ctx.globalAlpha=S.op;ctx.imageSmoothingEnabled=vw.sc<1;ctx.translate(-vw.tl[0],-vw.tl[1]);ctx.scale(vw.sc,vw.sc);ctx.drawImage(oc,vw.org[0]+box.x,vw.org[1]+box.y);ctx.restore()},
     clear(){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height)}}}
 try{if(!forceCPU)R=makeGL()}catch(e){console.error(e);R=null}
-if(!R){R=makeCPU();msg('WebGL2 float rendering not available: using slower CPU fallback',5000)}
+if(!R){try{R=makeCPU();if(!cv.getContext('2d'))throw new Error('no 2d')}catch(e){R=null}
+  if(R)msg('This browser has no WebGL2 float support: using the basic (slower) renderer. All modes still work.',6000);
+  else{const nop=()=>{};R={kind:'none',newMosaic:nop,putTile:nop,decode:nop,compute:nop,readBox:()=>null,draw:nop,clear:nop};
+    msg('This browser cannot draw the LiDAR (no WebGL or canvas). The background map, Go to and records still work; try an up-to-date Chrome, Firefox, Safari or Samsung Internet.',0)}}
 window.__lens={renderer:()=>R.kind,stretch:()=>lastStretch,S,map,CFG,LC,msg,lensState:()=>({c:lensC.slice(),ls:S.ls,fs:S.fs})};
 // ---------- render loop ----------
 let cvDpr=1,mosaicReady=false,pending=false,lastStretch=null;
@@ -226,7 +230,9 @@ function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=fal
   let missing=0;const imgs=need.map(([x,y,px,py])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t.failed)missing++}return im});
   MZ=want;R.newMosaic(want);need.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});R.decode(want);mosaicReady=true;
   {const ld=document.getElementById('loading');if(ld){ld.hidden=!missing;if(missing)document.getElementById('loadt').textContent='Loading LiDAR… ('+missing+' tiles)'}}requestRender(true)}
-let mosT=null;function scheduleMosaic(){clearTimeout(mosT);mosT=setTimeout(buildMosaic,60)}
+// tiles arrive in bursts: coalesce rebuilds (each one re-decodes the whole mosaic)
+let mosT=null,mosFirst=0;function scheduleMosaic(){clearTimeout(mosT);const now=performance.now();if(!mosFirst)mosFirst=now;
+  mosT=setTimeout(()=>{mosFirst=0;buildMosaic()},now-mosFirst>600?0:150)}
 function lensBox(vw){if(S.fs)return {x:0,y:0,w:MZ.w,h:MZ.h};const r=S.ls/2,m=3;
   const x0=Math.floor((vw.tl[0]+lensC[0]-r)/vw.sc-vw.org[0])-m,y0=Math.floor((vw.tl[1]+lensC[1]-r)/vw.sc-vw.org[1])-m,x1=Math.ceil((vw.tl[0]+lensC[0]+r)/vw.sc-vw.org[0])+m,y1=Math.ceil((vw.tl[1]+lensC[1]+r)/vw.sc-vw.org[1])+m;
   const X0=Math.max(0,x0),Y0=Math.max(0,y0),X1=Math.min(MZ.w,x1),Y1=Math.min(MZ.h,y1);return {x:X0,y:Y0,w:Math.max(1,X1-X0),h:Math.max(1,Y1-Y0)}}
@@ -237,7 +243,7 @@ function stretch(vw,box){const base=MODE_RANGE[S.mode];let lo=base[0],hi=base[1]
     if(vals.length>20){vals.sort((x,y)=>x-y);const q=p=>vals[Math.min(vals.length-1,Math.floor(p*vals.length))];lo=q(0.02);hi=q(0.98);
       if(DIVERGING(S.mode)){const m=Math.max(Math.abs(lo),Math.abs(hi),1e-3);lo=-m;hi=m}if(hi-lo<1e-6)hi=lo+1e-3}}
   const c=(lo+hi)/2,hw=(hi-lo)/2/S.ct;lastStretch=[c-hw,c+hw];return lastStretch}
-function render(){pending=false;if(!mosaicReady||!MZ){R.clear();return}const vw=view();const box=lensBox(vw);R.compute(MZ,vw,box);const [lo,hi]=stretch(vw,box);R.draw(vw,lo,hi);
+function render(){pending=false;if(R.kind==='none')return;if(!mosaicReady||!MZ){R.clear();return}const vw=view();const box=lensBox(vw);R.compute(MZ,vw,box);const [lo,hi]=stretch(vw,box);R.draw(vw,lo,hi);
   $('about').dataset.range=lo.toFixed(3)+' … '+hi.toFixed(3)}
 function requestRender(){if(!pending){pending=true;requestAnimationFrame(render)}}
 map.on('move',requestRender);map.on('moveend',()=>{scheduleMosaic();saveHash()});
@@ -261,7 +267,7 @@ $('reset').onclick=resetDefaults;window.__lens.reset=resetDefaults;
 $('toggle').onclick=()=>$('panel').classList.toggle('hide');
 if(window.innerWidth<700)$('panel').classList.add('hide');
 // sun dial
-const dial=$('dial'),dx=dial.getContext('2d');
+const dial=$('dial'),dx=dial.getContext('2d')||new Proxy({},{get:()=>()=>{},set:()=>true});
 function drawDial(){const w=dial.width,c=w/2,r=c-14;dx.clearRect(0,0,w,w);dx.lineWidth=3;dx.strokeStyle='#888';dx.beginPath();dx.arc(c,c,r,0,7);dx.stroke();
   dx.fillStyle='#333';dx.font='bold 20px system-ui';dx.textAlign='center';dx.textBaseline='middle';[['N',0],['E',90],['S',180],['W',270]].forEach(([t,a])=>{const q=a*Math.PI/180;dx.fillText(t,c+Math.sin(q)*(r-20),c-Math.cos(q)*(r-20))});
   const q=S.az*Math.PI/180;dx.strokeStyle='#f59e0b';dx.lineWidth=6;dx.beginPath();dx.moveTo(c,c);dx.lineTo(c+Math.sin(q)*r,c-Math.cos(q)*r);dx.stroke();

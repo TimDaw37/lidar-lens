@@ -67,6 +67,8 @@ ln -s ../tiles build/site/terrain     # or copy
 ```
 In `config.js`, set the title, `areaName`, `bounds` (from your tiles), `start`, `outline`, `geocoder.viewbox` and `private`. Test locally with `cd build/site && python -m http.server 8000`.
 
+**Production build (recommended for a public site):** `npm i && node scripts/build_site.mjs configs/your-area.js` writes `dist/`: one minified JS bundle and one CSS file with content-hashed names (`assets/app.<hash>.js`, served with a 1-year immutable cache), deferred scripts, a tiny ES5 `compat` shim (polyfills; explains old or WebP-less browsers) and a preconnect to your first basemap. Copy `dist/*` over `build/site/` before uploading. Transpiled for Safari/iOS 12+, Chrome 64+, Firefox 68+ (ESR), Samsung Internet 9+, Edge 79+. Cloudflare compresses text (Brotli/gzip) at the edge, so don't pre-compress.
+
 
 ## 6b. Background maps and overlays (optional, per area in config.js)
 - **`basemaps`**: a list of `{id,name,url,maxNativeZoom,attribution}`. On a public site don't use `tile.openstreetmap.org`: the OSMF tile policy forbids heavy use. OpenTopoMap (CC-BY-SA, shows paths and contours) or a commercial/self-hosted OSM tile provider are safer, but check each provider's usage policy.
@@ -78,7 +80,9 @@ In `config.js`, set the title, `areaName`, `bounds` (from your tiles), `start`, 
 2. Upload: `CF_ACCOUNT_ID=… CLOUDFLARE_API_TOKEN=… R2_BUCKET=… python scripts/upload_r2.py build/site`. The token needs R2 edit rights only. For >100k files, `rclone` with R2's S3 API is faster.
 3. Worker: `cp worker/wrangler.example.jsonc worker/wrangler.jsonc`, fill in the account ID and bucket, then `cd worker && npx wrangler deploy`.
 4. **Private site:** `npx wrangler secret put PASSWORD` (Basic auth, any username; the password is never in code). **Public site:** leave PASSWORD unset. Set the var `PUBLIC_INDEX=1` if you want search engines to index the viewer.
-5. Optional custom domain (e.g. `lidarlens.example.org`): add it as a Worker custom domain in the Cloudflare dashboard.
+5. Optional custom domain (e.g. `lidarlens.example.org`): add it as a Worker custom domain in the Cloudflare dashboard. On a custom domain the Worker also serves repeat tile/asset requests from Cloudflare's edge cache (public mode).
+6. **Security headers** are set by the Worker on every response: a Content-Security-Policy (scripts from your own origin only; no inline script or eval; images from https; fetches only to your origin, postcodes.io and Nominatim; add hosts with the vars `CSP_CONNECT` / `CSP_IMG` if your config uses others), HSTS, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (geolocation for your own page only), `X-Frame-Options: DENY`, COOP, and `Cross-Origin-Resource-Policy: same-origin` (other sites can't hot-link your tiles). CORS is off unless you set `ALLOW_ORIGIN` to one origin.
+7. **Abuse protection (public):** keep the `ratelimits` block in `wrangler.jsonc` (default 1,200 requests per IP per minute, which is generous for normal panning); over the limit gets HTTP 429. Also consider a Cloudflare budget alert.
 
 ## 8. Costs (Cloudflare, 2026 free tier)
 - **R2:** 10 GB storage free (a county is ~3–4 GB), no egress fees, 1M writes/month free (one full upload ≈ 150k writes) and 10M reads/month free.
@@ -88,6 +92,7 @@ In `config.js`, set the title, `areaName`, `bounds` (from your tiles), `start`, 
 ## 9. Check it
 - Test Go to with a grid ref, a postcode and *Use my location* on a phone.
 - Try *Shape & records* on a few known features (a scheduled barrow, a dew pond, a quarry) and a flat field; check the description reads sensibly and quiet spots say the relief is too subtle to show.
+- Browser check: `cd tests && npm i && npx playwright install chromium firefox && node compat.test.mjs http://localhost:8000/` (desktop, phone, no-WebGL2, no-canvas and old-browser runs in Chromium and Firefox).
 - Keep `showGuess:false` for any public build: the measurements and records are facts; an automatic guess is not.
 - Check the "outside coverage" message and the private/public behaviour (401 without the password when private).
 

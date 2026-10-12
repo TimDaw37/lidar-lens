@@ -1,0 +1,22 @@
+{
+  "name": "lidar-lens",
+  "version": "1.0.0",
+  "description": "LiDAR Lens viewer build tooling",
+  "scripts": {
+    "build": "node scripts/build_site.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TimDaw37/lidar-lens.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/TimDaw37/lidar-lens/issues"
+  },
+  "homepage": "https://github.com/TimDaw37/lidar-lens#readme",
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "private": true,
+  "type": "module"
+}

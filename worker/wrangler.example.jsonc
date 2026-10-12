@@ -5,7 +5,9 @@
   "compatibility_flags": ["nodejs_compat"],
   "account_id": "<YOUR_CLOUDFLARE_ACCOUNT_ID>",
   "workers_dev": true,
-  "r2_buckets": [{ "binding": "LENS_BUCKET", "bucket_name": "<YOUR_PRIVATE_BUCKET>" }]
+  "r2_buckets": [{ "binding": "LENS_BUCKET", "bucket_name": "<YOUR_BUCKET>" }],
+  // Optional per-IP rate limit (recommended for a public site); remove if not wanted.
+  "ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 1200, "period": 60 } }]
   // Private site:  npx wrangler secret put PASSWORD   (never put it in this file)
   // Public site:   leave PASSWORD unset; optional var PUBLIC_INDEX = "1" to allow search engines
 }

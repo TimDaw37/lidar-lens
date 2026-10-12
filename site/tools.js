@@ -82,7 +82,7 @@ updWhere(map.getCenter(),'Centre');
 $('wcopy').onclick=()=>{if(!wPos)return;const f=fmtPos(wPos),t=f.gr+' ('+f.ll+')';(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>msg('Copied: '+t,2000),()=>prompt('Copy:',t))};
 // ===================== GPS =====================
 let gpsMk=null,gpsAcc=null;
-let covPoly=null;if(LZ.LC.outline)fetch(LZ.LC.outline).then(r=>r.json()).then(g=>{covPoly=g}).catch(()=>{});
+let covPoly=null;if(window.__outlineP)window.__outlineP.then(g=>{covPoly=g}).catch(()=>{});
 function inRing(x,y,r){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const [xi,yi]=r[i],[xj,yj]=r[j];if(((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c}return c}
 function inCoverage(ll){const b=LZ.LC.bounds||(window.CFG&&CFG.bounds);if(b&&!(ll.lat>=b[0][0]&&ll.lat<=b[1][0]&&ll.lng>=b[0][1]&&ll.lng<=b[1][1]))return false;
   if(!covPoly)return true;const fs=covPoly.type==='FeatureCollection'?covPoly.features:[covPoly];

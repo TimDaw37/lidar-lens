@@ -17,6 +17,8 @@ Example: Wiltshire (public version planned at lidarlens.sarsen.org).
 | `site/` | Viewer: `index.html`, `lens.js` (WebGL renderer, lens, profile), `tools.js` (OS grid, Go to, Shape & records), `ui.js` (help, shortcuts, status), `vendor/` (Leaflet) |
 | `configs/` | One config per area. `wiltshire.js` is a worked example; `example.js` is a template. Copy one to `site/config.js` |
 | `scripts/build_tiles.py` | EA LiDAR Composite DTM 1 m (WCS) → Terrarium WebP XYZ tiles z8–17 for an area polygon; resumable |
+| `scripts/build_site.mjs` | Production build: minified, hashed, long-cached bundle in `dist/` |
+| `tests/compat.test.mjs` | Playwright checks in Chromium + Firefox (fallbacks, CSP, Shape & records) |
 | `scripts/build_layer_chunks.py` | Open records + context → 5 km chunks for *Shape & records* |
 | `scripts/fetch_arcgis.py`, `scripts/extract_osm.py` | Download ArcGIS REST layers (NHLE, HE aerial mapping) and OSM features |
 | `scripts/build_ostn_grid.py` | Small OSTN15 correction grid for accurate OS grid refs in the browser |
@@ -27,6 +29,10 @@ Example: Wiltshire (public version planned at lidarlens.sarsen.org).
 
 ## Quick start
 See **[PROTOCOL.md](PROTOCOL.md)**. In short: build tiles, build layers, copy a config, upload to R2, deploy the Worker.
+
+## Browser support
+
+Current Chrome, Edge, Firefox (incl. ESR), Safari and Samsung Internet. Rendering uses WebGL2 with float textures; without it the viewer switches to a slower canvas renderer (all modes still work), and if a device can't draw at all it says so and keeps the background maps, Go to and records working. LiDAR tiles are lossless WebP, so Safari before 14 (iOS 12–13) shows the maps but not the LiDAR, with a message.
 
 ## Data and licences
 - Code: MIT (see LICENSE). Leaflet: BSD-2-Clause.

@@ -12,7 +12,7 @@ sel.addEventListener('change',mark);const ms=$('mode');ms.addEventListener('chan
 // lens reset
 $('lensreset').onclick=()=>LZ.resetLens();
 // status: outside coverage / past useful zoom
-const B=LC.bounds;let poly=null;if(LC.outline)fetch(LC.outline).then(r=>r.json()).then(g=>{poly=g;upd()}).catch(()=>{});
+const B=LC.bounds;let poly=null;if(window.__outlineP)window.__outlineP.then(g=>{poly=g;upd()}).catch(()=>{});
 function inR(x,y,r){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const [xi,yi]=r[i],[xj,yj]=r[j];if(((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c}return c}
 function covers(ll){if(B&&!(ll.lat>=B[0][0]&&ll.lat<=B[1][0]&&ll.lng>=B[0][1]&&ll.lng<=B[1][1]))return false;if(!poly)return true;const fs=poly.type==='FeatureCollection'?poly.features:[poly];
   for(const f of fs){const g=f.geometry||f;const P=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];for(const p of P)if(inR(ll.lng,ll.lat,p[0])&&!p.slice(1).some(h=>inR(ll.lng,ll.lat,h)))return true}return false}
@@ -65,6 +65,6 @@ if(innerWidth<700)document.querySelectorAll('#panel details.sec').forEach(d=>{d.
 if(!LC.private){const t=$('privtag');if(t)t.remove()}
 {const n=LC.toolName||'What is it?';const a=$('helptn'),k=$('keytn');if(a)a.textContent=n;if(k)k.textContent=n+' on/off';LZ.updateToolButtons&&LZ.updateToolButtons()}
 // phone: collapse the credit line to a 'Credits' button
-{const ac=document.querySelector('.leaflet-control-attribution');if(ac){const wrap=()=>{if(!ac.querySelector('.credbtn')){const b=document.createElement('button');b.className='credbtn';b.type='button';b.setAttribute('aria-label','Show or hide map credits');b.textContent=ac.classList.contains('short')?'ⓘ Credits':'× hide';b.onclick=e=>{e.stopPropagation();ac.classList.toggle('short');b.textContent=ac.classList.contains('short')?'ⓘ Credits':'× hide'};ac.appendChild(b)}};
+{const ac=document.querySelector('.leaflet-control-attribution');if(ac){const wrap=()=>{if(!ac.querySelector('.credbtn')){const b=document.createElement('button');b.className='credbtn';b.type='button';b.title='Show or hide map credits';b.textContent=ac.classList.contains('short')?'ⓘ Credits':'× hide';b.onclick=e=>{e.stopPropagation();ac.classList.toggle('short');b.textContent=ac.classList.contains('short')?'ⓘ Credits':'× hide'};ac.appendChild(b)}};
   ac.classList.add('short');wrap();new MutationObserver(wrap).observe(ac,{childList:true})}}
 LZ.ui={showHelp,mark};})();
