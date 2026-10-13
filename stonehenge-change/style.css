@@ -1,0 +1,10 @@
+html,body,#map{margin:0;height:100%;background:#222}
+#panel{position:absolute;top:10px;right:10px;z-index:1000;background:rgba(255,255,255,.95);padding:10px 12px;border-radius:6px;font:13px/1.4 system-ui,sans-serif;width:290px;max-height:calc(100% - 40px);overflow:auto;box-shadow:0 1px 5px rgba(0,0,0,.4)}
+#panel h1{font-size:15px;margin:0 28px 6px 0}#panel p{margin:6px 0}
+#tog{position:absolute;top:6px;right:6px;border:0;background:none;font-size:18px;cursor:pointer}
+#panel.closed{width:auto;padding:4px 30px 4px 8px}#panel.closed #body{display:none}
+.op{display:block}.op input{width:100%}
+#leg{height:12px;background:linear-gradient(to right,#053061,#4393c3,#f7f7f7,#d6604d,#67001f);margin:4px 0 2px}
+.row{display:flex;justify-content:space-between;font-size:11px}.small{font-size:11px;color:#333}.links{font-size:12px}
+@media (max-width:600px){#panel{left:10px;right:10px;top:auto;bottom:24px;width:auto;max-height:45%}
+.leaflet-control-layers{font-size:11px}}

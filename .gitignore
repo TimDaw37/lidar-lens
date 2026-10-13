@@ -12,3 +12,5 @@ site/data/
 .dev.vars
 __pycache__/
 dist/
+stonehenge-change/*.jpg
+stonehenge-change/*.webp

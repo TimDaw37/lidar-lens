@@ -1,0 +1,20 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Stonehenge LiDAR change map, 2001 to 2021 · LiDAR Lens</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="How the ground surface around Stonehenge changed between the 2001 and 2021 Environment Agency LiDAR surveys, with hillshade, aerial imagery, historic OS maps and scheduled monuments.">
+<link rel="canonical" href="https://lidar-lens-public.tim-daw.workers.dev/stonehenge-change/">
+<link rel="stylesheet" href="vendor/leaflet.css"><link rel="stylesheet" href="style.css">
+</head><body><div id="map"></div>
+<div id="panel"><button id="tog" aria-expanded="true" title="Show/hide panel">☰</button>
+<div id="body"><h1>Stonehenge ground change, 2001–2021</h1>
+<p>This map compares two Environment Agency LiDAR surveys of the Stonehenge landscape, from 2001 and 2021. The coloured layer is the 2021 ground height minus the 2001 height. The surveys were lined up on roads and other hard surfaces, and the result was smoothed over 5 m.</p>
+<label class="op">Change layer opacity <span id="ov">60</span>%<input id="op" type="range" min="0" max="100" value="60"></label>
+<div id="leg"></div><div class="row"><span>10 cm lower</span><span>no change</span><span>10 cm higher</span></div>
+<p class="small">Blue areas are lower now and red areas are higher. The fine stripes left by ploughing in 2001 have gone where fields were put back to grass. No new earthworks show up. Changes of a few centimetres sit close to the limits of the data, so treat small patches with caution.</p>
+<label><input type="checkbox" id="mon"> Scheduled monuments (black outlines)</label>
+<p class="small">Use the box at top left to change the base map: LiDAR hillshade, Esri aerial photos (current or older Wayback releases) or historic Ordnance Survey maps from the National Library of Scotland. The 25-inch map shows from zoom 14. Wayback dates are release dates, not the dates the photos were taken.</p>
+<p class="small" id="xy"></p>
+<details><summary>Credits</summary><p class="small">LiDAR: Environment Agency (2001 survey; 2021 National LiDAR Programme), © Environment Agency, Open Government Licence v3. Scheduled monuments: © Historic England (National Heritage List for England), OGL v3. Aerial imagery: © Esri, Maxar, Earthstar Geographics and the GIS User Community. Historic maps: <a href="https://maps.nls.uk/" target="_blank" rel="noopener noreferrer">reproduced with the permission of the National Library of Scotland</a> (CC-BY). Map viewer: <a href="https://leafletjs.com/" target="_blank" rel="noopener noreferrer">Leaflet</a>. Area: SU1035 and SU1040 (E410000–415000, N135000–145000).</p></details>
+<p class="links"><a href="https://lidar-lens-public.tim-daw.workers.dev/" target="_blank" rel="noopener noreferrer">LiDAR Lens</a> · <a href="https://www.sarsen.org/" target="_blank" rel="noopener noreferrer">sarsen.org</a> · <a href="https://github.com/TimDaw37/lidar-lens" target="_blank" rel="noopener noreferrer">GitHub</a></p>
+</div></div>
+<script src="vendor/leaflet.js"></script><script src="app.js"></script></body></html>
