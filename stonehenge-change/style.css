@@ -8,3 +8,5 @@ html,body,#map{margin:0;height:100%;background:#222}
 .row{display:flex;justify-content:space-between;font-size:11px}.small{font-size:11px;color:#333}.links{font-size:12px}
 @media (max-width:600px){#panel{left:10px;right:10px;top:auto;bottom:24px;width:auto;max-height:45%}
 .leaflet-control-layers{font-size:11px}}
+#note{margin:0 28px 6px 0;padding:5px 7px;background:#fff3bf;border-left:3px solid #f08c00;font-size:12px}
+#panel.closed #note{margin:0;font-size:11px}
