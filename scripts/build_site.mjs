@@ -27,6 +27,7 @@ let pre='';if(cfg){const c=fs.readFileSync(cfg,'utf8');const m=c.match(/url:\s*'
   const tn=c.match(/toolName:\s*'((?:[^'\\]|\\.)*)'/);if(tn){const n=tn[1].replace(/\\'/g,"'").replace(/&/g,'&amp;');html=html.split('What is it?').join(n)}
   const cfgName='config.'+hash(c)+'.js';fs.writeFileSync(OUT+'/assets/'+cfgName,c);fs.copyFileSync(cfg,OUT+'/config.js');
   html=html.replace('<script defer src="config.js"></script>','<script defer src="assets/'+cfgName+'"></script>')}
+if(fs.existsSync(SITE+'/icons'))for(const f of fs.readdirSync(SITE+'/icons'))fs.copyFileSync(SITE+'/icons/'+f,OUT+'/'+f);   // favicon + manifest at the site root
 if(fs.existsSync(SITE+'/models.json'))fs.copyFileSync(SITE+'/models.json',OUT+'/models.json');
 html=html.replace('<title>',pre+'<title>');fs.writeFileSync(OUT+'/index.html',html.replace(/\n\s*\n/g,'\n'));
 const sz=f=>(fs.statSync(OUT+'/'+f).size/1024).toFixed(0)+' KB';
