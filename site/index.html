@@ -87,6 +87,13 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 @media (max-width:700px){.leaflet-control-attribution.short{max-width:none;white-space:nowrap}.leaflet-control-attribution.short>*:not(.credbtn){display:none}.leaflet-control-attribution.short .credbtn{display:inline}.leaflet-control-attribution:not(.short) .credbtn{display:inline;margin-left:4px}}
 .compat{position:fixed;left:8px;right:8px;top:8px;z-index:3000;background:#fff7ed;color:#7c2d12;border:1px solid #fdba74;border-radius:8px;padding:10px 34px 10px 12px;font:14px/1.4 system-ui,sans-serif}.compat button{position:absolute;right:6px;top:4px;border:0;background:none;font-size:20px;cursor:pointer}
 #lens:not([style]){visibility:hidden}
+
+#mcard{position:absolute;z-index:1001;left:50%;top:70px;transform:translateX(-50%);width:min(340px,calc(100vw - 24px));max-height:60vh;overflow:auto;background:rgba(20,23,28,.96);color:#eee;border:1px solid #ffd23f;border-radius:8px;padding:8px 12px;font:13px/1.35 system-ui,sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.5)}
+#mcard h3{margin:0 0 6px;font-size:14px;color:#ffd23f}#mcard .x{position:absolute;right:6px;top:4px;background:none;border:0;color:#ddd;font-size:20px;cursor:pointer}
+#mcard ul,.mlist{list-style:none;margin:0;padding:0}#mcard li,.mlist li{margin:0 0 7px}#mcard a,.mlist a{color:#9cc7ff}.j{color:#aab;font-size:12px}.ap{color:#ffd23f}
+.mlist{max-height:260px;overflow:auto;margin-top:4px}#mq{width:100%;box-sizing:border-box;margin-top:4px}details.sub2{margin:6px 0}details.sub2>summary{cursor:pointer;font-weight:600}
+.mpin span{display:block;width:22px;height:22px;border-radius:50%;background:#ffd23f;border:2px solid #222;box-sizing:border-box;color:#222;font:bold 11px/18px system-ui;text-align:center}
+@media (max-width:700px){#mcard{top:auto;bottom:30px;max-height:50vh}}
 </style></head><body>
 <div id="map"></div>
 <canvas id="gl"></canvas>
@@ -99,6 +106,7 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
  <div id="gores"></div></div>
 <div id="where"><span id="wlab">Centre</span> <b id="wgr">-</b> <span id="wll"></span> <span id="wh"></span><button id="wcopy" title="Copy grid ref and lat/long">Copy</button></div>
 <div id="card"></div>
+<div id="mcard" hidden></div>
 <div id="prof"><span class="x" title="close">&times;</span><canvas id="profc"></canvas></div>
 <div id="panel" role="region" aria-label="Controls">
  <div class="ph"><h1>Controls <small id="privtag">(private)</small></h1><button id="helpbtn" class="q" title="Help and keyboard shortcuts (?)" aria-label="Help and keyboard shortcuts" aria-expanded="false">?</button></div>
@@ -147,6 +155,12 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
  <label for="histop">Historic map opacity <span class="v" id="histopv"></span></label><input type="range" id="histop" min="0.1" max="1" step="0.05" value="0.8" title="Fade the historic map over the background"></div>
  <small id="ovlnote">Overlays show outside the lens; the lens always shows LiDAR. Change the background with the layers button on the map.</small>
  </details>
+ <details class="sec" open id="models"><summary>Models (<span id="mcount">…</span>)</summary>
+ <div class="row"><label style="margin:0" title="Show Tim's detailed models on the map"><input type="checkbox" id="mshow" checked> Show models on the map</label></div>
+ <small>Outlines and pins mark detailed models. Click or tap one to list everything there.</small>
+ <details class="sub2"><summary>Wiltshire-wide</summary><ul id="mcounty" class="mlist"></ul></details>
+ <details class="sub2"><summary>All models</summary><input id="mq" type="search" placeholder="Search models" aria-label="Search models"><ul id="mlist" class="mlist"></ul></details>
+ </details>
  <details class="sec"><summary>About / data</summary><small id="about"></small></details>
 </div>
 <div id="help" role="dialog" aria-modal="false" aria-labelledby="helph" hidden><button class="x" id="helpx" aria-label="Close help">&times;</button><h2 id="helph">How to use the LiDAR Lens</h2>
@@ -164,4 +178,5 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 <script src="lens.js"></script>
 <script src="tools.js"></script>
 <script src="ui.js"></script>
+<script src="models.js"></script>
 </body></html>

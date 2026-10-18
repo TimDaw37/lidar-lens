@@ -1,0 +1,719 @@
+{
+ "note": "Edit OSGB point [E,N] or bbox [W,S,E,N]; then run python scripts/models_wgs84.py. scope: site (on map) or county (Wiltshire-wide list). approx: location set by hand.",
+ "models": [
+  {
+   "id": "stonehenge-change",
+   "title": "Stonehenge LiDAR change map, 2001 to 2021",
+   "url": "https://lidar-lens-public.tim-daw.workers.dev/stonehenge-change/",
+   "job": "LiDAR change map",
+   "description": "Where the ground rose or fell between the 2001 and 2021 Environment Agency surveys, over historic maps and aerial photos.",
+   "geometry": {
+    "bbox": [
+     410001,
+     134987,
+     415001,
+     145012
+    ],
+    "latlngBounds": [
+     [
+      51.114089,
+      -1.858506
+     ],
+     [
+      51.204125,
+      -1.786662
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "square3d",
+   "title": "The unexplained lozenge near Stonehenge",
+   "url": "https://square3d.tim-daw.workers.dev/",
+   "job": "LiDAR 3D, single feature",
+   "description": "3D model of the shallow lozenge NNE of Stonehenge, with 2021 and 2001 surveys and cross-sections.",
+   "geometry": {
+    "point": [
+     412544,
+     142780
+    ],
+    "latlng": [
+     51.184114,
+     -1.821908
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "m3d-stonehenge",
+   "title": "Stonehenge landscape – 3D lidar",
+   "url": "https://monuments3d.tim-daw.workers.dev/stonehenge/",
+   "job": "LiDAR 3D landscape",
+   "description": "Stones, Avenue, Cursus and barrow groups in 3D; 2021 and 2001 surveys, scheduled monuments.",
+   "geometry": {
+    "bbox": [
+     410850,
+     140850,
+     413850,
+     143450
+    ],
+    "latlngBounds": [
+     [
+      51.166794,
+      -1.846202
+     ],
+     [
+      51.190109,
+      -1.803197
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "m3d-avebury",
+   "title": "Avebury, Silbury Hill and West Kennet – 3D lidar",
+   "url": "https://monuments3d.tim-daw.workers.dev/avebury/",
+   "job": "LiDAR 3D landscape",
+   "description": "Henge, avenues, Silbury and West Kennet long barrow in 3D; 2019, 2006, 2003 and 2001 surveys.",
+   "geometry": {
+    "bbox": [
+     408700,
+     167500,
+     411400,
+     170700
+    ],
+    "latlngBounds": [
+     [
+      51.406461,
+      -1.876311
+     ],
+     [
+      51.435187,
+      -1.837392
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "m3d-avebury50",
+   "title": "Avebury henge at 50 cm – 3D lidar",
+   "url": "https://monuments3d.tim-daw.workers.dev/avebury-50cm/",
+   "job": "LiDAR 3D, 50 cm",
+   "description": "The henge at the finest open lidar (2006, 50 cm), with 2019 and 2001 for comparison.",
+   "geometry": {
+    "bbox": [
+     409550,
+     169250,
+     410950,
+     170650
+    ],
+    "latlngBounds": [
+     [
+      51.422183,
+      -1.864044
+     ],
+     [
+      51.434746,
+      -1.843867
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "m3d-durrington",
+   "title": "Durrington Walls and Woodhenge – 3D lidar",
+   "url": "https://monuments3d.tim-daw.workers.dev/durrington/",
+   "job": "LiDAR 3D landscape",
+   "description": "Durrington Walls, Woodhenge and the Cuckoo Stone in 3D; 2021, 2006 and 2001 surveys.",
+   "geometry": {
+    "bbox": [
+     414100,
+     142800,
+     415900,
+     144600
+    ],
+    "latlngBounds": [
+     [
+      51.184258,
+      -1.799645
+     ],
+     [
+      51.200396,
+      -1.773812
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "m3d-marden",
+   "title": "Marden henge – 3D lidar",
+   "url": "https://monuments3d.tim-daw.workers.dev/marden/",
+   "job": "LiDAR 3D landscape",
+   "description": "Marden henge (Hatfield Earthwork) and Wilsford henge on the Avon; 2019 and 2005 surveys.",
+   "geometry": {
+    "bbox": [
+     408300,
+     157200,
+     409850,
+     158950
+    ],
+    "latlngBounds": [
+     [
+      51.313853,
+      -1.882299
+     ],
+     [
+      51.329564,
+      -1.860012
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "aerodrome1919",
+   "title": "Stonehenge Aerodrome, 20 February 1919",
+   "url": "https://stonehenge-aerodrome-1919.pages.dev/",
+   "job": "Historic 3D reconstruction",
+   "description": "The First World War aerodrome west of Stonehenge rebuilt in 3D from 1919 aerial photos.",
+   "geometry": {
+    "point": [
+     411700,
+     141880
+    ],
+    "latlng": [
+     51.176039,
+     -1.834012
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "stonehenge-3d",
+   "title": "Stonehenge 3D Model",
+   "url": "https://timdaw37.github.io/stonehenge-block-3d/",
+   "job": "3D model of the stones",
+   "description": "Every stone placed from survey data, with sun and moon alignments and station stones.",
+   "geometry": {
+    "point": [
+     412245,
+     142194
+    ],
+    "latlng": [
+     51.178851,
+     -1.826205
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "woodhenge-3d",
+   "title": "Woodhenge 3D Model",
+   "url": "https://timdaw37.github.io/stonehenge-block-3d/woodhenge/",
+   "job": "3D model of the posts",
+   "description": "Woodhenge post rings and alignments in 3D.",
+   "geometry": {
+    "point": [
+     415067,
+     143374
+    ],
+    "latlng": [
+     51.189395,
+     -1.785786
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "rees-plan",
+   "title": "Stonehenge georeferenced plan (Rees 1989)",
+   "url": "https://timdaw37.github.io/stonehenge-plan/",
+   "job": "Historic plan, georeferenced",
+   "description": "The 1989 Rees plan of Stonehenge laid on the map.",
+   "geometry": {
+    "point": [
+     412245,
+     142194
+    ],
+    "latlng": [
+     51.178851,
+     -1.826205
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "bulford-3d",
+   "title": "Bulford post alignment – 3D plan",
+   "url": "https://timdaw37.github.io/bulford-posts-3d/",
+   "job": "Alignment 3D",
+   "description": "The Bulford post alignment in 3D.",
+   "geometry": {
+    "point": [
+     417486,
+     143602
+    ],
+    "latlng": [
+     51.191376,
+     -1.751161
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "flyover",
+   "title": "Stonehenge landscape flyover",
+   "url": "https://timdaw37.github.io/stonehenge-landscape-flyover/",
+   "job": "3D flyover with alignments",
+   "description": "Fly across the landscape from Stonehenge to Woodhenge and Bulford.",
+   "geometry": {
+    "bbox": [
+     411700,
+     141600,
+     418000,
+     144200
+    ],
+    "latlngBounds": [
+     [
+      51.173521,
+      -1.834021
+     ],
+     [
+      51.196738,
+      -1.743776
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "flythru-stonehenge",
+   "title": "The Stonehenge landscape — 3D (Netlify)",
+   "url": "https://stonehenge-3d-flythru.netlify.app/",
+   "job": "3D flythrough",
+   "description": "Earlier 3D flythrough of the Stonehenge landscape.",
+   "geometry": {
+    "bbox": [
+     409000,
+     138000,
+     418000,
+     146000
+    ],
+    "latlngBounds": [
+     [
+      51.141198,
+      -1.872731
+     ],
+     [
+      51.212923,
+      -1.743686
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": true
+  },
+  {
+   "id": "flythru-avebury",
+   "title": "The Avebury landscape — 3D (Netlify)",
+   "url": "https://avebury-3d-flythru.netlify.app/",
+   "job": "3D flythrough",
+   "description": "3D flythrough of the Avebury landscape.",
+   "geometry": {
+    "bbox": [
+     407000,
+     166000,
+     413000,
+     172000
+    ],
+    "latlngBounds": [
+     [
+      51.392997,
+      -1.90078
+     ],
+     [
+      51.446841,
+      -1.814328
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": true
+  },
+  {
+   "id": "sarsen-route",
+   "title": "Sarsen transport modeller — the dials",
+   "url": "https://timdaw37.github.io/sarsen-route/",
+   "job": "Route model (least cost)",
+   "description": "Dials for hauling sarsens from West Woods to Stonehenge: routes, slopes, effort.",
+   "geometry": {
+    "bbox": [
+     411000,
+     141000,
+     417500,
+     167500
+    ],
+    "latlngBounds": [
+     [
+      51.16814,
+      -1.844052
+     ],
+     [
+      51.406259,
+      -1.749797
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": true
+  },
+  {
+   "id": "a303-boreholes",
+   "title": "A boring story: A303 corridor boreholes",
+   "url": "https://timdaw37.github.io/a303-corridor/",
+   "job": "Borehole map and sections",
+   "description": "What the A303 tunnel boreholes show beneath the Stonehenge landscape.",
+   "geometry": {
+    "bbox": [
+     405641,
+     138462,
+     419076,
+     144853
+    ],
+    "latlngBounds": [
+     [
+      51.145395,
+      -1.920738
+     ],
+     [
+      51.202575,
+      -1.728343
+     ]
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "altar-stone-3d",
+   "title": "The Altar Stone — Stone 80, 3D reconstruction",
+   "url": "https://icy-flower-e5bb.tim-daw.workers.dev/",
+   "job": "3D model of one stone",
+   "description": "Interpretive 3D reconstruction of the Altar Stone.",
+   "geometry": {
+    "point": [
+     412245,
+     142194
+    ],
+    "latlng": [
+     51.178851,
+     -1.826205
+    ]
+   },
+   "scope": "site",
+   "approx": false
+  },
+  {
+   "id": "central-trilithon",
+   "title": "The Fall of the Central Trilithon",
+   "url": "https://brilliant-kringle-6dc705.netlify.app/",
+   "job": "Physics toy (hypothesis machine)",
+   "description": "Try out how the great trilithon could have fallen.",
+   "geometry": {
+    "point": [
+     412245,
+     142194
+    ],
+    "latlng": [
+     51.178851,
+     -1.826205
+    ]
+   },
+   "scope": "site",
+   "approx": true
+  },
+  {
+   "id": "bluestone-dial",
+   "title": "Calculating the bluestone route (sea vs land)",
+   "url": "https://timdaw37.github.io/bluestone-sea-dial/",
+   "job": "Route model",
+   "description": "Sea or land for the bluestones from Wales; Wiltshire end shown here.",
+   "geometry": {
+    "point": [
+     412250,
+     142200
+    ],
+    "latlng": [
+     51.178905,
+     -1.826134
+    ]
+   },
+   "scope": "site",
+   "approx": true
+  },
+  {
+   "id": "m3d-hub",
+   "title": "Wiltshire monuments in 3D lidar (all pages)",
+   "url": "https://monuments3d.tim-daw.workers.dev/",
+   "job": "Hub of 3D lidar models",
+   "description": "Index of the Stonehenge, Durrington, Avebury and Marden 3D models.",
+   "geometry": {
+    "bbox": [
+     408300,
+     140850,
+     415900,
+     170700
+    ],
+    "latlngBounds": [
+     [
+      51.166836,
+      -1.882672
+     ],
+     [
+      51.435079,
+      -1.772657
+     ]
+    ]
+   },
+   "scope": "county",
+   "approx": false
+  },
+  {
+   "id": "luftwaffe",
+   "title": "Luftwaffe Wiltshire, 1940",
+   "url": "https://wiltshire-luftwaffe.netlify.app/",
+   "job": "1940 aerial-photo map",
+   "description": "German reconnaissance frames and target dossiers over Wiltshire.",
+   "geometry": {
+    "bbox": [
+     377917,
+     117218,
+     435588,
+     191224
+    ],
+    "latlngBounds": [
+     [
+      50.953965,
+      -2.315762
+     ],
+     [
+      51.618721,
+      -1.487372
+     ]
+    ]
+   },
+   "scope": "county",
+   "approx": false
+  },
+  {
+   "id": "long-barrows",
+   "title": "Wiltshire Long Barrow Gazetteer",
+   "url": "https://timdaw37.github.io/wiltshire-long-barrows/",
+   "job": "Gazetteer map",
+   "description": "Every Wiltshire long barrow on a map with details.",
+   "geometry": {
+    "bbox": [
+     377833,
+     119691,
+     429255,
+     186504
+    ],
+    "latlngBounds": [
+     [
+      50.976199,
+      -2.317109
+     ],
+     [
+      51.576647,
+      -1.579233
+     ]
+    ]
+   },
+   "scope": "county",
+   "approx": false,
+   "group": "long-barrows"
+  },
+  {
+   "id": "lb-sun",
+   "title": "Do Wiltshire's long barrows face the sun?",
+   "url": "https://timdaw37.github.io/wiltshire-long-barrows/docs/analysis/wiltshire-long-barrows-facing-the-land.html",
+   "job": "Orientation analysis",
+   "description": "Long-barrow orientations against sunrise and the lie of the land.",
+   "geometry": {
+    "bbox": [
+     377833,
+     119691,
+     429255,
+     186504
+    ],
+    "latlngBounds": [
+     [
+      50.976199,
+      -2.317109
+     ],
+     [
+      51.576647,
+      -1.579233
+     ]
+    ]
+   },
+   "scope": "county",
+   "approx": false,
+   "group": "long-barrows"
+  },
+  {
+   "id": "lb-skyline",
+   "title": "Do Wiltshire's long barrows stand on the skyline?",
+   "url": "https://timdaw37.github.io/wiltshire-long-barrows/docs/analysis/wiltshire-long-barrows-skyline.html",
+   "job": "Skyline analysis",
+   "description": "Whether long barrows were placed to be seen on the skyline.",
+   "geometry": {
+    "bbox": [
+     377833,
+     119691,
+     429255,
+     186504
+    ],
+    "latlngBounds": [
+     [
+      50.976199,
+      -2.317109
+     ],
+     [
+      51.576647,
+      -1.579233
+     ]
+    ]
+   },
+   "scope": "county",
+   "approx": false,
+   "group": "long-barrows"
+  },
+  {
+   "id": "hillforts-lb",
+   "title": "Wiltshire hillforts + long barrows",
+   "url": "https://timdaw37.github.io/wiltshire-hillforts-long-barrows/",
+   "job": "Combined gazetteer map",
+   "description": "Same chalk, different seats: hillforts and long barrows compared.",
+   "geometry": {
+    "bbox": [
+     374716,
+     119691,
+     431729,
+     191245
+    ],
+    "latlngBounds": [
+     [
+      50.97607,
+      -2.361505
+     ],
+     [
+      51.61914,
+      -1.543106
+     ]
+    ]
+   },
+   "scope": "county",
+   "approx": false
+  },
+  {
+   "id": "causewayed",
+   "title": "Wiltshire causewayed enclosures",
+   "url": "https://timdaw37.github.io/wiltshire-hillforts-long-barrows/causewayed-enclosures/",
+   "job": "Gazetteer map",
+   "description": "Wiltshire's causewayed enclosures on a map.",
+   "geometry": {
+    "bbox": [
+     380173,
+     135190,
+     414017,
+     171440
+    ],
+    "latlngBounds": [
+     [
+      51.115653,
+      -2.284633
+     ],
+     [
+      51.441782,
+      -1.799716
+     ]
+    ]
+   },
+   "scope": "county",
+   "approx": false
+  },
+  {
+   "id": "hillforts-52",
+   "title": "The 52 Hillforts of Wiltshire",
+   "url": "https://52-hillforts-of-wiltshire.netlify.app/",
+   "job": "Gazetteer map",
+   "description": "All 52 Wiltshire hillforts with details.",
+   "geometry": {
+    "bbox": [
+     374775,
+     121570,
+     431945,
+     191170
+    ],
+    "latlngBounds": [
+     [
+      50.992969,
+      -2.360796
+     ],
+     [
+      51.618453,
+      -1.539994
+     ]
+    ]
+   },
+   "scope": "county",
+   "approx": false
+  },
+  {
+   "id": "trig",
+   "title": "OS triangulation stations in Wiltshire",
+   "url": "https://wiltshire-trig-points.netlify.app/",
+   "job": "Gazetteer map",
+   "description": "Wiltshire's OS trig pillars and other stations.",
+   "geometry": {
+    "bbox": [
+     378063,
+     117289,
+     431930,
+     196705
+    ],
+    "latlngBounds": [
+     [
+      50.954609,
+      -2.313687
+     ],
+     [
+      51.668219,
+      -1.539707
+     ]
+    ]
+   },
+   "scope": "county",
+   "approx": false
+  }
+ ]
+}

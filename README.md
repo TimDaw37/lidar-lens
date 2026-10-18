@@ -44,3 +44,9 @@ Current Chrome, Edge, Firefox (incl. ESR), Safari and Samsung Internet. Renderin
 LiDAR reveals unrecorded sites. Please don't publish lists or maps of possible new sites. Report them to your HER instead. Nighthawking (illegal metal detecting) is a real risk. Most land is private, and scheduled monuments are protected by law.
 
 By Tim Daw. Issues and pull requests welcome.
+
+## Models index (Tim's detailed Wiltshire models)
+`site/models.json` lists each model: `title`, `url`, `job`, `description`, `geometry` (OSGB `point` [E,N] or `bbox` [W,S,E,N], plus WGS84 `latlng`/`latlngBounds`), `scope` (`site` = drawn on the map, `county` = "Wiltshire-wide" list), `approx` (location set by hand) and optional `group`.
+- **Add a model:** add one entry with its OSGB point or bbox, then run `python scripts/models_wgs84.py` to fill the WGS84 fields.
+- **Combine models:** models at the same spot are grouped automatically: one card lists every box that contains the click, plus point models within 300 m (point models that close share one numbered pin).
+- `site/models.js` draws the layer, the card and the searchable list; `scripts/build_site.mjs` bundles it and copies `models.json` into `dist/`.
