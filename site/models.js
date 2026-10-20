@@ -7,6 +7,8 @@ const box=$('models');if(!box)return;
 let M=[],layer=L.layerGroup(),on=true;const card=$('mcard');
 const open=m=>'<a href="'+esc(m.url)+'" target="_blank" rel="noopener noreferrer">Open</a>';
 const row=m=>'<li><b>'+esc(m.title)+'</b>'+(m.approx?' <span class="ap" title="location set by hand">≈</span>':'')+'<br><span class="j">'+esc(m.job)+'</span> · '+open(m)+'</li>';
+// While a map tool (What's here? / profile) is on, clicks on outlines and pins go to that tool, not the models card.
+function toTool(e){if(!(LZ.tool&&LZ.tool()))return false;map.fire('click',{latlng:e.latlng,layerPoint:e.layerPoint,containerPoint:e.containerPoint,originalEvent:e.originalEvent});return true}
 const PT_R=300; // metres: point models closer than this share one pin
 function at(ll){ // all site-scope models at this spot (inside a box, or a point within PT_R)
   return M.filter(m=>m.scope!=='county').filter(m=>{const g=m.geometry;
@@ -23,11 +25,11 @@ function build(){
   site.filter(m=>m.geometry.latlngBounds).sort((a,b)=>area(b)-area(a)).forEach(m=>{
     const r=L.rectangle(m.geometry.latlngBounds,{color:'#ffd23f',weight:2,dashArray:m.approx?'4 6':null,fill:true,fillOpacity:0.03,className:'mbox'});
     r.bindTooltip(esc(m.title)+(m.approx?' (approx. area)':''),{sticky:true});
-    r.on('click',e=>{L.DomEvent.stop(e);showCard(e.latlng,at(e.latlng))});layer.addLayer(r)});
+    r.on('click',e=>{L.DomEvent.stop(e);if(toTool(e))return;showCard(e.latlng,at(e.latlng))});layer.addLayer(r)});
   const pins=[];site.filter(m=>m.geometry.latlng).forEach(m=>{const p=pins.find(q=>map.distance(q.ll,m.geometry.latlng)<=PT_R);if(p)p.ms.push(m);else pins.push({ll:L.latLng(m.geometry.latlng),ms:[m]})});
   pins.forEach(p=>{const n=p.ms.length;const mk=L.marker(p.ll,{icon:L.divIcon({className:'mpin',html:'<span>'+(n>1?n:'')+'</span>',iconSize:[22,22],iconAnchor:[11,11]}),riseOnHover:true});
     mk.bindTooltip(p.ms.map(m=>esc(m.title)).join('<br>'),{direction:'top',offset:[0,-10]});
-    mk.on('click',e=>{L.DomEvent.stop(e);showCard(p.ll,at(p.ll))});layer.addLayer(mk)});
+    mk.on('click',e=>{L.DomEvent.stop(e);if(toTool(e))return;showCard(p.ll,at(p.ll))});layer.addLayer(mk)});
   if(on)layer.addTo(map)}
 function lists(){
   const cw=M.filter(m=>m.scope==='county');

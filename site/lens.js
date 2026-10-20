@@ -158,7 +158,7 @@ o=vec4(col,op*ea);}`;
     T={rgb:{tex:tex(w,h,'rgba8')}};['H','B1','B2'].forEach(k=>{const t=tex(w,h,'r32f');T[k]={tex:t,fb:fbo(t)}});const t=tex(w,h,'rgba32f');T.V={tex:t,fb:fbo(t)};blurKey=null}
   function quad(prog,fb,w,h,sc){gl.useProgram(prog.p);gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.viewport(0,0,w,h);
     if(sc){gl.enable(gl.SCISSOR_TEST);gl.scissor(sc[0],sc[1],sc[2],sc[3])}else gl.disable(gl.SCISSOR_TEST);gl.drawArrays(gl.TRIANGLES,0,3)}
-  function bindT(unit,t,prog,name){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(prog.u[name],unit)}
+  function bindT(unit,t,prog,name){gl.useProgram(prog.p);gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(prog.u[name],unit)}
   return {
     kind:'WebGL2',
     newMosaic(mz){allocate(mz.w,mz.h)},
