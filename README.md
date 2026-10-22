@@ -1,5 +1,7 @@
 # LiDAR Lens
 
+> **Not a programmer? Start with [Read me first](READ-ME-FIRST.md):** how to get a LiDAR Lens for your own area with an AI helper, in four plain steps, with the costs and the two rules.
+
 A lightweight web viewer for 1 m LiDAR terrain models, built for spotting and checking earthworks (barrows, lynchets, enclosures, dew ponds, pits, hollow ways). It's a "lens" you drag over an aerial photo. Inside it you see the ground model in a choice of visualisations: hillshade, multi-direction hillshade, slope, local relief model, sky-view factor, red relief and more. It also has:
 
 - **Go to**: grid ref, easting/northing, lat/long, postcode or place, plus *Use my location*.
