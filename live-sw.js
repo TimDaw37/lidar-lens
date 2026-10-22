@@ -11,7 +11,7 @@
    Everything fetched is kept in the browser's Cache Storage, so a place seen once comes back instantly.
    Be kind to the sources: blocks are shared between tiles, requests are de-duplicated and at most 4 run at once. */
 'use strict';
-const VER = 'v4';   // v2: drops v1 'What's here?' cells cached from a failed query; v3: 512 px blocks, size-capped caches; v4: blocks via the relay
+const VER = 'v5';   // v2: drops v1 'What's here?' cells cached from a failed query; v3: 512 px blocks, size-capped caches; v4: blocks via the relay; v5: zeros are no data (drops black tiles made outside England)
 const BLOCKS = 'lens-live-blocks-' + VER, TILES = 'lens-live-tiles-' + VER, RECS = 'lens-live-recs-' + VER;
 const MINZ = 13, MAXZ = 17;          // tiles below MINZ are not made (the EA hillshade map shows instead)
 const BLOCK_PX = 512;                  // WCS block size in pixels; block side = BLOCK_PX * r metres (512: about 0.3-1 MB each)
@@ -143,8 +143,10 @@ function block(r, bx, by) {
   const p = viaRelay.catch(() => cached(BLOCKS, direct)).then(async res => {
     if (!res.ok) return null;
     const t = await readTiff(await res.arrayBuffer());
-    for (let i = 0; i < t.data.length; i++) if (!(t.data[i] > -1000)) t.data[i] = NaN;   // EA nodata is -3.4e38
-    return { ...t, x0, yTop: y1, r };
+    // EA nodata is -3.4e38 inside its survey, but outside it (Wales, Scotland, the sea) the WCS sends 0.0: treat both as no data
+    let any = false;
+    for (let i = 0; i < t.data.length; i++) { const v = t.data[i]; if (!(v > -1000) || v === 0) t.data[i] = NaN; else any = true }
+    return any ? { ...t, x0, yTop: y1, r } : null;
   }).catch(() => null);
   mem.set(key, p);
   while (mem.size > 10) mem.delete(mem.keys().next().value);
