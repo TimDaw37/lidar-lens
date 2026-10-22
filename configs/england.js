@@ -9,6 +9,7 @@ window.LENS_CONFIG={
   title:'LiDAR Lens - England & Wales (live)',
   pageTitle:'LiDAR Lens - England & Wales (live)',
   link:null,
+  cname:'lidarlens.sarsen.org',                  // GitHub Pages custom domain: the build writes dist/CNAME
   linksNote:'Faster Lenses, with their LiDAR held locally:',
   links:[{text:'Wiltshire',href:'https://lidar-lens-public.tim-daw.workers.dev/'},{text:'Ure henges',href:'https://lidar-lens-ure.tim-daw.workers.dev/'}],
   areaName:'England and Wales',

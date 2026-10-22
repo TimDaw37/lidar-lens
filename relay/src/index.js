@@ -54,7 +54,7 @@ export default {
   async fetch(req, env, ctx) {
     const u = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req, env, new Headers({ 'Access-Control-Allow-Methods': 'GET', 'Access-Control-Max-Age': '86400' })) });
-    if (u.pathname === '/') return err(req, env, 200, 'LiDAR Lens England & Wales relay: caches Environment Agency LiDAR Composite DTM 1 m and Welsh Government LiDAR DTM 1 m (both OGL) blocks for https://timdaw37.github.io/lidar-lens/');
+    if (u.pathname === '/') return err(req, env, 200, 'LiDAR Lens England & Wales relay: caches Environment Agency LiDAR Composite DTM 1 m and Welsh Government LiDAR DTM 1 m (both OGL) blocks for LiDAR Lens England & Wales, https://lidarlens.sarsen.org/');
     const wales = u.pathname === '/wales';
     if ((u.pathname !== '/wcs' && !wales) || req.method !== 'GET') return err(req, env, 404, 'not found');
     const o = req.headers.get('Origin'), allow = (env.ALLOW_ORIGINS || '').split(/\s+/).filter(Boolean);
