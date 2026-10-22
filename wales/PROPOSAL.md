@@ -1,4 +1,4 @@
-> **Proposal, not built.** A starter plan for a possible LiDAR Lens Wales. Nothing here is deployed; it is not to be built until LiDAR Lens England is finished.
+> **Built, 22 Oct 2026, as part of the England Lens (England & Wales)**: see [README.md](README.md). Below is the original proposal, kept for the record. Decisions (Tim): one England & Wales Lens; Cadw monuments, Cadw listed buildings and Coflein; English interface for now; the OGL statement on DataMapWales is enough.
 
 # LiDAR Lens Wales — plan (not to be built until LiDAR Lens England is finished)
 Checked 22 Oct 2026 (read-only).

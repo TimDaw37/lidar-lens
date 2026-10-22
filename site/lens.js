@@ -34,7 +34,7 @@ const BASES=(LC.basemaps||[
 const baseLayers={},baseById={};BASES.forEach(b=>{const l=b.wms?L.tileLayer.wms(b.url,{layers:b.wms,format:'image/png',version:'1.3.0',maxZoom:20,attribution:b.attribution}):L.tileLayer(b.url,{maxZoom:20,maxNativeZoom:b.maxNativeZoom||19,attribution:b.attribution,subdomains:b.subdomains||'abc'});baseLayers[b.name]=l;baseById[b.id]=l;l._lensId=b.id});
 if(!baseById[S.base])S.base=BASES[0].id;baseById[S.base].addTo(map);
 map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer" title="A JavaScript library for interactive maps">Leaflet</a>');
-map.attributionControl.addAttribution('LiDAR: EA LiDAR Composite DTM 1 m &copy; Environment Agency (OGL)');
+map.attributionControl.addAttribution('LiDAR: EA LiDAR Composite DTM 1 m &copy; Environment Agency (OGL)');if(LC.extraAttribution)map.attributionControl.addAttribution(LC.extraAttribution);
 let smLayer=null;
 const titleCtl=L.control({position:'topleft'});titleCtl.onAdd=()=>{const d=$('titlebox');L.DomEvent.disableClickPropagation(d);L.DomEvent.disableScrollPropagation(d);return d};titleCtl.addTo(map);
 L.control.zoom({position:'topleft'}).addTo(map);
@@ -272,7 +272,7 @@ function requestRender(){if(!pending){pending=true;requestAnimationFrame(render)
 map.on('move',requestRender);map.on('moveend',()=>{scheduleMosaic();saveHash();liveHint()});
 // live mode: below the worker's first zoom the lens is empty, so say why
 map.whenReady(()=>setTimeout(()=>liveHint(),300));
-const NO_LIDAR='Little or no LiDAR here: the Environment Agency survey covers England only, and stops at the coast.';
+const NO_LIDAR=LC.noLidarText||'Little or no LiDAR here: the Environment Agency survey covers England only, and stops at the coast.';
 map.on('baselayerchange',()=>liveHint());
 function liveHint(){if(!LC.live)return;const mz=LC.live.minzoom||13;if(map.getZoom()<mz-0.25)msg('Zoom in to see live LiDAR in the lens (zoom '+mz+'+).'+(S.base==='eahs'?' The background is the EA LiDAR hillshade.':' Zoomed out, choose the EA LiDAR hillshade background on the layers button.'));else if($('msg').textContent.startsWith('Zoom in to see live'))msg('',1)}
 map.on('zoomstart',()=>{cv.style.visibility='hidden'});map.on('zoomend',()=>{cv.style.visibility='visible';scheduleMosaic()});

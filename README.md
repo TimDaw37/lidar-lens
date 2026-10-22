@@ -13,7 +13,7 @@ Everything is static files: the viewer, terrain tiles as lossless WebP (Terrariu
 
 Example: Wiltshire, live at https://lidar-lens-public.tim-daw.workers.dev/
 
-**Live mode (all of England, nothing uploaded):** `configs/england.js` + `site/live-sw.js` fetch the EA LiDAR and Historic England records on demand as you look. See *Live mode* in [PROTOCOL.md](PROTOCOL.md).
+**Live mode (all of England and Wales, nothing uploaded):** `configs/england.js` + `site/live-sw.js` fetch the EA and Welsh Government LiDAR and the Historic England, Cadw and Coflein records on demand as you look, at https://timdaw37.github.io/lidar-lens/. See *Live mode* in [PROTOCOL.md](PROTOCOL.md).
 
 ## Repository layout
 | Path | What |
@@ -40,7 +40,7 @@ Current Chrome, Edge, Firefox (incl. ESR), Safari and Samsung Internet. Renderin
 
 ## Data and licences
 - Code: MIT (see LICENSE). Leaflet: BSD-2-Clause.
-- Terrain: Environment Agency LiDAR Composite DTM, Open Government Licence. Historic England NHLE and Aerial Investigation & Mapping data: OGL. OpenStreetMap: ODbL. OS OpenMap Local: OGL. Historic OS maps: National Library of Scotland, CC-BY. OpenTopoMap: CC-BY-SA. Wiltshire rights of way (example): Wiltshire Council, OGL v3.0, contains OS data © Crown copyright.
+- Terrain: Environment Agency LiDAR Composite DTM, Open Government Licence. Wales (live Lens): Welsh Government LiDAR DTM 1 m, OGL; Cadw Designated Historic Asset GIS Data and RCAHMW National Monuments Record of Wales (Coflein), OGL. Historic England NHLE and Aerial Investigation & Mapping data: OGL. OpenStreetMap: ODbL. OS OpenMap Local: OGL. Historic OS maps: National Library of Scotland, CC-BY. OpenTopoMap: CC-BY-SA. Wiltshire rights of way (example): Wiltshire Council, OGL v3.0, contains OS data © Crown copyright.
 - **Local Historic Environment Records (HERs) are not included and generally have no open licence.** Linking to HER and Heritage Gateway records is fine; republishing HER data is not without permission. Ask your HER.
 - The analysis lessons credit the Wiltshire and Swindon Historic Environment Record (© Wiltshire Council). No HER data is in this repository.
 

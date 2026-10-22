@@ -1,10 +1,13 @@
-// LiDAR Lens - England relay: a caching relay for the Environment Agency's LiDAR Composite DTM 1 m WCS, used by the live
-// Lens (site/live-sw.js). It only makes the fixed BNG blocks the Lens asks for, so it is not an open proxy:
-//   GET /wcs?r=<metres per pixel, 1-64>&bx=<block x>&by=<block y>   -> GeoTIFF, (BLOCK_PX + 2) px square, 1 px margin
+// LiDAR Lens - England & Wales relay: a caching relay for the Environment Agency's LiDAR Composite DTM 1 m WCS and the
+// Welsh Government's LiDAR DTM 1 m (a cloud-optimised GeoTIFF with no CORS, see wales.js), used by the live Lens
+// (site/live-sw.js). It only makes the fixed BNG blocks the Lens asks for, so it is not an open proxy:
+//   GET /wcs?r=<metres per pixel, 1-64>&bx=<block x>&by=<block y>     -> EA GeoTIFF, (BLOCK_PX + 2) px square, 1 px margin
+//   GET /wales?r=<metres per pixel, 1-64>&bx=<block x>&by=<block y>   -> the same block from the Welsh DTM (-9999 = no data)
 // Each block is fetched from the EA once, then served from Cloudflare's edge cache or the R2 bucket (binding BLOCKS),
 // so popular places cost the EA nothing after the first visitor. 429/503 from the EA are passed back (with Retry-After)
 // and not stored. Optional bindings: RATE_LIMITER (per-IP cap). Vars: ALLOW_ORIGINS (space-separated), CLIENT_ID.
 // The bucket should carry a lifecycle rule (e.g. delete after 30 days) to stay inside R2's free 10 GB.
+import { walesBlock, tiff } from './wales.js';
 const BLOCK_PX = 512;
 const EA = 'https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wcs?service=WCS&version=2.0.1' +
   '&request=GetCoverage&CoverageId=13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m&format=image/tiff&geotiff:compression=Deflate';
@@ -43,12 +46,17 @@ async function isEmpty(buf) {
   return true;
 }
 
+// an all-no-data block for an empty Welsh request: tiny (one deflated strip), so the service worker reads it like any other
+let emptyP = null;
+async function emptyTiff() { if (!emptyP) emptyP = tiff(new Float32Array((BLOCK_PX + 2) ** 2).fill(-9999), BLOCK_PX + 2); return (await emptyP).slice(0) }
+
 export default {
   async fetch(req, env, ctx) {
     const u = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req, env, new Headers({ 'Access-Control-Allow-Methods': 'GET', 'Access-Control-Max-Age': '86400' })) });
-    if (u.pathname === '/') return err(req, env, 200, 'LiDAR Lens England relay: caches Environment Agency LiDAR Composite DTM 1 m (OGL) blocks for https://timdaw37.github.io/lidar-lens/');
-    if (u.pathname !== '/wcs' || req.method !== 'GET') return err(req, env, 404, 'not found');
+    if (u.pathname === '/') return err(req, env, 200, 'LiDAR Lens England & Wales relay: caches Environment Agency LiDAR Composite DTM 1 m and Welsh Government LiDAR DTM 1 m (both OGL) blocks for https://timdaw37.github.io/lidar-lens/');
+    const wales = u.pathname === '/wales';
+    if ((u.pathname !== '/wcs' && !wales) || req.method !== 'GET') return err(req, env, 404, 'not found');
     const o = req.headers.get('Origin'), allow = (env.ALLOW_ORIGINS || '').split(/\s+/).filter(Boolean);
     if (o && allow.length && !allow.includes(o)) return err(req, env, 403, 'origin not allowed');
     const r = +u.searchParams.get('r'), bx = +u.searchParams.get('bx'), by = +u.searchParams.get('by');
@@ -58,7 +66,7 @@ export default {
     if (env.RATE_LIMITER) { const { success } = await env.RATE_LIMITER.limit({ key: req.headers.get('CF-Connecting-IP') || 'x' }); if (!success) return err(req, env, 429, 'slow down', { 'Retry-After': '10' }) }
 
     // edge key e2/: edge copies made before empty-block detection are left behind
-    const key = `wcs/${VER}/${r}/${bx}_${by}.tif`, edgeKey = new Request('https://relay.invalid/e2/' + key), cache = caches.default;
+    const key = `${wales ? 'wales' : 'wcs'}/${VER}/${r}/${bx}_${by}.tif`, edgeKey = new Request('https://relay.invalid/e2/' + key), cache = caches.default;
     const send = (body, src) => { const h = cors(req, env); h.set('Content-Type', 'image/tiff'); h.set('Cache-Control', 'public, max-age=2592000, immutable'); h.set('X-Relay', src);
       return new Response(body, { status: 200, headers: h }) };
     let hit = await cache.match(edgeKey);
@@ -66,6 +74,15 @@ export default {
     const obj = await env.BLOCKS.get(key);
     if (obj) { const buf = await obj.arrayBuffer(); ctx.waitUntil(cache.put(edgeKey, new Response(buf, { headers: { 'Cache-Control': 'public, max-age=2592000' } }))); return send(buf, 'r2') }
 
+    if (wales) {
+      let W;
+      try { W = await walesBlock(r, bx, by, BLOCK_PX) }
+      catch (e) { const s = e.status === 429 || e.status === 503 ? e.status : 502; return err(req, env, s, 'Welsh LiDAR: ' + (e.message || e), s === 502 ? {} : { 'Retry-After': '5', 'X-Upstream': String(s) }) }
+      if (W.empty) { const buf = await emptyTiff(); ctx.waitUntil(cache.put(edgeKey, new Response(buf, { headers: { 'Cache-Control': 'public, max-age=2592000', 'X-Empty': '1' } }))); return send(buf, 'empty') }
+      ctx.waitUntil(Promise.all([env.BLOCKS.put(key, W.tiff, { httpMetadata: { contentType: 'image/tiff' } }),
+        cache.put(edgeKey, new Response(W.tiff, { headers: { 'Cache-Control': 'public, max-age=2592000' } }))]));
+      return send(W.tiff, 'wales');
+    }
     const url = EA + `&subset=E(${x0},${x1})&subset=N(${y0},${y1})` + (r > 1 ? `&SCALEFACTOR=${1 / r}` : '') + '&client=' + encodeURIComponent(env.CLIENT_ID || 'lidar-lens-england');
     let up;
     try { up = await fetch(url, { headers: { 'User-Agent': 'LiDAR-Lens-England-relay (+https://github.com/TimDaw37/lidar-lens)' }, cf: { cacheTtl: 0 } }) }

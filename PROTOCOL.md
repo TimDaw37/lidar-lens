@@ -107,17 +107,21 @@ In `config.js`, set the title, `areaName`, `bounds` (from your tiles), `start`, 
 - Don't publish lists or maps of *possible new sites*. Report them to your HER (nighthawking risk).
 - Credit the data providers (see README). Credit your HER if you use its records for anything, even summaries.
 
-## Live mode: all of England, nothing to upload
+## Live mode: all of England and Wales, nothing to upload
 
-`configs/england.js` builds a Lens for the whole of England with no tiles, no layer files and no Cloudflare storage. A service worker, `site/live-sw.js`, answers the viewer's usual requests on the fly:
-- `terrain/{z}/{x}/{y}.png`: made from the Environment Agency's LiDAR Composite DTM 1 m WCS, fetched in British National Grid blocks (1024 px; 1 m at zoom 16–17, coarser below via `SCALEFACTOR`), resampled to web-mercator tiles with the OSTN15 correction grid (agrees with PROJ OSTN15 to within ~2 cm) and Terrarium-encoded. Zoom 13–17; below 13 the background is the EA's own hillshade (WMS).
-- `layers/index.json` and `layers/v2/rec/{cx}_{cy}.json`: Historic England NHLE (scheduled monuments, listed buildings) and Aerial Investigation & Mapping, queried live from HE's ArcGIS services for each 5 km cell.
-- Everything is kept in the visitor's Cache Storage, so a place seen once returns instantly; at most 4 requests run at once.
+`configs/england.js` builds a Lens for the whole of England and Wales with no tiles and no layer files. A service worker, `site/live-sw.js`, answers the viewer's usual requests on the fly:
+- `terrain/{z}/{x}/{y}.png`: made from British National Grid blocks (512 px; 1 m at zoom 16–17, coarser below), resampled to web-mercator tiles with the OSTN15 correction grid (agrees with PROJ OSTN15 to within ~2 cm) and Terrarium-encoded. Zoom 13–17; below 13 the background is the EA's own hillshade (WMS, England only).
+  - England: the Environment Agency's LiDAR Composite DTM 1 m WCS. Outside its survey it sends heights of 0, which count as no data.
+  - Wales: the Welsh Government LiDAR DTM 1 m, a cloud-optimised GeoTIFF on DataMapWales with no CORS, so it comes only through the relay's `/wales` route (`relay/src/wales.js`). Blocks near Wales get both sources, Welsh data first, so the join falls at the border.
+- `layers/index.json` and `layers/v2/rec/{cx}_{cy}.json`, for each 5 km cell: Historic England NHLE (scheduled monuments, listed buildings) and Aerial Investigation & Mapping, from HE's ArcGIS services; in Wales also Cadw scheduled monuments and listed buildings and the RCAHMW's National Monuments Record (Coflein), from the DataMapWales WFS. Records have their own request lane, so they never wait behind LiDAR.
+- Everything is kept in the visitor's Cache Storage (capped at about 300 MB, least recently used first), so a place seen once returns instantly; at most 4 requests per lane run at once, backing off when a service says it is busy.
+
+The relay (`relay/`, a Cloudflare Worker with an R2 bucket on a 30-day expiry) serves each LiDAR block from the source once and then from Cloudflare's cache, so popular places cost the EA and the Welsh Government nothing more. If the relay is down, England falls back to the EA directly; Wales has no fallback.
 
 Build and host:
 ```
 node scripts/build_site.mjs configs/england.js     # dist/, including live-sw.js and data/ostn_grid.json
 ```
-Put `dist/` on any static HTTPS host (GitHub Pages, Cloudflare Pages). No Worker, no R2, no card. The first visit registers the service worker and reloads once.
+Put `dist/` on any static HTTPS host (GitHub Pages, Cloudflare Pages). The first visit registers the service worker and reloads once.
 
-Trade-offs against a county build: 1–3 s to fill the lens on new ground (instant on return), roughly 1–2 MB of LiDAR per screenful, and it depends on the EA's and HE's public services being up. No rights of way (no national open dataset) and no OS context layer. For another country's open LiDAR service, change the WCS and the grid in `live-sw.js`.
+Trade-offs against a county build: 1–3 s to fill the lens on new ground (instant on return), roughly 1–2 MB of LiDAR per screenful, and it depends on the EA's, the Welsh Government's, HE's and DataMapWales's public services being up. No rights of way (no national open dataset) and no OS context layer. For another country's open LiDAR, add a relay route like `/wales` and the blocks it covers in `live-sw.js`.
