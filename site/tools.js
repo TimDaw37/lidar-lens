@@ -128,6 +128,7 @@ $('gps').onclick=useMyLocation;if($('myloc'))$('myloc').onclick=useMyLocation;LZ
 const LCF=LZ.LC.layers;let IDX=null,idxP=null;const chunkP=new Map();
 function loadIndex(){if(!idxP)idxP=fetch(LCF.index).then(r=>r.ok?r.json():null).then(j=>{IDX=j;if(j)for(const k in j.layers)j.layers[k]=new Set(j.layers[k]);return j}).catch(()=>null);return idxP}
 function loadChunk(layer,key){const id=layer+'/'+key;if(!chunkP.has(id))chunkP.set(id,fetch(LCF.url.replace('{layer}',layer).replace('{key}',key)).then(r=>r.ok?r.json():(r.status>=500&&(LZ.recErr=r.status),null)).then(j=>{if(!j){chunkP.delete(id);return null}   // not remembered, so a later click retries
+    if(j.missing&&j.missing.length){LZ.recMissing=[...new Set([...(LZ.recMissing||[]),...j.missing])];chunkP.delete(id)}   // one source down: show the rest, retry next time
     if(j.f)prep(j.f);if(j.L){const o={};for(const k in j.L)o[k]=prep(j.L[k].map(g=>({g})));j.L=o}return j}).catch(()=>{chunkP.delete(id);return null}));return chunkP.get(id)}
 async function dataNear(E,N,R){await loadIndex();if(!IDX)return {recs:[],ctx:{}};const c=IDX.cell,keys=[];
   for(let cx=Math.floor((E-R)/c);cx<=Math.floor((E+R)/c);cx++)for(let cy=Math.floor((N-R)/c);cy<=Math.floor((N+R)/c);cy++)keys.push(cx+'_'+cy);
@@ -318,7 +319,7 @@ async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L
   const [E,N]=ll2en(ll.lat,ll.lng);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small></div><div class="bd">Looking at the LiDAR and records…</div>';
   card.querySelector('.x').onclick=closeCard;
   const HA=LZ.LC.herApi;const herP=HA?fetch(HA.url+'?e='+Math.round(E)+'&n='+Math.round(N),{credentials:'same-origin'}).then(r=>r.ok?r.json():{r:[],err:r.status}).catch(()=>({r:[],err:1})):Promise.resolve(null);
-  LZ.recErr=0;const both=Promise.all([dataNear(E,N,180),herP]);const W=await dtmWindow(ll,100);if(seq!==wiSeq)return;
+  LZ.recErr=0;LZ.recMissing=null;const both=Promise.all([dataNear(E,N,180),herP]);const W=await dtmWindow(ll,100);if(seq!==wiSeq)return;
   // records can take seconds (live Historic England queries): show the LiDAR measurements at once, then fill the records in
   const early=await Promise.race([both,new Promise(r=>setTimeout(()=>r(null),400))]);if(seq!==wiSeq)return;
   if(early)return wiRender(ll,E,N,W,early[0],early[1],false,seq);
@@ -345,7 +346,8 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
     (f.u?' &middot; <a href="'+esc(hgLink(f.u))+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':f.s==='CADW'||f.s==='CADWLB'?'Cadw report':f.s==='NMRW'?'Coflein':'OSM')+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
   h+='<h3>Recorded within 30 m</h3><div class="m snap" style="font-size:11px;margin:-2px 0 4px">'+esc(LZ.LC.recordsLine||('Records from the '+HLL+', NHLE, HE aerial mapping and OSM'))+'</div>';
   if(pending)h+='<div class="m wiwait">Fetching records…</div>';
-  else if(LZ.recErr&&!recs.length)h+='<div class="m">Historic England records could not be fetched just now. Click again in a minute.</div>';
+  if(!pending&&LZ.recMissing&&LZ.recMissing.length)h+='<div class="m" style="font-size:12px;color:#b45309">'+esc(LZ.recMissing.join(' and '))+' records could not be fetched just now, so they are not listed. Click again in a minute.</div>';
+  else if(LZ.recErr&&!recs.length)h+='<div class="m">The records could not be fetched just now. Click again in a minute.</div>';
   else if(!near30.length)h+='<div class="m">Nothing in '+(LZ.LC.recordsNone?esc(LZ.LC.recordsNone):LZ.LC.live?'Historic England\'s records (NHLE, aerial mapping)':'the '+esc(HL)+', NHLE, HE aerial mapping or OSM')+' within 30 m'+(far.length?'':' (or within 100 m)')+'.</div>';
   near30.forEach(r=>{h+=recRow(r)});
   if(far.length)h+='<details class="more"><summary>+ '+far.length+' more within 100 m</summary>'+far.map(recRow).join('')+'</details>';
