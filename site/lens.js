@@ -36,7 +36,11 @@ if(!baseById[S.base])S.base=BASES[0].id;baseById[S.base].addTo(map);
 map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer" title="A JavaScript library for interactive maps">Leaflet</a>');
 map.attributionControl.addAttribution('LiDAR: EA LiDAR Composite DTM 1 m &copy; Environment Agency (OGL)');if(LC.extraAttribution)map.attributionControl.addAttribution(LC.extraAttribution);
 let smLayer=null;
-const titleCtl=L.control({position:'topleft'});titleCtl.onAdd=()=>{const d=$('titlebox');L.DomEvent.disableClickPropagation(d);L.DomEvent.disableScrollPropagation(d);return d};titleCtl.addTo(map);
+const titleCtl=L.control({position:'topleft'});titleCtl.onAdd=()=>{const d=$('titlebox');
+  // like disableClickPropagation, except a two-finger touchstart reaches the map, so a pinch on the title box zooms the map (it sits inside the map, whose touch-action:none rules out page zoom)
+  L.DomEvent.on(d,'mousedown dblclick contextmenu',L.DomEvent.stopPropagation);d._leaflet_disable_click=true;
+  d.addEventListener('touchstart',e=>{if(!e.touches||e.touches.length<2)e.stopPropagation()});
+  L.DomEvent.disableScrollPropagation(d);return d};titleCtl.addTo(map);
 L.control.zoom({position:'topleft'}).addTo(map);
 const layersCtl=L.control.layers(baseLayers,{},{position:'topleft'}).addTo(map);   // ui.js adds the historic OS maps to it
 map.on('baselayerchange',e=>{S.base=e.layer._lensId;saveHash()});
