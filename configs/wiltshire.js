@@ -6,7 +6,7 @@ window.LENS_CONFIG={
   pageTitle:'LiDAR Lens - Wiltshire',
   link:{text:'lidar-lens-public.tim-daw.workers.dev',href:'https://lidar-lens-public.tim-daw.workers.dev/'},
   linksNote:'All of England and Wales, fetched live (slower than this Lens, whose LiDAR is held locally):',
-  links:[{text:'LiDAR Lens England & Wales',href:'https://lidarlens.sarsen.org/'}],
+  links:[{text:'LiDAR Lens England & Wales',href:'https://timdaw37.github.io/lidar-lens/'}],
   areaName:'Wiltshire',
   private:false,                                   // true shows "(private)" on the controls
   repoUrl:'https://github.com/TimDaw37/lidar-lens',
