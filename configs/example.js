@@ -2,6 +2,7 @@
 window.LENS_CONFIG={
   title:'LiDAR Lens - My County', pageTitle:'LiDAR Lens - My County', areaName:'My County',
   link:null, private:true, repoUrl:'https://github.com/TimDaw37/lidar-lens',
+  models:false,                                    // or {url:'models.json',countyLabel:'County-wide'} if you add your own models
   toolName:'What\'s here?', showGuess:false,     // showGuess:true adds a collapsed heuristic pointer (private builds)
   recordSources:'NHLE and HE Aerial Investigation & Mapping (retrieved <date>); OSM (<date>)',
   tiles:{url:'terrain/{z}/{x}/{y}.webp',minzoom:8,maxzoom:17,crossOrigin:null},

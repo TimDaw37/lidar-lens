@@ -16,6 +16,7 @@ window.LENS_CONFIG={
     {id:'6in',name:'Six-inch, 1888–1913',url:'https://mapseries-tilesets.s3.amazonaws.com/os/6inchsecond/{z}/{x}/{y}.png',minZoom:11,maxNativeZoom:17},
     {id:'1in',name:'One-inch, 1885–1903',url:'https://mapseries-tilesets.s3.amazonaws.com/1inch_2nd_ed/{z}/{x}/{y}.png',minZoom:8,maxNativeZoom:16}],
   prow:{url:'prow.geojson',attribution:'Rights of way: Wiltshire Council (OGL v3.0), contains OS data &copy; Crown copyright 2026; working copy, not the legal Definitive Map'},
+  models:{countyLabel:'Wiltshire-wide'},          // site/models.json; set models:false for an area with none
   toolName:'What\'s here?',                     // public: facts only
   showGuess:false,                                 // no heuristic best guess in the public build
   recordSources:'Wiltshire & Swindon HER (Wiltshire Council, 2022 snapshot; IDs and links only, information only); NHLE scheduled + listed and HE Aerial Investigation & Mapping (Historic England, OGL; retrieved Oct 2026); OSM (ODbL, Oct 2026)',

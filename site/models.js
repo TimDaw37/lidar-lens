@@ -4,6 +4,10 @@
 const LZ=window.__lens;if(!LZ)return;const map=LZ.map,$=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const box=$('models');if(!box)return;
+// Per-area config: models:false hides the section; models:{url,countyLabel} sets the file and the area-wide heading.
+const MC=LZ.LC.models===false?null:(LZ.LC.models||{});const CL=(MC&&MC.countyLabel)||'Area-wide';
+if(!MC){box.hidden=true;return}
+{const s=box.querySelector('#mcounty');const sum=s&&s.closest('details').querySelector('summary');if(sum)sum.textContent=CL}
 let M=[],layer=L.layerGroup(),on=true;const card=$('mcard');
 const open=m=>'<a href="'+esc(m.url)+'" target="_blank" rel="noopener noreferrer">Open</a>';
 const row=m=>'<li><b>'+esc(m.title)+'</b>'+(m.approx?' <span class="ap" title="location set by hand">≈</span>':'')+'<br><span class="j">'+esc(m.job)+'</span> · '+open(m)+'</li>';
@@ -33,10 +37,10 @@ function build(){
   if(on)layer.addTo(map)}
 function lists(){
   const cw=M.filter(m=>m.scope==='county');
-  $('mcounty').innerHTML=cw.map(row).join('');
+  $('mcounty').innerHTML=cw.map(row).join('');$('mcounty').closest('details').hidden=!cw.length;
   const q=($('mq').value||'').toLowerCase().trim();
   const all=M.filter(m=>!q||(m.title+' '+m.job+' '+m.description).toLowerCase().includes(q));
-  $('mlist').innerHTML=all.map((m,i)=>'<li><a href="#" data-i="'+M.indexOf(m)+'" class="fly">'+esc(m.title)+'</a>'+(m.scope==='county'?' <span class="j">(Wiltshire-wide)</span>':'')+'<br><span class="j">'+esc(m.job)+'</span> · '+open(m)+'</li>').join('')||'<li class="j">No match</li>';
+  $('mlist').innerHTML=all.map((m,i)=>'<li><a href="#" data-i="'+M.indexOf(m)+'" class="fly">'+esc(m.title)+'</a>'+(m.scope==='county'?' <span class="j">('+esc(CL)+')</span>':'')+'<br><span class="j">'+esc(m.job)+'</span> · '+open(m)+'</li>').join('')||'<li class="j">No match</li>';
   $('mcount').textContent=M.length;
 }
 $('mlist').addEventListener('click',e=>{const a=e.target.closest('a.fly');if(!a)return;e.preventDefault();const m=M[+a.dataset.i],g=m.geometry;
@@ -46,6 +50,7 @@ $('mlist').addEventListener('click',e=>{const a=e.target.closest('a.fly');if(!a)
   if(window.innerWidth<=700){const p=$('panel');if(p)p.classList.add('hide')}});
 $('mq').addEventListener('input',lists);
 $('mshow').addEventListener('change',e=>{on=e.target.checked;on?layer.addTo(map):(map.removeLayer(layer),card.hidden=true)});
-fetch('models.json').then(r=>r.json()).then(d=>{M=d.models||[];build();lists()}).catch(()=>{$('mcount').textContent='?'});
+// No models file, or an empty one (e.g. a new area): hide the whole section rather than show 'Models (0)'.
+fetch(MC.url||'models.json').then(r=>{if(!r.ok)throw 0;return r.json()}).then(d=>{M=d.models||[];if(!M.length){box.hidden=true;return}build();lists()}).catch(()=>{box.hidden=true});
 window.__models={get list(){return M},showAt:ll=>showCard(L.latLng(ll),at(L.latLng(ll)))};
 })();

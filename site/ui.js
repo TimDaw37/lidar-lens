@@ -41,9 +41,17 @@ const NLS_ATTR='Historic map: <a href="https://maps.nls.uk/" target="_blank" rel
 const hs=$('hist'),hop=$('histop');let histL=null;
 if(!HIST.length)$('histbox').hidden=true;
 HIST.forEach(h=>{const o=document.createElement('option');o.value=h.id;o.textContent=h.name;hs.appendChild(o)});
-function setHist(id){if(histL){map.removeLayer(histL);histL=null}const h=HIST.find(x=>x.id===id);hop.disabled=!h;
-  if(h){histL=L.tileLayer(h.url,{maxZoom:20,minZoom:h.minZoom||0,maxNativeZoom:h.maxNativeZoom||17,opacity:+hop.value,attribution:h.attribution||NLS_ATTR,zIndex:5}).addTo(map);
+// One tile layer per historic map, listed on the map's layers button as well as in the panel; only one shows at a time.
+const histLayers={};HIST.forEach(h=>{const l=L.tileLayer(h.url,{maxZoom:20,minZoom:h.minZoom||0,maxNativeZoom:h.maxNativeZoom||17,opacity:+hop.value,attribution:h.attribution||NLS_ATTR,zIndex:5});
+  l._histId=h.id;histLayers[h.id]=l;if(LZ.layersCtl)LZ.layersCtl.addOverlay(l,'Old OS map: '+h.name)});
+function setHist(id){const h=HIST.find(x=>x.id===id);hop.disabled=!h;hs.value=h?id:'';
+  Object.values(histLayers).forEach(l=>{if(l._histId!==id&&map.hasLayer(l))map.removeLayer(l)});
+  histL=h?histLayers[id]:null;
+  if(histL){histL.setOpacity(+hop.value);if(!map.hasLayer(histL))histL.addTo(map);
     if(h.minZoom&&map.getZoom()<h.minZoom)LZ.msg('Zoom in to see the '+h.name+' map (from zoom '+h.minZoom+')',3500)}}
+// Ticking an old map on the layers button does the same as choosing it in the panel.
+map.on('overlayadd',e=>{if(e.layer._histId&&e.layer!==histL){setHist(e.layer._histId);LZ.saveHashSoon()}});
+map.on('overlayremove',e=>{if(e.layer._histId&&e.layer===histL){histL=null;hs.value='';hop.disabled=true;LZ.saveHashSoon()}});
 hs.onchange=()=>{setHist(hs.value);LZ.saveHashSoon()};hop.oninput=()=>{$('histopv').textContent=Math.round(hop.value*100)+'%';if(histL)histL.setOpacity(+hop.value);LZ.saveHashSoon()};
 const PROW=LC.prow||null;   // {url, attribution}: per-area rights of way GeoJSON (property t: 1 byway, 2 restricted byway, 3 bridleway, 4 footpath)
 const PCOL={1:'#1971c2',2:'#e8590c',3:'#2f9e44',4:'#d6336c'},PNAME={1:'Byway open to all traffic',2:'Restricted byway',3:'Bridleway',4:'Footpath'};let prowL=null,prowP=null;
