@@ -273,13 +273,17 @@ async function recCell1(cx, cy) {
   const inWales = x1 > WALES.e0 && x0 < WALES.e1 && y1 > WALES.n0 && y0 < WALES.n1;
   const walesP = inWales ? Promise.all([wfs('inspire-wg:Cadw_SAM', x0, y0, x1, y1), wfs('inspire-wg:Cadw_ListedBuildings', x0, y0, x1, y1),
     wfs('geonode:rcahmw_nmrw_terrestrialsites_rcahmw_bng', x0, y0, x1, y1)]) : Promise.resolve([[], [], []]);
-  walesP.catch(() => {});   // awaited below; this only stops an early failure being reported as unhandled
-  const [sched, listed, aimD, aimE] = await Promise.all([
+  const heP = Promise.all([
     query(NHLE + 6, 'ListEntry,Name,hyperlink', x0, y0, x1, y1),
     query(NHLE + 0, 'ListEntry,Name,Grade,hyperlink', x0, y0, x1, y1),
     query(AIM + 0, 'HE_UID,MONUMENT_TYPE,PERIOD,HE_URL1,project,LAYER', x0, y0, x1, y1),
     query(AIM + 1, 'HE_UID,HE_URL1,project', x0, y0, x1, y1)]);
-  const [wSam, wLb, wNmr] = await walesP;
+  // each source stands alone: if one is down (DataMapWales had an outage on 22 Oct 2026) the other's records still show,
+  // the answer names what is missing, and it is not cached, so the next click tries again
+  const [he, wa] = await Promise.all([heP.catch(() => null), walesP.catch(() => null)]);
+  if (!he && !wa) throw new Error('all record sources failed');
+  const missing = [...(he ? [] : ['Historic England']), ...(wa ? [] : ['Cadw and Coflein'])];
+  const [sched, listed, aimD, aimE] = he || [[], [], [], []], [wSam, wLb, wNmr] = wa || [[], [], []];
   const f = [], add = (g, p) => { const e = enc(g); if (e) f.push({ ...p, g: e }) };
   for (const x of wSam) { const p = x.properties; add(x.geometry, { s: 'CADW', id: clean(p.SAMNumber), n: clean(p.Name), t: 'Scheduled monument' + (clean(p.SiteType) ? ': ' + clean(p.SiteType).toLowerCase() : ''), p: clean(p.Period), d: '', u: p.RecordNumber ? CADW_REPORT + 'sam/FullReport?lang=en&id=' + encodeURIComponent(clean(p.RecordNumber)) : '' }) }
   for (const x of wLb) { const p = x.properties; add(x.geometry, { s: 'CADWLB', id: clean(p.RecordNumber), n: clean(p.Name), t: 'Listed building, grade ' + clean(p.Grade), p: '', d: '', u: p.RecordNumber ? CADW_REPORT + 'listedbuilding/FullReport?lang=en&id=' + encodeURIComponent(clean(p.RecordNumber)) : '' }) }
@@ -293,6 +297,7 @@ async function recCell1(cx, cy) {
     add(x.geometry, { s: 'AIM', id: uid, n: m[0] ? m[0].split(',')[0] : 'AIM feature', t: m[0], p: m[1], d: 'Mapped ' + clean(p.LAYER).toLowerCase() + ' (' + m[3] + ' NMP project)', u: m[2] }) }
   for (const x of aimE) { const p = x.properties, uid = clean(p.HE_UID), m = meta[uid] || ['', '', '', ''];
     add(x.geometry, { s: 'AIM', id: uid, n: m[0] ? m[0].split(',')[0] : 'AIM monument extent', t: m[0], p: m[1], d: 'Monument extent (' + clean(p.project) + ')', u: clean(p.HE_URL1) || m[2] }) }
+  if (missing.length) return json({ f, missing });
   const res = json({ f });
   await putSized(RECS, c, url, res.clone());
   return res;
