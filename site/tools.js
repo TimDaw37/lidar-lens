@@ -80,7 +80,7 @@ function updWhere(ll,src){wPos=ll;wSrc=src;const f=fmtPos(ll);$('wlab').textCont
 let pinned=false,pinMk=null;
 function pin(ll){pinned=true;updWhere(ll,'Pinned');if(!pinMk)pinMk=L.circleMarker(ll,{radius:6,color:'#d00',weight:2,fill:false,interactive:false}).addTo(map);else pinMk.setLatLng(ll);$('wlab').title='Click to release the pin (or press Esc)';$('wlab').style.cursor='pointer'}
 function unpin(){if(!pinned)return;pinned=false;if(pinMk){map.removeLayer(pinMk);pinMk=null}$('wlab').title='';$('wlab').style.cursor='';updWhere(map.getCenter(),'Centre')}
-map.on('click',e=>{if(LZ.tool&&LZ.tool())return;pin(e.latlng)});
+map.on('click',e=>{if(LZ.tool&&LZ.tool()){if(LZ.tool()==='whatis')pin(e.latlng);return}pin(e.latlng)});   // a What's here? click also pins that spot, so Copy copies it
 $('wlab').addEventListener('click',unpin);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&pinned&&!(LZ.tool&&LZ.tool()))unpin()});
 LZ.pin=pin;LZ.unpin=unpin;
@@ -115,8 +115,8 @@ $('gps').onclick=useMyLocation;if($('myloc'))$('myloc').onclick=useMyLocation;LZ
 // ---- 'What is it?' layers: 5 km OSGB chunks, loaded only around the click ----
 const LCF=LZ.LC.layers;let IDX=null,idxP=null;const chunkP=new Map();
 function loadIndex(){if(!idxP)idxP=fetch(LCF.index).then(r=>r.ok?r.json():null).then(j=>{IDX=j;if(j)for(const k in j.layers)j.layers[k]=new Set(j.layers[k]);return j}).catch(()=>null);return idxP}
-function loadChunk(layer,key){const id=layer+'/'+key;if(!chunkP.has(id))chunkP.set(id,fetch(LCF.url.replace('{layer}',layer).replace('{key}',key)).then(r=>r.ok?r.json():null).then(j=>{if(!j)return null;
-    if(j.f)prep(j.f);if(j.L){const o={};for(const k in j.L)o[k]=prep(j.L[k].map(g=>({g})));j.L=o}return j}).catch(()=>null));return chunkP.get(id)}
+function loadChunk(layer,key){const id=layer+'/'+key;if(!chunkP.has(id))chunkP.set(id,fetch(LCF.url.replace('{layer}',layer).replace('{key}',key)).then(r=>r.ok?r.json():(r.status>=500&&(LZ.recErr=r.status),null)).then(j=>{if(!j){chunkP.delete(id);return null}   // not remembered, so a later click retries
+    if(j.f)prep(j.f);if(j.L){const o={};for(const k in j.L)o[k]=prep(j.L[k].map(g=>({g})));j.L=o}return j}).catch(()=>{chunkP.delete(id);return null}));return chunkP.get(id)}
 async function dataNear(E,N,R){await loadIndex();if(!IDX)return {recs:[],ctx:{}};const c=IDX.cell,keys=[];
   for(let cx=Math.floor((E-R)/c);cx<=Math.floor((E+R)/c);cx++)for(let cy=Math.floor((N-R)/c);cy<=Math.floor((N+R)/c);cy++)keys.push(cx+'_'+cy);
   const jobs=[];for(const layer of LCF.names)for(const k of keys)if(IDX.layers[layer]&&IDX.layers[layer].has(k))jobs.push(loadChunk(layer,k).then(j=>[layer,j]));
@@ -320,8 +320,10 @@ async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L
   const ctxList=Object.entries(ctx).filter(([k,v])=>v.d<=100).sort((x,y)=>x[1].d-y[1].d).slice(0,4).map(([k,v])=>v.d<1?(k==='wood'||k==='settled'||k==='water'?'in '+CTX_NAMES[k]:'on '+CTX_NAMES[k]):Math.round(v.d)+' m from '+CTX_NAMES[k]);
   const confTxt={low:'low confidence',moderate:'moderate confidence',na:''}[cls.conf];
   let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':'')+'</small></div><div class="bd">';
+  // Heritage Gateway retired its Results_Single.aspx pages; go straight to the new search for that HE research record (saves a redirect)
+  const hgLink=u=>{const m=/^https?:\/\/(?:www\.)?heritagegateway\.org\.uk\/Gateway\/Results_Single\.aspx\?uid=([^&#]+)&resourceID=19191\b/i.exec(u);return m?'https://historicengland.org.uk/listing/heritage-gateway/results?q='+encodeURIComponent(decodeURIComponent(m[1]))+'&filters%5B0%5D%5Bfield%5D=dataset&filters%5B0%5D%5Bvalues%5D%5B0%5D=Historic%20England%20research%20records&filters%5B1%5D%5Bfield%5D=layoutView&filters%5B1%5D%5Bvalues%5D%5B0%5D=list':u};
   const recRow=({f,d})=>{let h='';h+='<div class="rec"><span class="b '+f.s+'">'+f.s+'</span><b>'+esc(f.n||f.t||'(unnamed)')+'</b> <span class="m">&middot; '+(d<0.5?'here':Math.round(d)+' m')+'</span><div class="m">'+esc([f.t&&f.t!==f.n?f.t:'',f.p,f.s==='OSM'?'OSM '+f.id:f.s==='NHLE'||f.s==='LB'?'List entry '+f.id:f.s==='AIM'?'HE UID '+f.id:f.s==='GAZ'?(/^\d+$/.test(f.id||'')?'NHLE '+f.id:''):f.id].filter(Boolean).join(' · '))+
-    (f.u?' &middot; <a href="'+esc(f.u)+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':'OSM')+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
+    (f.u?' &middot; <a href="'+esc(hgLink(f.u))+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':'OSM')+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
   h+='<h3>Recorded within 30 m</h3><div class="m snap" style="font-size:11px;margin:-2px 0 4px">'+esc(LZ.LC.recordsLine||('Records from the '+HLL+', NHLE, HE aerial mapping and OSM'))+'</div>';
   if(!near30.length)h+='<div class="m">Nothing in the '+esc(HL)+', NHLE, HE aerial mapping or OSM within 30 m'+(far.length?'':' (or within 100 m)')+'.</div>';
   near30.forEach(r=>{h+=recRow(r)});

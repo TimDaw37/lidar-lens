@@ -20,6 +20,7 @@ let lensC=null; // lens centre in container px
 function readHash(){const h=new URLSearchParams(location.hash.slice(1));const out={};
   for(const [k,v] of h){out[k]=v} return out}
 const H0=readHash();
+window.addEventListener('hashchange',()=>location.reload());   // a link pasted into an open tab: apply its view (the app's own saveHash uses replaceState, which doesn't fire this)
 ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>{if(H0[k]!==undefined&&!isNaN(+H0[k]))S[k]=+H0[k]});
 if(H0.ramp)S.ramp=H0.ramp; else S.ramp=MODE_RAMP[S.mode];
 if(H0.auto!==undefined)S.auto=H0.auto==='1'; if(H0.fs!==undefined)S.fs=H0.fs==='1'; if(H0.sm!==undefined)S.sm=H0.sm==='1'; if(H0.base)S.base=H0.base;
@@ -28,10 +29,11 @@ let start=CFG.start; if(H0.c){const p=H0.c.split(',').map(Number); if(p.length==
 const map=L.map('map',{zoomControl:false,maxZoom:20,minZoom:LC.minZoom||8,zoomSnap:0.25,wheelPxPerZoomLevel:90}).setView([start.lat,start.lng],start.z);
 const BASES=(LC.basemaps||[
   {id:'sat',name:'Aerial (Esri World Imagery)',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',maxNativeZoom:19,attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics, GIS User Community'},
-  {id:'otm',name:'OpenTopoMap (paths, contours)',url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',maxNativeZoom:17,attribution:'Map: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA), data &copy; OpenStreetMap contributors, SRTM'},
+  {id:'otm',name:'OpenTopoMap (paths, contours)',url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',maxNativeZoom:17,attribution:'Map: &copy; <a href="https://opentopomap.org" target="_blank" rel="noopener noreferrer">OpenTopoMap</a> (CC-BY-SA), data &copy; OpenStreetMap contributors, SRTM'},
   {id:'osm',name:'OpenStreetMap',url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',maxNativeZoom:19,attribution:'&copy; OpenStreetMap contributors'}]);
 const baseLayers={},baseById={};BASES.forEach(b=>{const l=b.wms?L.tileLayer.wms(b.url,{layers:b.wms,format:'image/png',version:'1.3.0',maxZoom:20,attribution:b.attribution}):L.tileLayer(b.url,{maxZoom:20,maxNativeZoom:b.maxNativeZoom||19,attribution:b.attribution,subdomains:b.subdomains||'abc'});baseLayers[b.name]=l;baseById[b.id]=l;l._lensId=b.id});
 if(!baseById[S.base])S.base=BASES[0].id;baseById[S.base].addTo(map);
+map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer" title="A JavaScript library for interactive maps">Leaflet</a>');
 map.attributionControl.addAttribution('LiDAR: EA LiDAR Composite DTM 1 m &copy; Environment Agency (OGL)');
 let smLayer=null;
 const titleCtl=L.control({position:'topleft'});titleCtl.onAdd=()=>{const d=$('titlebox');L.DomEvent.disableClickPropagation(d);L.DomEvent.disableScrollPropagation(d);return d};titleCtl.addTo(map);
@@ -42,7 +44,7 @@ window.__outlineP=LC.outline?fetch(LC.outline).then(r=>r.json()):null;if(LC.outl
 // Links to sibling Lenses (config: links:[{text,href}], linksNote), under the title
 if(LC.links&&LC.links.length){const tb=$('titlebox'),sub=tb&&tb.querySelector('.sub'),d=document.createElement('div');d.className='xlinks';
   if(LC.linksNote){d.appendChild(document.createTextNode(LC.linksNote+' '))}
-  LC.links.forEach((l,i)=>{if(i)d.appendChild(document.createTextNode(' · '));const a=document.createElement('a');a.href=l.href;a.textContent=l.text;d.appendChild(a)});
+  LC.links.forEach((l,i)=>{if(i)d.appendChild(document.createTextNode(' · '));const a=document.createElement('a');a.href=l.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent=l.text;d.appendChild(a)});
   if(sub)sub.after(d);else if(tb)tb.querySelector('h1').after(d)}
 document.title=LC.pageTitle||LC.title;{const h=document.querySelector('#titlebox h1'),a=document.querySelector('#titlebox .sub a');if(h)h.textContent=LC.title;if(a&&LC.link){a.textContent=LC.link.text;a.href=LC.link.href}else if(a)a.parentNode.style.display='none'}
 L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
@@ -79,9 +81,12 @@ mc.addEventListener('pointerdown',e=>{if((e.shiftKey||e.altKey)&&e.isPrimary&&in
 mc.addEventListener('click',e=>{if(Date.now()-justDragged<350){e.stopPropagation();e.preventDefault()}},true);
 // ---------- tiles ----------
 const tileCache=new Map();
+// live mode, first visit: tiles asked for before the service worker controls the page would go to the static host and 404,
+// so hold them back; the page reloads as soon as the worker takes over (see above)
+const SW_WAIT=!!(LC.live&&('serviceWorker' in navigator)&&!navigator.serviceWorker.controller);
 function tileRange(z){const p1=map.project(CFG.bounds[1],z),p0=map.project(CFG.bounds[0],z);
   return {x0:Math.floor(Math.min(p0.x,p1.x)/256),x1:Math.floor(Math.max(p0.x,p1.x)/256),y0:Math.floor(Math.min(p0.y,p1.y)/256),y1:Math.floor(Math.max(p0.y,p1.y)/256)}}
-function getTile(z,x,y,cb){const k=z+'/'+x+'/'+y;let t=tileCache.get(k);
+function getTile(z,x,y,cb){if(SW_WAIT)return null;const k=z+'/'+x+'/'+y;let t=tileCache.get(k);
   if(t){if(t.ok)return t.img; if(!t.failed&&cb)t.cbs.push(cb); return null}
   const img=new Image();if(CFG.xo)img.crossOrigin=CFG.xo;t={img,ok:false,failed:false,cbs:cb?[cb]:[]};tileCache.set(k,t);img.decoding='async';
   img.onload=()=>{t.ok=true;t.cbs.forEach(f=>f());t.cbs=[]};img.onerror=()=>{t.failed=true;const c=t.cbs;t.cbs=[];c.forEach(f=>f())};   // a failed tile also triggers a rebuild, so the loading count clears
@@ -237,9 +242,9 @@ let cvDpr=1,mosaicReady=false,pending=false,lastStretch=null;
 function resizeCanvas(){cvDpr=Math.min(2,window.devicePixelRatio||1);const [w,h]=mapSize();cv.style.width=w+'px';cv.style.height=h+'px';cv.width=Math.round(w*cvDpr);cv.height=Math.round(h*cvDpr)}
 function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=false;R.clear();return}
   const need=[];for(let j=0;j<want.ny;j++)for(let i=0;i<want.nx;i++)need.push([want.x0+i,want.y0+j,i*256,j*256]);
-  let missing=0;const imgs=need.map(([x,y,px,py])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t.failed)missing++}return im});
+  let missing=0;const imgs=need.map(([x,y,px,py])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||!t.failed)missing++}return im});
   MZ=want;R.newMosaic(want);need.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});R.decode(want);mosaicReady=true;
-  {const ld=document.getElementById('loading');if(ld){ld.hidden=!missing;if(missing)document.getElementById('loadt').textContent='Loading LiDAR… ('+missing+' tiles)'}}requestRender(true)}
+  {const ld=document.getElementById('loading');if(SW_WAIT)missing=need.length;if(ld){ld.hidden=!missing;if(missing)document.getElementById('loadt').textContent='Loading LiDAR… ('+missing+' tiles)'}}requestRender(true)}
 // tiles arrive in bursts: coalesce rebuilds (each one re-decodes the whole mosaic)
 let mosT=null,mosFirst=0;function scheduleMosaic(){clearTimeout(mosT);const now=performance.now();if(!mosFirst)mosFirst=now;
   mosT=setTimeout(()=>{mosFirst=0;buildMosaic()},now-mosFirst>600?0:150)}

@@ -11,7 +11,7 @@
    Everything fetched is kept in the browser's Cache Storage, so a place seen once comes back instantly.
    Be kind to the sources: blocks are shared between tiles, requests are de-duplicated and at most 4 run at once. */
 'use strict';
-const VER = 'v1';
+const VER = 'v2';   // v2: drops any v1 'What's here?' cells cached from a failed query
 const BLOCKS = 'lens-live-blocks-' + VER, TILES = 'lens-live-tiles-' + VER, RECS = 'lens-live-recs-' + VER;
 const MINZ = 13, MAXZ = 17;          // tiles below MINZ are not made (the EA hillshade map shows instead)
 const BLOCK_PX = 1024;                 // WCS block size in pixels; block side = BLOCK_PX * r metres
@@ -185,15 +185,22 @@ async function query(layerUrl, fields, x0, y0, x1, y1) {
     const q = new URLSearchParams({ where: '1=1', geometry: `${x0},${y0},${x1},${y1}`, geometryType: 'esriGeometryEnvelope', inSR: 27700, outSR: 27700,
       spatialRel: 'esriSpatialRelIntersects', outFields: fields, returnGeometry: true, maxAllowableOffset: 0.5, f: 'geojson', resultOffset: off, resultRecordCount: 2000 });
     const r = await limited(() => fetch(layerUrl + '/query?' + q));
-    if (!r.ok) break;
+    if (!r.ok) throw new Error('HE ' + r.status);
     const j = await r.json(), fs = j.features || [];
+    if (j.error) throw new Error('HE ' + (j.error.code || 'error'));
     out.push(...fs); off += fs.length;
     if (fs.length < 2000) break;
   }
   return out;
 }
 const clean = s => (s == null ? '' : String(s)).trim(), title = s => clean(s).replace(/\\/g, ', ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+// Only a complete answer is cached: if any of the four queries fails, say so (503) and try again next time
 async function recCell(cx, cy) {
+  try { return await recCell1(cx, cy) } catch (e) {
+    return new Response(JSON.stringify({ error: String(e && e.message || e) }), { status: 503, headers: { 'Content-Type': 'application/json', 'Retry-After': '30' } });
+  }
+}
+async function recCell1(cx, cy) {
   const url = `https://lens-live.invalid/${VER}/rec/${cx}_${cy}.json`, c = await caches.open(RECS), hit = await c.match(url);
   if (hit) return hit;
   const x0 = cx * CELL - BUF, y0 = cy * CELL - BUF, x1 = cx * CELL + CELL + BUF, y1 = cy * CELL + CELL + BUF;
