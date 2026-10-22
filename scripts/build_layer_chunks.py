@@ -75,6 +75,11 @@ add('rec',g.geometry.values,[{'s':'NHLE','id':str(x.ListEntry),'n':clean(x.Name)
 if os.path.exists(RAW+'/nhle_listed_pts.geojson'):
     g=rd(RAW+'/nhle_listed_pts.geojson');g=g[g.intersects(areabuf)]
     add('rec',g.geometry.values,[{'s':'LB','id':str(x.ListEntry),'n':clean(x.Name),'t':'Listed building, grade '+clean(x.Grade),'p':'','d':'','u':clean(x.hyperlink)} for x in g.itertuples()],0)
+# Optional curated site gazetteer(s): RAW/sites_*.geojson (EPSG:27700 points; name,type,nhle,certainty,source,notes)
+for f in sorted(glob.glob(RAW+'/sites_*.geojson')):
+    g=rd(f);g=g[g.intersects(areabuf)]
+    add('rec',g.geometry.values,[{'s':'GAZ','id':clean(getattr(x,'nhle','')),'n':clean(x.name),'t':clean(x.type).capitalize(),'p':'','d':(clean(getattr(x,'certainty',''))+': '+clean(getattr(x,'notes','')))[:220],'u':clean(getattr(x,'source',''))} for x in g.itertuples()],0)
+    print('gazetteer',f,len(g),flush=True)
 a=rd(RAW+'/aim_detailed.geojson');a=a[a.intersects(areabuf)];a['uid']=a.HE_UID.map(clean)
 meta={}
 for x in a.itertuples():
