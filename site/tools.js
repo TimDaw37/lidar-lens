@@ -73,13 +73,13 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
 // 'Did you mean': Photon (OpenStreetMap, typo-tolerant) within Great Britain; keep the 1-2 names closest to what was typed
 function lev(a,b){const m=a.length,n=b.length,d=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){let p=d[0];d[0]=i;for(let j=1;j<=n;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[n]}
 async function nearMiss(q){try{const norm=t=>t.toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim(),nq=norm(q);
-  const r=await fetch('https://photon.komoot.io/api/?limit=10&lang=en&bbox=-8.7,49.8,1.9,60.9&q='+encodeURIComponent(q));if(!r.ok)return [];const j=await r.json(),seen=new Set(),out=[];
+  const r=await fetch('https://photon.komoot.io/api/?limit=10&lang=en&bbox=-8.7,49.8,1.9,60.9&q='+encodeURIComponent(q),window.AbortSignal&&AbortSignal.timeout?{signal:AbortSignal.timeout(2500)}:{});   // Photon is a free public service and can be slow: don't hold up Go toif(!r.ok)return [];const j=await r.json(),seen=new Set(),out=[];
   (j.features||[]).map((f,i)=>{const p=f.properties||{},n=p.name||'';return {i,p,n,c:f.geometry&&f.geometry.coordinates,d:lev(nq,norm(n))}})
     .filter(x=>x.c&&x.n&&!['house','street'].includes(x.p.type)&&x.n.toLowerCase()!==q.toLowerCase().trim()&&x.d<=Math.max(2,Math.round(nq.length/4)))
     .sort((a,b)=>a.d-b.d||a.i-b.i).forEach(x=>{const where=x.p.county||x.p.state||'',k=x.n+'|'+where;if(out.length<2&&!seen.has(k)){seen.add(k);
       out.push({lat:x.c[1],lng:x.c[0],z:['city','town','district','county'].includes(x.p.type)?13:16,name:x.n+(where?', '+where:''),label:'Did you mean '+x.n+(where?' ('+where+')':'')+'?'})}});
   return out}catch(e){return []}}
-$('goto').addEventListener('submit',e=>{e.preventDefault();doGoto($('gotoq').value)});
+$('goto').addEventListener('submit',e=>{e.preventDefault();if(matchMedia('(pointer:coarse)').matches)$('gotoq').blur();doGoto($('gotoq').value)});   // touch: drop the on-screen keyboard so the map shows
 LZ.doGoto=doGoto;
 // ===================== Where am I =====================
 let wPos=null,wSrc='Centre',wT=null,hoverOK=false;

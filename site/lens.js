@@ -246,6 +246,8 @@ function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=fal
   const need=[];for(let j=0;j<want.ny;j++)for(let i=0;i<want.nx;i++)need.push([want.x0+i,want.y0+j,i*256,j*256]);
   let missing=0;const imgs=need.map(([x,y,px,py])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||!t.failed)missing++}return im});
   MZ=want;R.newMosaic(want);need.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});R.decode(want);mosaicReady=true;
+  if(LC.live&&!SW_WAIT&&map.getZoom()>=(LC.live.minzoom||13)-0.25){const failed=need.filter(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);return t&&t.failed}).length;   // (nearly) every tile empty: say why, not a blank lens
+    if(failed&&failed>=need.length*0.75)msg(NO_LIDAR);else if($('msg').textContent===NO_LIDAR)msg('',1)}
   {const ld=document.getElementById('loading');if(SW_WAIT)missing=need.length;if(ld){ld.hidden=!missing;if(missing)document.getElementById('loadt').textContent='Loading LiDAR… ('+missing+' tiles)'}}requestRender(true)}
 // tiles arrive in bursts: coalesce rebuilds (each one re-decodes the whole mosaic)
 let mosT=null,mosFirst=0;function scheduleMosaic(){clearTimeout(mosT);const now=performance.now();if(!mosFirst)mosFirst=now;
@@ -267,7 +269,9 @@ function requestRender(){if(!pending){pending=true;requestAnimationFrame(render)
 map.on('move',requestRender);map.on('moveend',()=>{scheduleMosaic();saveHash();liveHint()});
 // live mode: below the worker's first zoom the lens is empty, so say why
 map.whenReady(()=>setTimeout(()=>liveHint(),300));
-function liveHint(){if(!LC.live)return;const mz=LC.live.minzoom||13;if(map.getZoom()<mz-0.25)msg('Zoom in to see live LiDAR in the lens (zoom '+mz+'+). The background is the EA hillshade.');else if($('msg').textContent.startsWith('Zoom in to see live'))msg('',1)}
+const NO_LIDAR='Little or no LiDAR here: the Environment Agency survey covers England only, and stops at the coast.';
+map.on('baselayerchange',()=>liveHint());
+function liveHint(){if(!LC.live)return;const mz=LC.live.minzoom||13;if(map.getZoom()<mz-0.25)msg('Zoom in to see live LiDAR in the lens (zoom '+mz+'+).'+(S.base==='eahs'?' The background is the EA LiDAR hillshade.':' Zoomed out, choose the EA LiDAR hillshade background on the layers button.'));else if($('msg').textContent.startsWith('Zoom in to see live'))msg('',1)}
 map.on('zoomstart',()=>{cv.style.visibility='hidden'});map.on('zoomend',()=>{cv.style.visibility='visible';scheduleMosaic()});
 map.on('resize',()=>{resizeCanvas();placeLens();scheduleMosaic()});
 // ---------- controls ----------
