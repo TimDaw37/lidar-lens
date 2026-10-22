@@ -3,6 +3,11 @@
 (function(){
 'use strict';
 const LC=window.LENS_CONFIG;if(!LC)throw new Error('config.js missing (window.LENS_CONFIG)');
+// Live mode (LC.live): tiles and records are made on demand from public sources by live-sw.js (a service worker).
+// On the first visit the worker isn't in control yet, so register it and reload once it is.
+if(LC.live){if(!('serviceWorker' in navigator)){document.addEventListener('DOMContentLoaded',()=>{const m=document.getElementById('msg');if(m){m.textContent='This browser cannot run the live LiDAR (no service workers). Try a current Chrome, Edge, Firefox or Safari.';m.style.display='block'}})}
+  else if(!navigator.serviceWorker.controller){navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload(),{once:true});navigator.serviceWorker.register('live-sw.js').catch(e=>console.warn('live-sw',e))}
+  else navigator.serviceWorker.register('live-sw.js').catch(()=>{})}
 const CFG={tiles:LC.tiles.url,minz:LC.tiles.minzoom,maxz:LC.tiles.maxzoom,xo:LC.tiles.crossOrigin||null,bounds:LC.bounds,start:{lat:LC.start.lat,lng:LC.start.lng,z:LC.start.zoom}};
 const $=id=>document.getElementById(id);
 const DEF={mode:0,az:315,el:35,ve:2,rad:10,ramp:'grey',auto:true,ct:1,gm:1,op:1,ls:340,fs:false,sm:false,base:'sat'};
@@ -25,7 +30,7 @@ const BASES=(LC.basemaps||[
   {id:'sat',name:'Aerial (Esri World Imagery)',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',maxNativeZoom:19,attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics, GIS User Community'},
   {id:'otm',name:'OpenTopoMap (paths, contours)',url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',maxNativeZoom:17,attribution:'Map: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA), data &copy; OpenStreetMap contributors, SRTM'},
   {id:'osm',name:'OpenStreetMap',url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',maxNativeZoom:19,attribution:'&copy; OpenStreetMap contributors'}]);
-const baseLayers={},baseById={};BASES.forEach(b=>{const l=L.tileLayer(b.url,{maxZoom:20,maxNativeZoom:b.maxNativeZoom||19,attribution:b.attribution,subdomains:b.subdomains||'abc'});baseLayers[b.name]=l;baseById[b.id]=l;l._lensId=b.id});
+const baseLayers={},baseById={};BASES.forEach(b=>{const l=b.wms?L.tileLayer.wms(b.url,{layers:b.wms,format:'image/png',version:'1.3.0',maxZoom:20,attribution:b.attribution}):L.tileLayer(b.url,{maxZoom:20,maxNativeZoom:b.maxNativeZoom||19,attribution:b.attribution,subdomains:b.subdomains||'abc'});baseLayers[b.name]=l;baseById[b.id]=l;l._lensId=b.id});
 if(!baseById[S.base])S.base=BASES[0].id;baseById[S.base].addTo(map);
 map.attributionControl.addAttribution('LiDAR: EA LiDAR Composite DTM 1 m &copy; Environment Agency (OGL)');
 let smLayer=null;
@@ -74,7 +79,7 @@ function tileRange(z){const p1=map.project(CFG.bounds[1],z),p0=map.project(CFG.b
 function getTile(z,x,y,cb){const k=z+'/'+x+'/'+y;let t=tileCache.get(k);
   if(t){if(t.ok)return t.img; if(!t.failed&&cb)t.cbs.push(cb); return null}
   const img=new Image();if(CFG.xo)img.crossOrigin=CFG.xo;t={img,ok:false,failed:false,cbs:cb?[cb]:[]};tileCache.set(k,t);img.decoding='async';
-  img.onload=()=>{t.ok=true;t.cbs.forEach(f=>f());t.cbs=[]};img.onerror=()=>{t.failed=true;t.cbs=[]};
+  img.onload=()=>{t.ok=true;t.cbs.forEach(f=>f());t.cbs=[]};img.onerror=()=>{t.failed=true;const c=t.cbs;t.cbs=[];c.forEach(f=>f())};   // a failed tile also triggers a rebuild, so the loading count clears
   img.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y);return null}
 // ---------- mosaic state ----------
 let MZ=null; // {zt,x0,y0,nx,ny,w,h,key}
@@ -246,7 +251,10 @@ function stretch(vw,box){const base=MODE_RANGE[S.mode];let lo=base[0],hi=base[1]
 function render(){pending=false;if(R.kind==='none')return;if(!mosaicReady||!MZ){R.clear();return}const vw=view();const box=lensBox(vw);R.compute(MZ,vw,box);const [lo,hi]=stretch(vw,box);R.draw(vw,lo,hi);
   $('about').dataset.range=lo.toFixed(3)+' … '+hi.toFixed(3)}
 function requestRender(){if(!pending){pending=true;requestAnimationFrame(render)}}
-map.on('move',requestRender);map.on('moveend',()=>{scheduleMosaic();saveHash()});
+map.on('move',requestRender);map.on('moveend',()=>{scheduleMosaic();saveHash();liveHint()});
+// live mode: below the worker's first zoom the lens is empty, so say why
+map.whenReady(()=>setTimeout(()=>liveHint(),300));
+function liveHint(){if(!LC.live)return;const mz=LC.live.minzoom||13;if(map.getZoom()<mz-0.25)msg('Zoom in to see live LiDAR in the lens (zoom '+mz+'+). The background is the EA hillshade.');else if($('msg').textContent.startsWith('Zoom in to see live'))msg('',1)}
 map.on('zoomstart',()=>{cv.style.visibility='hidden'});map.on('zoomend',()=>{cv.style.visibility='visible';scheduleMosaic()});
 map.on('resize',()=>{resizeCanvas();placeLens();scheduleMosaic()});
 // ---------- controls ----------

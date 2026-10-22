@@ -106,3 +106,18 @@ In `config.js`, set the title, `areaName`, `bounds` (from your tiles), `start`, 
 ## 10. Please
 - Don't publish lists or maps of *possible new sites*. Report them to your HER (nighthawking risk).
 - Credit the data providers (see README). Credit your HER if you use its records for anything, even summaries.
+
+## Live mode: all of England, nothing to upload
+
+`configs/england.js` builds a Lens for the whole of England with no tiles, no layer files and no Cloudflare storage. A service worker, `site/live-sw.js`, answers the viewer's usual requests on the fly:
+- `terrain/{z}/{x}/{y}.png`: made from the Environment Agency's LiDAR Composite DTM 1 m WCS, fetched in British National Grid blocks (1024 px; 1 m at zoom 16–17, coarser below via `SCALEFACTOR`), resampled to web-mercator tiles with the OSTN15 correction grid (agrees with PROJ OSTN15 to within ~2 cm) and Terrarium-encoded. Zoom 13–17; below 13 the background is the EA's own hillshade (WMS).
+- `layers/index.json` and `layers/v2/rec/{cx}_{cy}.json`: Historic England NHLE (scheduled monuments, listed buildings) and Aerial Investigation & Mapping, queried live from HE's ArcGIS services for each 5 km cell.
+- Everything is kept in the visitor's Cache Storage, so a place seen once returns instantly; at most 4 requests run at once.
+
+Build and host:
+```
+node scripts/build_site.mjs configs/england.js     # dist/, including live-sw.js and data/ostn_grid.json
+```
+Put `dist/` on any static HTTPS host (GitHub Pages, Cloudflare Pages). No Worker, no R2, no card. The first visit registers the service worker and reloads once.
+
+Trade-offs against a county build: 1–3 s to fill the lens on new ground (instant on return), roughly 1–2 MB of LiDAR per screenful, and it depends on the EA's and HE's public services being up. No rights of way (no national open dataset) and no OS context layer. For another country's open LiDAR service, change the WCS and the grid in `live-sw.js`.

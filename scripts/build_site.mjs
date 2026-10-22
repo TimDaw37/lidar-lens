@@ -29,6 +29,9 @@ let pre='';if(cfg){const c=fs.readFileSync(cfg,'utf8');const m=c.match(/url:\s*'
   html=html.replace('<script defer src="config.js"></script>','<script defer src="assets/'+cfgName+'"></script>')}
 if(fs.existsSync(SITE+'/icons'))for(const f of fs.readdirSync(SITE+'/icons'))fs.copyFileSync(SITE+'/icons/'+f,OUT+'/'+f);   // favicon + manifest at the site root
 if(fs.existsSync(SITE+'/models.json'))fs.copyFileSync(SITE+'/models.json',OUT+'/models.json');
+// An area's OSTN15 correction grid can sit next to its config as <config>-ostn_grid.json (e.g. configs/england-ostn_grid.json)
+if(process.argv[2]){const g=process.argv[2].replace(/\.js$/,'-ostn_grid.json');if(fs.existsSync(g)){fs.mkdirSync(OUT+'/data',{recursive:true});fs.copyFileSync(g,OUT+'/data/ostn_grid.json')}}
+if(fs.existsSync(SITE+'/live-sw.js'))fs.copyFileSync(SITE+'/live-sw.js',OUT+'/live-sw.js');   // live mode service worker: fixed name at the site root (its scope)
 html=html.replace('<title>',pre+'<title>');fs.writeFileSync(OUT+'/index.html',html.replace(/\n\s*\n/g,'\n'));
 const sz=f=>(fs.statSync(OUT+'/'+f).size/1024).toFixed(0)+' KB';
 console.log('dist/index.html',sz('index.html'),'| assets/'+jsName,sz('assets/'+jsName),'| assets/'+cssName,sz('assets/'+cssName),'| assets/'+compatName,sz('assets/'+compatName));

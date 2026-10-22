@@ -13,6 +13,8 @@ Everything is static files: the viewer, terrain tiles as lossless WebP (Terrariu
 
 Example: Wiltshire, live at https://lidar-lens-public.tim-daw.workers.dev/
 
+**Live mode (all of England, nothing uploaded):** `configs/england.js` + `site/live-sw.js` fetch the EA LiDAR and Historic England records on demand as you look. See *Live mode* in [PROTOCOL.md](PROTOCOL.md).
+
 ## Repository layout
 | Path | What |
 |---|---|

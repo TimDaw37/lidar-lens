@@ -4,8 +4,8 @@ import numpy as np
 from pyproj.transformer import TransformerGroup
 tg=TransformerGroup('EPSG:4326','EPSG:27700',always_xy=True)
 ost=[t for t in tg.transformers if 'OSTN15' in t.definition][0]; hel=[t for t in tg.transformers if 'helmert' in t.definition and 'x=446.448' in t.definition][0]
-# bbox from env BBOX='lat0,lat1,lng0,lng1' (WGS84), grid step 0.02 deg
-lat0,lat1,lng0,lng1=map(float,os.environ.get('BBOX','50.80,51.80,-2.50,-1.40').split(','));st=0.02
+# bbox from env BBOX='lat0,lat1,lng0,lng1' (WGS84); grid step STEP deg (default 0.02; 0.05 keeps an all-England grid near 250 KB)
+lat0,lat1,lng0,lng1=map(float,os.environ.get('BBOX','50.80,51.80,-2.50,-1.40').split(','));st=float(os.environ.get('STEP','0.02'))
 la=np.round(np.arange(lat0,lat1+1e-9,st),4); lo=np.round(np.arange(lng0,lng1+1e-9,st),4)
 LO,LA=np.meshgrid(lo,la)
 e1,n1=ost.transform(LO,LA); e2,n2=hel.transform(LO,LA)
