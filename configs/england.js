@@ -7,6 +7,8 @@ window.LENS_CONFIG={
   title:'LiDAR Lens - England (live)',
   pageTitle:'LiDAR Lens - England (live)',
   link:null,
+  linksNote:'Faster Lenses, with their LiDAR held locally:',
+  links:[{text:'Wiltshire',href:'https://lidar-lens-public.tim-daw.workers.dev/'},{text:'Ure henges',href:'https://lidar-lens-ure.tim-daw.workers.dev/'}],
   areaName:'England',
   private:false,
   repoUrl:'https://github.com/TimDaw37/lidar-lens',

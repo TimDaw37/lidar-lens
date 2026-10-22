@@ -39,6 +39,11 @@ L.control.zoom({position:'topleft'}).addTo(map);
 const layersCtl=L.control.layers(baseLayers,{},{position:'topleft'}).addTo(map);   // ui.js adds the historic OS maps to it
 map.on('baselayerchange',e=>{S.base=e.layer._lensId;saveHash()});
 window.__outlineP=LC.outline?fetch(LC.outline).then(r=>r.json()):null;if(LC.outline){window.__outlineP.then(g=>L.geoJSON(g,{style:{color:'#fff',weight:1.5,dashArray:'4 4',fill:false},interactive:false}).addTo(map)).catch(()=>{})}else L.rectangle(CFG.bounds,{color:'#fff',weight:1,dashArray:'4 4',fill:false,interactive:false}).addTo(map);
+// Links to sibling Lenses (config: links:[{text,href}], linksNote), under the title
+if(LC.links&&LC.links.length){const tb=$('titlebox'),sub=tb&&tb.querySelector('.sub'),d=document.createElement('div');d.className='xlinks';
+  if(LC.linksNote){d.appendChild(document.createTextNode(LC.linksNote+' '))}
+  LC.links.forEach((l,i)=>{if(i)d.appendChild(document.createTextNode(' · '));const a=document.createElement('a');a.href=l.href;a.textContent=l.text;d.appendChild(a)});
+  if(sub)sub.after(d);else if(tb)tb.querySelector('h1').after(d)}
 document.title=LC.pageTitle||LC.title;{const h=document.querySelector('#titlebox h1'),a=document.querySelector('#titlebox .sub a');if(h)h.textContent=LC.title;if(a&&LC.link){a.textContent=LC.link.text;a.href=LC.link.href}else if(a)a.parentNode.style.display='none'}
 L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
 const whereCtl=L.control({position:'bottomleft'});whereCtl.onAdd=()=>{const d=$('where');L.DomEvent.disableClickPropagation(d);return d};whereCtl.addTo(map);
