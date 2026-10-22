@@ -143,6 +143,7 @@ async function readTiff(buf) {
 
 // ---------------------------------------------------------------- BNG blocks: BLOCK_PX x BLOCK_PX at r metres, 1-px margin
 const mem = new Map();   // decoded blocks, least recently used first
+const FAIL = { fail: true };   // a block whose source could not be fetched (as opposed to null: fetched, and no data there)
 function block(r, bx, by) {
   const key = r + '/' + bx + '/' + by;
   if (mem.has(key)) { const p = mem.get(key); mem.delete(key); mem.set(key, p); return p }
@@ -150,20 +151,23 @@ function block(r, bx, by) {
   const url = `${RELAY}?r=${r}&bx=${bx}&by=${by}`, direct = WCS + `&subset=E(${x0},${x1})&subset=N(${y0},${y1})` + (r > 1 ? `&SCALEFACTOR=${1 / r}` : '') + CLIENT;
   const viaRelay = cached(BLOCKS, url).then(res => res.ok || res.status === 429 || res.headers.get('X-Upstream') ? res : Promise.reject(new Error('relay ' + res.status)));
   const decode = zeroIsNoData => async res => {
-    if (!res.ok) return null;
+    if (!res.ok) return FAIL;
     const t = await readTiff(await res.arrayBuffer());
     // EA nodata is -3.4e38 inside its survey, but outside it (Wales, Scotland, the sea) the WCS sends 0.0: treat both as no data
     let any = false;
     for (let i = 0; i < t.data.length; i++) { const v = t.data[i]; if (!(v > -1000) || (zeroIsNoData && v === 0)) t.data[i] = NaN; else any = true }
     return any ? { ...t, x0, yTop: y1, r } : null;
   };
-  const ea = viaRelay.catch(() => cached(BLOCKS, direct)).then(decode(true)).catch(() => null);
+  const ea = viaRelay.catch(() => cached(BLOCKS, direct)).then(decode(true)).catch(() => FAIL);
   const inWales = x1 > WALES.e0 && x0 < WALES.e1 && y1 > WALES.n0 && y0 < WALES.n1;
-  const p = !inWales ? ea : Promise.all([ea, cached(BLOCKS, `${RELAY_WALES}?r=${r}&bx=${bx}&by=${by}`).then(decode(false)).catch(() => null)]).then(([e, w]) => {
-    if (!w || !e) return w || e;
-    for (let i = 0; i < w.data.length; i++) if (w.data[i] === w.data[i]) e.data[i] = w.data[i];
-    return e;
+  const both = !inWales ? ea : Promise.all([ea, cached(BLOCKS, `${RELAY_WALES}?r=${r}&bx=${bx}&by=${by}`).then(decode(false)).catch(() => FAIL)]).then(([e, w]) => {
+    const failed = e === FAIL || w === FAIL; if (e === FAIL) e = null; if (w === FAIL) w = null;
+    if (w && e) for (let i = 0; i < w.data.length; i++) if (w.data[i] === w.data[i]) e.data[i] = w.data[i];
+    const b = w && e ? e : w || e;
+    return failed ? { partial: true, b } : b;
   });
+  // a source that failed (busy, down) must not be remembered: drop it here, and tile() will not store a tile made without it
+  const p = both.then(v => { if (v === FAIL || (v && v.partial)) { if (mem.get(key) === p) mem.delete(key) } return v });
   mem.set(key, p);
   while (mem.size > 10) mem.delete(mem.keys().next().value);
   return p;
@@ -186,6 +190,8 @@ async function tile(z, x, y) {
   for (let bx = Math.floor(eMin / S); bx <= Math.floor(eMax / S); bx++) for (let by = Math.floor(nMin / S); by <= Math.floor(nMax / S); by++)
     jobs.push(block(r, bx, by).then(b => blocks.set(bx + '/' + by, b)));
   await Promise.all(jobs);
+  let partial = false;
+  for (const [k, b] of blocks) if (b === FAIL || (b && b.partial)) { partial = true; blocks.set(k, b === FAIL ? null : b.b) }
   if (![...blocks.values()].some(Boolean)) return none();
   const img = new ImageData(256, 256), px = img.data; let any = false;
   for (let py = 0; py < 256; py++) {
@@ -208,7 +214,7 @@ async function tile(z, x, y) {
   if (!any) return none();
   const cv = new OffscreenCanvas(256, 256); cv.getContext('2d').putImageData(img, 0, 0);
   const res = new Response(await cv.convertToBlob({ type: 'image/png' }), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400' } });
-  await putSized(TILES, c, key, res.clone());
+  if (!partial) await putSized(TILES, c, key, res.clone());   // incomplete: show it, but make it afresh next time
   return res;
 }
 

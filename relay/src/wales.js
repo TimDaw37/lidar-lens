@@ -6,10 +6,15 @@
 export const WALES_COG = 'https://dmwproductionblob.blob.core.windows.net/cogs/lidar/wales_dtm_32bit_cog.tif';
 const UA = { 'User-Agent': 'LiDAR-Lens-relay (+https://github.com/TimDaw37/lidar-lens)' };
 
+// Azure storage occasionally fails a single read (a 5xx or a dropped connection): try twice more, after 0.3 s and 1 s
 async function range(a, n) {
-  const r = await fetch(WALES_COG, { headers: { ...UA, Range: `bytes=${a}-${a + n - 1}` } });
-  if (r.status !== 206 && r.status !== 200) { const e = new Error('COG ' + r.status); e.status = r.status; throw e }
-  return new Uint8Array(await r.arrayBuffer());
+  for (let t = 0; ; t++) {
+    let r = null;
+    try { r = await fetch(WALES_COG, { headers: { ...UA, Range: `bytes=${a}-${a + n - 1}` } }) } catch (e) { if (t >= 2) throw e }
+    if (r && (r.status === 206 || r.status === 200)) return new Uint8Array(await r.arrayBuffer());
+    if (r && (r.status < 500 || t >= 2)) { const e = new Error('COG ' + r.status); e.status = r.status; throw e }
+    await new Promise(res => setTimeout(res, t ? 1000 : 300));
+  }
 }
 async function inflate(u8) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer()) }
 async function deflate(u8) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer()) }
