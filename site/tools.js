@@ -318,8 +318,14 @@ async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L
   const [E,N]=ll2en(ll.lat,ll.lng);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small></div><div class="bd">Looking at the LiDAR and records…</div>';
   card.querySelector('.x').onclick=closeCard;
   const HA=LZ.LC.herApi;const herP=HA?fetch(HA.url+'?e='+Math.round(E)+'&n='+Math.round(N),{credentials:'same-origin'}).then(r=>r.ok?r.json():{r:[],err:r.status}).catch(()=>({r:[],err:1})):Promise.resolve(null);
-  const [W,D,HJ]=await Promise.all([dtmWindow(ll,100),dataNear(E,N,180),herP]);if(seq!==wiSeq)return;const CTX=D.ctx;
-  const a=analyse(W);const elev=await LZ.heightAt(ll);
+  LZ.recErr=0;const both=Promise.all([dataNear(E,N,180),herP]);const W=await dtmWindow(ll,100);if(seq!==wiSeq)return;
+  // records can take seconds (live Historic England queries): show the LiDAR measurements at once, then fill the records in
+  const early=await Promise.race([both,new Promise(r=>setTimeout(()=>r(null),400))]);if(seq!==wiSeq)return;
+  if(early)return wiRender(ll,E,N,W,early[0],early[1],false,seq);
+  await wiRender(ll,E,N,W,{recs:[],ctx:{}},null,true,seq);
+  let D,HJ;try{[D,HJ]=await both}catch(e){D={recs:[],ctx:{}};HJ=null}if(seq!==wiSeq)return;return wiRender(ll,E,N,W,D,HJ,false,seq)}
+async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
+  const a=analyse(W);const elev=await LZ.heightAt(ll);if(seq!==wiSeq)return;
   const ref=a.nodata?[E,N]:ll2en(a.centreLL.lat,a.centreLL.lng);
   const ctx={};for(const k in CTX){const r=nearest(CTX[k],ref[0],ref[1],150);if(r)ctx[k]=r}
   const cls=classify(a,ctx,elev==null?0:elev);
@@ -334,10 +340,12 @@ async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L
   let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':'')+'</small></div><div class="bd">';
   // Heritage Gateway retired its Results_Single.aspx pages; go straight to the new search for that HE research record (saves a redirect)
   const hgLink=u=>{const m=/^https?:\/\/(?:www\.)?heritagegateway\.org\.uk\/Gateway\/Results_Single\.aspx\?uid=([^&#]+)&resourceID=19191\b/i.exec(u);return m?'https://historicengland.org.uk/listing/heritage-gateway/results?q='+encodeURIComponent(decodeURIComponent(m[1]))+'&filters%5B0%5D%5Bfield%5D=dataset&filters%5B0%5D%5Bvalues%5D%5B0%5D=Historic%20England%20research%20records&filters%5B1%5D%5Bfield%5D=layoutView&filters%5B1%5D%5Bvalues%5D%5B0%5D=list':u};
-  const recRow=({f,d})=>{let h='';h+='<div class="rec"><span class="b '+f.s+'">'+f.s+'</span><b>'+esc(f.n||f.t||'(unnamed)')+'</b> <span class="m">&middot; '+(d<0.5?'here':Math.round(d)+' m')+'</span><div class="m">'+esc([f.t&&f.t!==f.n?f.t:'',f.p,f.s==='OSM'?'OSM '+f.id:f.s==='NHLE'||f.s==='LB'?'List entry '+f.id:f.s==='AIM'?'HE UID '+f.id:f.s==='GAZ'?(/^\d+$/.test(f.id||'')?'NHLE '+f.id:''):f.id].filter(Boolean).join(' · '))+
+  const recRow=({f,d})=>{let h='';h+='<div class="rec"><span class="b '+f.s+'">'+f.s+'</span><b>'+esc(f.n||f.t||'(unnamed)')+'</b> <span class="m">&middot; '+(d<0.5?'here':Math.round(d)+' m')+'</span><div class="m">'+esc([f.t&&f.t!==f.n?f.t:'',f.p,f.s==='OSM'?'OSM '+f.id:f.s==='NHLE'||f.s==='LB'?'List entry '+f.id:f.s==='AIM'?(f.id&&!/none/i.test(f.id)?'HE UID '+f.id:''):f.s==='GAZ'?(/^\d+$/.test(f.id||'')?'NHLE '+f.id:''):f.id].filter(Boolean).join(' · '))+
     (f.u?' &middot; <a href="'+esc(hgLink(f.u))+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':'OSM')+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
   h+='<h3>Recorded within 30 m</h3><div class="m snap" style="font-size:11px;margin:-2px 0 4px">'+esc(LZ.LC.recordsLine||('Records from the '+HLL+', NHLE, HE aerial mapping and OSM'))+'</div>';
-  if(!near30.length)h+='<div class="m">Nothing in the '+esc(HL)+', NHLE, HE aerial mapping or OSM within 30 m'+(far.length?'':' (or within 100 m)')+'.</div>';
+  if(pending)h+='<div class="m wiwait">Fetching records…</div>';
+  else if(LZ.recErr&&!recs.length)h+='<div class="m">Historic England records could not be fetched just now. Click again in a minute.</div>';
+  else if(!near30.length)h+='<div class="m">Nothing in '+(LZ.LC.live?'Historic England\'s records (NHLE, aerial mapping)':'the '+esc(HL)+', NHLE, HE aerial mapping or OSM')+' within 30 m'+(far.length?'':' (or within 100 m)')+'.</div>';
   near30.forEach(r=>{h+=recRow(r)});
   if(far.length)h+='<details class="more"><summary>+ '+far.length+' more within 100 m</summary>'+far.map(recRow).join('')+'</details>';
   if(HJ&&HJ.err)h+='<div class="m" style="font-size:11px">HER lookup unavailable just now'+(HJ.err===429?' (too many lookups; wait a minute)':'')+'.</div>';
@@ -352,10 +360,14 @@ async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L
   h+='</div>';
   if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
   h+='<div class="ft">Measurements from the 1 m EA LiDAR DTM at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC)+'.</div></div>';
-  card.innerHTML=h;card.querySelector('.x').onclick=closeCard;{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
+  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
   LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
 function compass(d){return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(d/45)%8]}
-LZ.toolHooks.whatis={click:whatIs,on(){loadData();msg(TN+' ON: click any spot (inside or outside the lens). Esc or the button turns it off.',3500)},off(){closeCard()}};
+// live mode: while What's here? is on, fetch what a click at the lens centre needs ahead of the click (5 km cells, kept in the browser)
+let preT=null;function prefetchRecs(){clearTimeout(preT);if(!LZ.LC.live||!(LZ.tool&&LZ.tool()==='whatis'))return;preT=setTimeout(()=>{if(map.getZoom()<(LZ.LC.live.minzoom||13))return;const lp=document.getElementById('lens').getBoundingClientRect(),mp=map.getContainer().getBoundingClientRect(),c=map.containerPointToLatLng([lp.left+lp.width/2-mp.left,lp.top+lp.height/2-mp.top]),[E,N]=ll2en(c.lat,c.lng);
+  dataNear(E,N,180).catch(()=>{});dtmWindow(c,100).catch(()=>{})},800)}   // the lens centre's records and close-up LiDAR, the likeliest next click
+map.on('moveend',prefetchRecs);
+LZ.toolHooks.whatis={click:whatIs,on(){loadData();prefetchRecs();msg(TN+' ON: click any spot (inside or outside the lens). Esc or the button turns it off.',3500)},off(){closeCard()}};
 $('whatis').onclick=()=>LZ.setTool('whatis');LZ.whatIs=whatIs;
 // ---- evaluation hook (used by the offline training harness; no UI effect) ----
 LZ.evalAt=async function(E,N,opts){const [la,lo]=en2ll(E,N);const ll=L.latLng(la,lo);const [W,D]=await Promise.all([dtmWindow(ll,100),dataNear(E,N,180)]);

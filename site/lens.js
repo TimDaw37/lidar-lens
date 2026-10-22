@@ -43,7 +43,7 @@ map.on('baselayerchange',e=>{S.base=e.layer._lensId;saveHash()});
 window.__outlineP=LC.outline?fetch(LC.outline).then(r=>r.json()):null;if(LC.outline){window.__outlineP.then(g=>L.geoJSON(g,{style:{color:'#fff',weight:1.5,dashArray:'4 4',fill:false},interactive:false}).addTo(map)).catch(()=>{})}else L.rectangle(CFG.bounds,{color:'#fff',weight:1,dashArray:'4 4',fill:false,interactive:false}).addTo(map);
 // Links to sibling Lenses (config: links:[{text,href}], linksNote), under the title
 if(LC.links&&LC.links.length){const tb=$('titlebox'),sub=tb&&tb.querySelector('.sub'),d=document.createElement('div');d.className='xlinks';
-  if(LC.linksNote){d.appendChild(document.createTextNode(LC.linksNote+' '))}
+  if(LC.linksNote){const n=document.createElement('span');n.className='xn';n.textContent=LC.linksNote+' ';d.appendChild(n)}
   LC.links.forEach((l,i)=>{if(i)d.appendChild(document.createTextNode(' · '));const a=document.createElement('a');a.href=l.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent=l.text;d.appendChild(a)});
   if(sub)sub.after(d);else if(tb)tb.querySelector('h1').after(d)}
 document.title=LC.pageTitle||LC.title;{const h=document.querySelector('#titlebox h1'),a=document.querySelector('#titlebox .sub a');if(h)h.textContent=LC.title;if(a&&LC.link){a.textContent=LC.link.text;a.href=LC.link.href}else if(a)a.parentNode.style.display='none'}
@@ -54,7 +54,10 @@ function setSM(on){if(on&&!smLayer){fetch(LC.scheduledOverlay||'scheduled_monume
 // ---------- lens element ----------
 const lensEl=$('lens'), cv=$('gl');
 function mapSize(){const s=map.getSize();return [s.x,s.y]}
-function defaultLensC(){const [w,h]=mapSize();return [w<700?w/2:w*0.42,w<700?Math.max(S.ls/2+60,h*0.35):h*0.5]}
+function defaultLensC(){const [w,h]=mapSize();if(w>=700)return [w*0.42,h*0.5];
+  // phone: sit the lens just below the title box, not under it, while keeping it clear of the readout at the bottom
+  const tb=$('titlebox'),top=tb?tb.getBoundingClientRect().bottom-map.getContainer().getBoundingClientRect().top+8:60;
+  return [w/2,Math.max(S.ls/2+8,Math.min(h-S.ls/2-56,Math.max(top+S.ls/2,h*0.35)))]}
 function placeLens(){const r=S.ls/2;const [mw,mh]=mapSize();if(!S.fs){const cl=(v,m)=>Math.max(Math.min(r,m/2),Math.min(Math.max(m-r,m/2),v));lensC=[cl(lensC[0],mw),cl(lensC[1],mh)]}lensEl.style.width=lensEl.style.height=S.ls+'px';lensEl.style.left=(lensC[0]-r)+'px';lensEl.style.top=(lensC[1]-r)+'px';lensEl.classList.toggle('fs',S.fs);if(LC.live&&window.__lensMos)scheduleMosaic()}
 (function initLens(){const [w,h]=mapSize();
   if(H0.l){const p=H0.l.split(',').map(Number);if(p.length>=2&&p.every(isFinite)){const cp=map.latLngToContainerPoint([p[0],p[1]]);lensC=[cp.x,cp.y]}}
