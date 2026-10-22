@@ -11,10 +11,10 @@
    Everything fetched is kept in the browser's Cache Storage, so a place seen once comes back instantly.
    Be kind to the sources: blocks are shared between tiles, requests are de-duplicated and at most 4 run at once. */
 'use strict';
-const VER = 'v2';   // v2: drops any v1 'What's here?' cells cached from a failed query
+const VER = 'v3';   // v2: drops v1 'What's here?' cells cached from a failed query; v3: 512 px blocks, size-capped caches
 const BLOCKS = 'lens-live-blocks-' + VER, TILES = 'lens-live-tiles-' + VER, RECS = 'lens-live-recs-' + VER;
 const MINZ = 13, MAXZ = 17;          // tiles below MINZ are not made (the EA hillshade map shows instead)
-const BLOCK_PX = 1024;                 // WCS block size in pixels; block side = BLOCK_PX * r metres
+const BLOCK_PX = 512;                  // WCS block size in pixels; block side = BLOCK_PX * r metres (512: about 0.3-1 MB each)
 const WCS = 'https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wcs?service=WCS&version=2.0.1' +
   '&request=GetCoverage&CoverageId=13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m&format=image/tiff&geotiff:compression=Deflate';
 const HE = 'https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/';
@@ -66,10 +66,28 @@ function limited(fn) { return new Promise((res, rej) => { queue.push([fn, res, r
 function pump() { while (active < 4 && queue.length) { const [fn, res, rej] = queue.shift(); active++; fn().then(res, rej).finally(() => { active--; pump() }) } }
 async function cached(cacheName, url, init) {
   const c = await caches.open(cacheName), hit = await c.match(url);
-  if (hit) return hit;
+  if (hit) { touch(c, url, hit.clone()); return hit }
   const r = await limited(() => fetch(url, init));
-  if (r.ok) await c.put(url, r.clone());
+  if (r.ok) await putSized(cacheName, c, url, r.clone());
   return r;
+}
+
+// ---------------------------------------------------------------- size cap (least recently used goes first)
+// Cache Storage has no size limit of its own, so each entry carries its size (x-bytes) and the caches are trimmed
+// to about 300 MB in all. Cache keys come back oldest first; a hit is re-stored to make it the newest.
+const CAP = { [BLOCKS]: 240e6, [TILES]: 50e6, [RECS]: 10e6 };
+async function putSized(name, c, key, res) {
+  const buf = await res.arrayBuffer(), h = new Headers(res.headers); h.set('x-bytes', String(buf.byteLength));
+  await c.put(key, new Response(buf, { status: res.status, headers: h })); trimSoon(name);
+}
+function touch(c, key, res) { c.delete(key).then(() => c.put(key, res)).catch(() => {}) }
+const trimT = {};
+function trimSoon(name) { clearTimeout(trimT[name]); trimT[name] = setTimeout(() => trim(name).catch(() => {}), 2000) }
+async function trim(name) {
+  const c = await caches.open(name), keys = await c.keys(), sz = [];
+  let total = 0;
+  for (const k of keys) { const r = await c.match(k), n = r ? +(r.headers.get('x-bytes') || 0) : 0; sz.push(n); total += n }
+  for (let i = 0; i < keys.length && total > CAP[name]; i++) { await c.delete(keys[i]); total -= sz[i] }
 }
 
 // ---------------------------------------------------------------- GeoTIFF (as the EA serves it) -> Float32Array
@@ -122,7 +140,7 @@ function block(r, bx, by) {
 async function tile(z, x, y) {
   if (z < MINZ || z > MAXZ) return none();
   const c = await caches.open(TILES), key = new Request(`https://lens-live.invalid/${VER}/${z}/${x}/${y}.png`), hit = await c.match(key);
-  if (hit) return hit;
+  if (hit) { touch(c, key, hit.clone()); return hit }
   await loadGrid();
   const n = 2 ** z, G = 16;                       // exact transform on a 17x17 lattice, bilinear between
   const LE = new Float64Array((G + 1) ** 2), LN = new Float64Array((G + 1) ** 2);
@@ -157,7 +175,7 @@ async function tile(z, x, y) {
   if (!any) return none();
   const cv = new OffscreenCanvas(256, 256); cv.getContext('2d').putImageData(img, 0, 0);
   const res = new Response(await cv.convertToBlob({ type: 'image/png' }), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400' } });
-  await c.put(key, res.clone());
+  await putSized(TILES, c, key, res.clone());
   return res;
 }
 
@@ -219,6 +237,6 @@ async function recCell1(cx, cy) {
   for (const x of aimE) { const p = x.properties, uid = clean(p.HE_UID), m = meta[uid] || ['', '', '', ''];
     add(x.geometry, { s: 'AIM', id: uid, n: m[0] ? m[0].split(',')[0] : 'AIM monument extent', t: m[0], p: m[1], d: 'Monument extent (' + clean(p.project) + ')', u: clean(p.HE_URL1) || m[2] }) }
   const res = json({ f });
-  await c.put(url, res.clone());
+  await putSized(RECS, c, url, res.clone());
   return res;
 }

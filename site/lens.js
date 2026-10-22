@@ -55,7 +55,7 @@ function setSM(on){if(on&&!smLayer){fetch(LC.scheduledOverlay||'scheduled_monume
 const lensEl=$('lens'), cv=$('gl');
 function mapSize(){const s=map.getSize();return [s.x,s.y]}
 function defaultLensC(){const [w,h]=mapSize();return [w<700?w/2:w*0.42,w<700?Math.max(S.ls/2+60,h*0.35):h*0.5]}
-function placeLens(){const r=S.ls/2;const [mw,mh]=mapSize();if(!S.fs){const cl=(v,m)=>Math.max(Math.min(r,m/2),Math.min(Math.max(m-r,m/2),v));lensC=[cl(lensC[0],mw),cl(lensC[1],mh)]}lensEl.style.width=lensEl.style.height=S.ls+'px';lensEl.style.left=(lensC[0]-r)+'px';lensEl.style.top=(lensC[1]-r)+'px';lensEl.classList.toggle('fs',S.fs)}
+function placeLens(){const r=S.ls/2;const [mw,mh]=mapSize();if(!S.fs){const cl=(v,m)=>Math.max(Math.min(r,m/2),Math.min(Math.max(m-r,m/2),v));lensC=[cl(lensC[0],mw),cl(lensC[1],mh)]}lensEl.style.width=lensEl.style.height=S.ls+'px';lensEl.style.left=(lensC[0]-r)+'px';lensEl.style.top=(lensC[1]-r)+'px';lensEl.classList.toggle('fs',S.fs);if(LC.live&&window.__lensMos)scheduleMosaic()}
 (function initLens(){const [w,h]=mapSize();
   if(H0.l){const p=H0.l.split(',').map(Number);if(p.length>=2&&p.every(isFinite)){const cp=map.latLngToContainerPoint([p[0],p[1]]);lensC=[cp.x,cp.y]}}
   S.ls=Math.min(S.ls,Math.max(150,Math.min(w,h)-40));if(!lensC||lensC[0]<0||lensC[1]<0||lensC[0]>w||lensC[1]>h)lensC=defaultLensC();placeLens()})();
@@ -95,7 +95,9 @@ function getTile(z,x,y,cb){if(SW_WAIT)return null;const k=z+'/'+x+'/'+y;let t=ti
 let MZ=null; // {zt,x0,y0,nx,ny,w,h,key}
 function wantMosaic(){const z=map.getZoom();const zt=Math.max(CFG.minz,Math.min(CFG.maxz,Math.round(z)));
   const sc=Math.pow(2,z-zt),tl=map.containerPointToLayerPoint([0,0]).add(map.getPixelOrigin());const [w,h]=mapSize();
-  const ax0=tl.x/sc-128,ay0=tl.y/sc-128,ax1=(tl.x+w)/sc+128,ay1=(tl.y+h)/sc+128;const R=tileRange(zt);
+  let ax0=tl.x/sc-128,ay0=tl.y/sc-128,ax1=(tl.x+w)/sc+128,ay1=(tl.y+h)/sc+128;const R=tileRange(zt);
+  // live mode: every tile costs a fetch from the EA, so only cover the lens (plus a margin), not the whole screen
+  if(LC.live&&!S.fs&&lensC){const r=S.ls/2+96;ax0=Math.max(ax0,(tl.x+lensC[0]-r)/sc);ay0=Math.max(ay0,(tl.y+lensC[1]-r)/sc);ax1=Math.min(ax1,(tl.x+lensC[0]+r)/sc);ay1=Math.min(ay1,(tl.y+lensC[1]+r)/sc)}
   const x0=Math.max(R.x0,Math.floor(ax0/256)),x1=Math.min(R.x1,Math.floor(ax1/256)),y0=Math.max(R.y0,Math.floor(ay0/256)),y1=Math.min(R.y1,Math.floor(ay1/256));
   if(x1<x0||y1<y0)return null;
   return {zt,x0,y0,nx:x1-x0+1,ny:y1-y0+1,w:(x1-x0+1)*256,h:(y1-y0+1)*256,key:[zt,x0,y0,x1,y1].join(',')}}
@@ -248,6 +250,7 @@ function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=fal
 // tiles arrive in bursts: coalesce rebuilds (each one re-decodes the whole mosaic)
 let mosT=null,mosFirst=0;function scheduleMosaic(){clearTimeout(mosT);const now=performance.now();if(!mosFirst)mosFirst=now;
   mosT=setTimeout(()=>{mosFirst=0;buildMosaic()},now-mosFirst>600?0:150)}
+window.__lensMos=true;   // from here on, moving or resizing the lens may rebuild the (live, lens-only) mosaic
 function lensBox(vw){if(S.fs)return {x:0,y:0,w:MZ.w,h:MZ.h};const r=S.ls/2,m=3;
   const x0=Math.floor((vw.tl[0]+lensC[0]-r)/vw.sc-vw.org[0])-m,y0=Math.floor((vw.tl[1]+lensC[1]-r)/vw.sc-vw.org[1])-m,x1=Math.ceil((vw.tl[0]+lensC[0]+r)/vw.sc-vw.org[0])+m,y1=Math.ceil((vw.tl[1]+lensC[1]+r)/vw.sc-vw.org[1])+m;
   const X0=Math.max(0,x0),Y0=Math.max(0,y0),X1=Math.min(MZ.w,x1),Y1=Math.min(MZ.h,y1);return {x:X0,y:Y0,w:Math.max(1,X1-X0),h:Math.max(1,Y1-Y0)}}
