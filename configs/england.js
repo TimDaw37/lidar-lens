@@ -7,6 +7,7 @@
    Trade-offs vs a county build: 1-3 s to fill the lens on new ground, more data per view, and it depends on the EA's service. */
 window.LENS_CONFIG={
   title:'LiDAR Lens - England & Wales (live)',
+  analyticsToken:'5bd2fd0fa889423f8d4bf10bff1a42d5',                  // Cloudflare Web Analytics (cookieless); the build adds the beacon before </body>
   pageTitle:'LiDAR Lens - England & Wales (live)',
   link:null,
   cname:'lidarlens.sarsen.org',                  // GitHub Pages custom domain: the build writes dist/CNAME

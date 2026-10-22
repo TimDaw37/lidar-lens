@@ -3,6 +3,7 @@
    to show where a PRIVATE deployment with permission from its HER would plug them in. */
 window.LENS_CONFIG={
   title:'LiDAR Lens - Wiltshire',
+  analyticsToken:'a9668ad61a5a4bbc858080e53d9c4139',                  // Cloudflare Web Analytics (cookieless); the build adds the beacon before </body>
   pageTitle:'LiDAR Lens - Wiltshire',
   link:{text:'lidar-lens-public.tim-daw.workers.dev',href:'https://lidar-lens-public.tim-daw.workers.dev/'},
   linksNote:'All of England and Wales, fetched live (slower than this Lens, whose LiDAR is held locally):',

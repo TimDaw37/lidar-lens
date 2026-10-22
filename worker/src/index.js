@@ -20,8 +20,8 @@ const TYPES = { webp: "image/webp", json: "application/json", geojson: "applicat
 
 function csp(env) {
   const img = ["'self'", "data:", "blob:", "https:"].concat((env.CSP_IMG || "").split(/\s+/).filter(Boolean));
-  const connect = ["'self'", "https://api.postcodes.io", "https://nominatim.openstreetmap.org"].concat((env.CSP_CONNECT || "").split(/\s+/).filter(Boolean));
-  return ["default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src " + img.join(" "),
+  const connect = ["'self'", "https://api.postcodes.io", "https://nominatim.openstreetmap.org", "https://cloudflareinsights.com"].concat((env.CSP_CONNECT || "").split(/\s+/).filter(Boolean));
+  return ["default-src 'self'", "script-src 'self' https://static.cloudflareinsights.com", "style-src 'self' 'unsafe-inline'", "img-src " + img.join(" "),
     "connect-src " + connect.join(" "), "font-src 'self'", "worker-src 'none'", "object-src 'none'", "base-uri 'none'",
     "form-action 'self'", "frame-ancestors 'none'", "upgrade-insecure-requests"].join("; ");
 }
