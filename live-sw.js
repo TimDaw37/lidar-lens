@@ -66,17 +66,19 @@ const tile2lng = (x, n) => x / n * 360 - 180, tile2lat = (y, n) => Math.atan(Mat
 // ---------------------------------------------------------------- fetching, with a small queue
 // At most 4 requests at once. A 429 or 503 (the source is busy) pauses the whole queue for Retry-After (or 2, 4, 8 s)
 // and retries that request up to 3 times, so a busy EA or HE service is not hammered.
-let active = 0, pauseUntil = 0; const queue = [];
-function limited(fn) { return new Promise((res, rej) => { queue.push([fn, res, rej, 0]); pump() }) }
-function pump() {
-  const wait = pauseUntil - Date.now(); if (wait > 0) { setTimeout(pump, wait); return }
-  while (active < 4 && queue.length) { const job = queue.shift(), [fn, res, rej, tries] = job; active++;
+// Two lanes, LiDAR blocks and Historic England records, so a 'What's here?' click never waits behind a lens full of LiDAR.
+const LANES = { lidar: { active: 0, pauseUntil: 0, queue: [] }, rec: { active: 0, pauseUntil: 0, queue: [] } };
+function limited(fn, lane = 'lidar') { return new Promise((res, rej) => { LANES[lane].queue.push([fn, res, rej, 0]); pump(lane) }) }
+function pump(lane) {
+  const Q = LANES[lane], queue = Q.queue;
+  const wait = Q.pauseUntil - Date.now(); if (wait > 0) { setTimeout(() => pump(lane), wait); return }
+  while (Q.active < 4 && queue.length) { const job = queue.shift(), [fn, res, rej, tries] = job; Q.active++;
     fn().then(r => {
       if (r && (r.status === 429 || r.status === 503) && tries < 3) {
         const ra = +(r.headers.get('Retry-After') || 0), ms = Math.min(30000, ra > 0 ? ra * 1000 : 2000 * 2 ** tries);
-        pauseUntil = Math.max(pauseUntil, Date.now() + ms); job[3] = tries + 1; queue.unshift(job);
+        Q.pauseUntil = Math.max(Q.pauseUntil, Date.now() + ms); job[3] = tries + 1; queue.unshift(job);
       } else res(r);
-    }, rej).finally(() => { active--; pump() }) }
+    }, rej).finally(() => { Q.active--; pump(lane) }) }
 }
 async function cached(cacheName, url, init) {
   const c = await caches.open(cacheName), hit = await c.match(url);
@@ -219,7 +221,7 @@ async function query(layerUrl, fields, x0, y0, x1, y1) {
   for (let page = 0; page < 10; page++) {
     const q = new URLSearchParams({ where: '1=1', geometry: `${x0},${y0},${x1},${y1}`, geometryType: 'esriGeometryEnvelope', inSR: 27700, outSR: 27700,
       spatialRel: 'esriSpatialRelIntersects', outFields: fields, returnGeometry: true, maxAllowableOffset: 0.5, f: 'geojson', resultOffset: off, resultRecordCount: 2000 });
-    const r = await limited(() => fetch(layerUrl + '/query?' + q));
+    const r = await limited(() => fetch(layerUrl + '/query?' + q), 'rec');
     if (!r.ok) throw new Error('HE ' + r.status);
     const j = await r.json(), fs = j.features || [];
     if (j.error) throw new Error('HE ' + (j.error.code || 'error'));
