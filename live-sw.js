@@ -11,7 +11,7 @@
    Everything fetched is kept in the browser's Cache Storage, so a place seen once comes back instantly.
    Be kind to the sources: blocks are shared between tiles, requests are de-duplicated and at most 4 run at once. */
 'use strict';
-const VER = 'v5';   // v2: drops v1 'What's here?' cells cached from a failed query; v3: 512 px blocks, size-capped caches; v4: blocks via the relay; v5: zeros are no data (drops black tiles made outside England)
+const VER = 'v6';   // v2: drops v1 'What's here?' cells cached from a failed query; v3: 512 px blocks, size-capped caches; v4: blocks via the relay; v5: zeros are no data (drops black tiles made outside England); v6: Wales (drops LiDAR tiles and record cells made without it)
 const BLOCKS = 'lens-live-blocks-' + VER, TILES = 'lens-live-tiles-' + VER, RECS = 'lens-live-recs-' + VER;
 const MINZ = 13, MAXZ = 17;          // tiles below MINZ are not made (the EA hillshade map shows instead)
 const BLOCK_PX = 512;                  // WCS block size in pixels; block side = BLOCK_PX * r metres (512: about 0.3-1 MB each)
@@ -20,8 +20,15 @@ const WCS = 'https://environment.data.gov.uk/spatialdata/lidar-composite-digital
 // Blocks come through the Lens's caching relay (relay/ in the repo), so a block one visitor has seen costs the EA nothing for
 // the next; if the relay is down the worker goes to the EA directly. Both carry a client id so the EA can see who we are.
 const RELAY = 'https://lidar-lens-england.tim-daw.workers.dev/wcs', CLIENT = '&client=lidar-lens-england';
+// Wales: the Welsh Government LiDAR DTM 1 m (OGL) is one cloud-optimised GeoTIFF with no CORS, so it only comes through the
+// relay (/wales, same blocks as /wcs; -9999 = no data). Blocks touching this box get both and are merged, Welsh data first:
+// near the border the EA composite also covers parts of Wales, and preferring the Welsh survey puts the join at the border.
+const RELAY_WALES = 'https://lidar-lens-england.tim-daw.workers.dev/wales', WALES = { e0: 164993, n0: 164000, e1: 356007, n1: 397000 };
 const HE = 'https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/';
 const NHLE = HE + 'National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/', AIM = HE + 'HE_AIM_data/FeatureServer/';
+// Wales: Cadw (scheduled monuments, listed buildings) and the RCAHMW's National Monuments Record of Wales (Coflein), all OGL,
+// from the DataMapWales WFS, which answers bounding-box queries in British National Grid with open CORS
+const DMW = 'https://datamap.gov.wales/geoserver/ows', CADW_REPORT = 'https://cadwpublic-api.azurewebsites.net/reports/';
 const ENG = { e0: 80000, n0: 0, e1: 660000, n1: 660000 }, CELL = 5000, BUF = 200;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -136,20 +143,31 @@ async function readTiff(buf) {
 
 // ---------------------------------------------------------------- BNG blocks: BLOCK_PX x BLOCK_PX at r metres, 1-px margin
 const mem = new Map();   // decoded blocks, least recently used first
+const FAIL = { fail: true };   // a block whose source could not be fetched (as opposed to null: fetched, and no data there)
 function block(r, bx, by) {
   const key = r + '/' + bx + '/' + by;
   if (mem.has(key)) { const p = mem.get(key); mem.delete(key); mem.set(key, p); return p }
   const S = BLOCK_PX * r, x0 = bx * S - r, x1 = bx * S + S + r, y0 = by * S - r, y1 = by * S + S + r;
   const url = `${RELAY}?r=${r}&bx=${bx}&by=${by}`, direct = WCS + `&subset=E(${x0},${x1})&subset=N(${y0},${y1})` + (r > 1 ? `&SCALEFACTOR=${1 / r}` : '') + CLIENT;
   const viaRelay = cached(BLOCKS, url).then(res => res.ok || res.status === 429 || res.headers.get('X-Upstream') ? res : Promise.reject(new Error('relay ' + res.status)));
-  const p = viaRelay.catch(() => cached(BLOCKS, direct)).then(async res => {
-    if (!res.ok) return null;
+  const decode = zeroIsNoData => async res => {
+    if (!res.ok) return FAIL;
     const t = await readTiff(await res.arrayBuffer());
     // EA nodata is -3.4e38 inside its survey, but outside it (Wales, Scotland, the sea) the WCS sends 0.0: treat both as no data
     let any = false;
-    for (let i = 0; i < t.data.length; i++) { const v = t.data[i]; if (!(v > -1000) || v === 0) t.data[i] = NaN; else any = true }
+    for (let i = 0; i < t.data.length; i++) { const v = t.data[i]; if (!(v > -1000) || (zeroIsNoData && v === 0)) t.data[i] = NaN; else any = true }
     return any ? { ...t, x0, yTop: y1, r } : null;
-  }).catch(() => null);
+  };
+  const ea = viaRelay.catch(() => cached(BLOCKS, direct)).then(decode(true)).catch(() => FAIL);
+  const inWales = x1 > WALES.e0 && x0 < WALES.e1 && y1 > WALES.n0 && y0 < WALES.n1;
+  const both = !inWales ? ea : Promise.all([ea, cached(BLOCKS, `${RELAY_WALES}?r=${r}&bx=${bx}&by=${by}`).then(decode(false)).catch(() => FAIL)]).then(([e, w]) => {
+    const failed = e === FAIL || w === FAIL; if (e === FAIL) e = null; if (w === FAIL) w = null;
+    if (w && e) for (let i = 0; i < w.data.length; i++) if (w.data[i] === w.data[i]) e.data[i] = w.data[i];
+    const b = w && e ? e : w || e;
+    return failed ? { partial: true, b } : b;
+  });
+  // a source that failed (busy, down) must not be remembered: drop it here, and tile() will not store a tile made without it
+  const p = both.then(v => { if (v === FAIL || (v && v.partial)) { if (mem.get(key) === p) mem.delete(key) } return v });
   mem.set(key, p);
   while (mem.size > 10) mem.delete(mem.keys().next().value);
   return p;
@@ -172,6 +190,8 @@ async function tile(z, x, y) {
   for (let bx = Math.floor(eMin / S); bx <= Math.floor(eMax / S); bx++) for (let by = Math.floor(nMin / S); by <= Math.floor(nMax / S); by++)
     jobs.push(block(r, bx, by).then(b => blocks.set(bx + '/' + by, b)));
   await Promise.all(jobs);
+  let partial = false;
+  for (const [k, b] of blocks) if (b === FAIL || (b && b.partial)) { partial = true; blocks.set(k, b === FAIL ? null : b.b) }
   if (![...blocks.values()].some(Boolean)) return none();
   const img = new ImageData(256, 256), px = img.data; let any = false;
   for (let py = 0; py < 256; py++) {
@@ -194,7 +214,7 @@ async function tile(z, x, y) {
   if (!any) return none();
   const cv = new OffscreenCanvas(256, 256); cv.getContext('2d').putImageData(img, 0, 0);
   const res = new Response(await cv.convertToBlob({ type: 'image/png' }), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400' } });
-  await putSized(TILES, c, key, res.clone());
+  if (!partial) await putSized(TILES, c, key, res.clone());   // incomplete: show it, but make it afresh next time
   return res;
 }
 
@@ -203,7 +223,8 @@ function index() {
   const keys = [];
   for (let cx = Math.floor(ENG.e0 / CELL); cx <= Math.floor(ENG.e1 / CELL); cx++) for (let cy = Math.floor(ENG.n0 / CELL); cy <= Math.floor(ENG.n1 / CELL); cy++) keys.push(cx + '_' + cy);
   return { crs: 'EPSG:27700', cell: CELL, buf: BUF, layers: { rec: keys }, built: 'live',
-    sources: { NHLE: 'Historic England NHLE, queried live (OGL)', LB: 'Historic England NHLE listed buildings, queried live (OGL)', AIM: 'Historic England Aerial Investigation & Mapping, queried live (OGL)' } };
+    sources: { NHLE: 'Historic England NHLE, queried live (OGL)', LB: 'Historic England NHLE listed buildings, queried live (OGL)', AIM: 'Historic England Aerial Investigation & Mapping, queried live (OGL)',
+      CADW: 'Cadw scheduled monuments, queried live (OGL)', CADWLB: 'Cadw listed buildings, queried live (OGL)', NMRW: 'National Monuments Record of Wales (RCAHMW, Coflein), queried live (OGL)' } };
 }
 const rd1 = v => Math.round(v * 10) / 10, ring = cs => cs.map(p => [rd1(p[0]), rd1(p[1])]);
 function enc(g) {
@@ -231,22 +252,39 @@ async function query(layerUrl, fields, x0, y0, x1, y1) {
   return out;
 }
 const clean = s => (s == null ? '' : String(s)).trim(), title = s => clean(s).replace(/\\/g, ', ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-// Only a complete answer is cached: if any of the four queries fails, say so (503) and try again next time
+// Only a complete answer is cached: if any of the queries fails, say so (503) and try again next time
 async function recCell(cx, cy) {
   try { return await recCell1(cx, cy) } catch (e) {
     return new Response(JSON.stringify({ error: String(e && e.message || e) }), { status: 503, headers: { 'Content-Type': 'application/json', 'Retry-After': '30' } });
   }
 }
+async function wfs(typeName, x0, y0, x1, y1) {
+  const q = new URLSearchParams({ service: 'WFS', version: '2.0.0', request: 'GetFeature', typeNames: typeName, outputFormat: 'application/json',
+    srsName: 'EPSG:27700', bbox: `${x0},${y0},${x1},${y1},EPSG:27700`, count: 10000 });
+  const r = await limited(() => fetch(DMW + '?' + q), 'rec');
+  if (!r.ok) throw new Error('DataMapWales ' + r.status);
+  const j = await r.json();
+  return j.features || [];
+}
 async function recCell1(cx, cy) {
   const url = `https://lens-live.invalid/${VER}/rec/${cx}_${cy}.json`, c = await caches.open(RECS), hit = await c.match(url);
   if (hit) return hit;
   const x0 = cx * CELL - BUF, y0 = cy * CELL - BUF, x1 = cx * CELL + CELL + BUF, y1 = cy * CELL + CELL + BUF;
+  const inWales = x1 > WALES.e0 && x0 < WALES.e1 && y1 > WALES.n0 && y0 < WALES.n1;
+  const walesP = inWales ? Promise.all([wfs('inspire-wg:Cadw_SAM', x0, y0, x1, y1), wfs('inspire-wg:Cadw_ListedBuildings', x0, y0, x1, y1),
+    wfs('geonode:rcahmw_nmrw_terrestrialsites_rcahmw_bng', x0, y0, x1, y1)]) : Promise.resolve([[], [], []]);
+  walesP.catch(() => {});   // awaited below; this only stops an early failure being reported as unhandled
   const [sched, listed, aimD, aimE] = await Promise.all([
     query(NHLE + 6, 'ListEntry,Name,hyperlink', x0, y0, x1, y1),
     query(NHLE + 0, 'ListEntry,Name,Grade,hyperlink', x0, y0, x1, y1),
     query(AIM + 0, 'HE_UID,MONUMENT_TYPE,PERIOD,HE_URL1,project,LAYER', x0, y0, x1, y1),
     query(AIM + 1, 'HE_UID,HE_URL1,project', x0, y0, x1, y1)]);
+  const [wSam, wLb, wNmr] = await walesP;
   const f = [], add = (g, p) => { const e = enc(g); if (e) f.push({ ...p, g: e }) };
+  for (const x of wSam) { const p = x.properties; add(x.geometry, { s: 'CADW', id: clean(p.SAMNumber), n: clean(p.Name), t: 'Scheduled monument' + (clean(p.SiteType) ? ': ' + clean(p.SiteType).toLowerCase() : ''), p: clean(p.Period), d: '', u: p.RecordNumber ? CADW_REPORT + 'sam/FullReport?lang=en&id=' + encodeURIComponent(clean(p.RecordNumber)) : '' }) }
+  for (const x of wLb) { const p = x.properties; add(x.geometry, { s: 'CADWLB', id: clean(p.RecordNumber), n: clean(p.Name), t: 'Listed building, grade ' + clean(p.Grade), p: '', d: '', u: p.RecordNumber ? CADW_REPORT + 'listedbuilding/FullReport?lang=en&id=' + encodeURIComponent(clean(p.RecordNumber)) : '' }) }
+  for (const x of wNmr) { const p = x.properties, ty = title(p.site_type); const nm = clean(p.name).split(';').map(s => s.trim()).filter(Boolean);   // Coflein lists alternative names with ';'
+    add(x.geometry, { s: 'NMRW', id: clean(p.nprn), n: nm[0] || ty, t: ty + (nm.length > 1 ? ' (also ' + nm.slice(1).join('; ') + ')' : ''), p: clean(p.period), d: '', u: clean(p.url) || (p.nprn ? 'https://coflein.gov.uk/en/site/' + clean(p.nprn) : '') }) }
   for (const x of sched) { const p = x.properties; add(x.geometry, { s: 'NHLE', id: String(p.ListEntry), n: clean(p.Name), t: 'Scheduled monument', p: '', d: '', u: clean(p.hyperlink) }) }
   for (const x of listed) { const p = x.properties; add(x.geometry, { s: 'LB', id: String(p.ListEntry), n: clean(p.Name), t: 'Listed building, grade ' + clean(p.Grade), p: '', d: '', u: clean(p.hyperlink) }) }
   const meta = {};
