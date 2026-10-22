@@ -69,7 +69,7 @@ const REPO=LC.repoUrl||'https://github.com/TimDaw37/lidar-lens';const rl='<a hre
 help.insertAdjacentHTML('beforeend','<p style="margin-top:10px">Open source: the code and a step-by-step protocol to build your own LiDAR Lens for another area are on '+rl+'.</p>');
 $('about').insertAdjacentHTML('beforeend','<br><br>Code and replication protocol: '+rl+'.');
 if(map.attributionControl)map.attributionControl.addAttribution('<a href="'+REPO+'" target="_blank" rel="noopener noreferrer">LiDAR Lens code</a>');
-if(innerWidth<700)document.querySelectorAll('#panel details.sec').forEach(d=>{d.open=/Tools/.test(d.querySelector('summary').textContent)});
+if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches)document.querySelectorAll('#panel details.sec').forEach(d=>{d.open=/Tools/.test(d.querySelector('summary').textContent)});
 if(!LC.private){const t=$('privtag');if(t)t.remove()}
 {const n=LC.toolName||'What is it?';const a=$('helptn'),k=$('keytn');if(a)a.textContent=n;if(k)k.textContent=n+' on/off';LZ.updateToolButtons&&LZ.updateToolButtons()}
 // phone: collapse the credit line to a 'Credits' button

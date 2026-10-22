@@ -58,7 +58,10 @@ function setSM(on){if(on&&!smLayer){fetch(LC.scheduledOverlay||'scheduled_monume
 // ---------- lens element ----------
 const lensEl=$('lens'), cv=$('gl');
 function mapSize(){const s=map.getSize();return [s.x,s.y]}
-function defaultLensC(){const [w,h]=mapSize();if(w>=700)return [w*0.42,h*0.5];
+function defaultLensC(){const [w,h]=mapSize();const tb0=$('titlebox');
+  // phone held sideways: put the lens beside the title box, centred top to bottom
+  if(h<=500&&matchMedia('(pointer:coarse)').matches&&tb0){const r=tb0.getBoundingClientRect().right-map.getContainer().getBoundingClientRect().left;return [Math.min(w-S.ls/2-8,Math.max(w*0.5,r+S.ls/2+8)),h/2]}
+  if(w>=700)return [w*0.42,h*0.5];
   // phone: sit the lens just below the title box, not under it, while keeping it clear of the readout at the bottom
   const tb=$('titlebox'),top=tb?tb.getBoundingClientRect().bottom-map.getContainer().getBoundingClientRect().top+8:60;
   return [w/2,Math.max(S.ls/2+8,Math.min(h-S.ls/2-56,Math.max(top+S.ls/2,h*0.35)))]}
@@ -297,7 +300,7 @@ function resetDefaults(){clearTimeout(hT);const keep={base:S.base,sm:S.sm};Objec
   try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}suppressHash=true;setTimeout(()=>{suppressHash=false},400);msg('Settings reset to defaults',1800)}
 $('reset').onclick=resetDefaults;window.__lens.reset=resetDefaults;
 $('toggle').onclick=()=>$('panel').classList.toggle('hide');
-if(window.innerWidth<700)$('panel').classList.add('hide');
+if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches)$('panel').classList.add('hide');
 // sun dial
 const dial=$('dial'),dx=dial.getContext('2d')||new Proxy({},{get:()=>()=>{},set:()=>true});
 function drawDial(){const w=dial.width,c=w/2,r=c-14;dx.clearRect(0,0,w,w);dx.lineWidth=3;dx.strokeStyle='#888';dx.beginPath();dx.arc(c,c,r,0,7);dx.stroke();

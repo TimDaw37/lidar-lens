@@ -47,7 +47,7 @@ $('mlist').addEventListener('click',e=>{const a=e.target.closest('a.fly');if(!a)
   if(!on){on=true;$('mshow').checked=true;layer.addTo(map)}
   if(g.latlng){map.flyTo(g.latlng,16);map.once('moveend',()=>showCard(L.latLng(g.latlng),at(L.latLng(g.latlng))))}
   else{map.flyToBounds(g.latlngBounds,{padding:[30,30],maxZoom:15});map.once('moveend',()=>{const c=L.latLngBounds(g.latlngBounds).getCenter();showCard(c,m.scope==='county'?[m]:at(c).filter(x=>x===m||x.geometry.latlng||L.latLngBounds(x.geometry.latlngBounds).contains(c)))})}
-  if(window.innerWidth<=700){const p=$('panel');if(p)p.classList.add('hide')}});
+  if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches){const p=$('panel');if(p)p.classList.add('hide')}});
 $('mq').addEventListener('input',lists);
 $('mshow').addEventListener('change',e=>{on=e.target.checked;on?layer.addTo(map):(map.removeLayer(layer),card.hidden=true)});
 // No models file, or an empty one (e.g. a new area): hide the whole section rather than show 'Models (0)'.
