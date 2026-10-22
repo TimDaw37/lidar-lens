@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="description" content="Explore 1 m Environment Agency LiDAR through a movable lens: hillshade, slope, local relief and sky-view modes, with historic maps and open heritage records.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://environment.data.gov.uk">
+<title>LiDAR Lens</title>
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" href="assets/app.585d14f3.css">
+</head><body>
+<div id="map"></div>
+<canvas id="gl"></canvas>
+<div id="lens"><svg class="rim" viewBox="0 0 100 100" preserveAspectRatio="none"><circle cx="50" cy="50" r="50"/></svg><div class="g" title="drag to move the lens">&#x2725;</div><div class="h" title="drag to resize"></div></div>
+<button id="toggle" aria-label="Show or hide controls (H)" title="Show or hide controls (H)">Controls</button>
+<div id="msg"></div>
+<div id="titlebox"><h1>LiDAR Lens</h1><div class="sub"><a href="#" target="_blank" rel="noopener noreferrer"></a></div>
+ <form id="goto" autocomplete="off"><input id="gotoq" type="search" placeholder="Go to: grid ref, E/N, lat,long, place, postcode" aria-label="Go to location"><button type="submit">Go</button><button type="button" id="gps" title="My location (device GPS)" aria-label="My location">&#x25CE;</button></form>
+ <button type="button" id="myloc" aria-label="Use my location">&#x1F4CD; Use my location</button>
+ <div id="gores"></div></div>
+<div id="where"><span id="wlab">Centre</span> <b id="wgr">-</b> <span id="wll"></span> <span id="wh"></span><button id="wcopy" title="Copy grid ref and lat/long">Copy</button></div>
+<div id="card"></div>
+<div id="mcard" hidden></div>
+<div id="prof"><span class="x" title="close">&times;</span><canvas id="profc"></canvas></div>
+<div id="panel" role="region" aria-label="Controls">
+ <div class="ph"><h1>Controls <small id="privtag">(private)</small></h1><button id="helpbtn" class="q" title="Help and keyboard shortcuts (?)" aria-label="Help and keyboard shortcuts" aria-expanded="false">?</button></div>
+ <details class="sec" open><summary>Visualisation</summary>
+ <label for="mode">Visualisation</label>
+ <select id="mode" title="How the LiDAR is drawn inside the lens (keys 1-8)">
+  <option value="0">Hillshade (single sun)</option>
+  <option value="1">Multi-direction hillshade</option>
+  <option value="2">Slope</option>
+  <option value="3">Local relief model (LRM)</option>
+  <option value="4">Sky-view factor / openness</option>
+  <option value="5">Aspect colour</option>
+  <option value="6">Red relief (LRM + slope)</option>
+  <option value="7">Combined (LRM colour x hillshade)</option>
+ </select>
+ <div id="sunbox"><label for="dial">Sun azimuth <span class="v" id="azv"></span></label>
+ <canvas id="dial" width="180" height="180" role="slider" tabindex="0" aria-label="Sun azimuth: drag or use arrow keys" title="Drag to set the sun direction (arrow keys when focused)"></canvas>
+ <label for="el">Sun elevation <span class="v" id="elv"></span></label><input type="range" id="el" min="5" max="80" step="1" title="Low sun picks out subtle earthworks"></div>
+ <label for="ve">Vertical exaggeration <span class="v" id="vev"></span></label><input type="range" id="ve" min="1" max="20" step="0.5" title="Exaggerates height differences">
+ <div id="radbox"><label for="rad">Radius (LRM / SVF) <span class="v" id="radv"></span></label><input type="range" id="rad" min="3" max="50" step="1" title="Feature size the relief model looks for, in metres"></div>
+ </details>
+ <details class="sec" open><summary>Lens &amp; appearance</summary>
+ <label for="ramp">Colour ramp</label>
+ <select id="ramp" title="Colour scale"><option value="grey">Grey</option><option value="greyinv">Grey (inverted)</option><option value="viridis">Viridis</option><option value="magma">Magma</option><option value="rdbu">Blue-white-red (diverging)</option><option value="terrain">Terrain</option><option value="cividis">Cividis</option></select>
+ <div id="swatches" role="group" aria-label="Colour ramp previews"></div>
+ <div class="row" style="margin-top:6px"><label style="margin:0" title="Stretch contrast to what is inside the lens"><input type="checkbox" id="auto"> Auto-stretch to lens</label></div>
+ <label for="ct">Contrast <span class="v" id="ctv"></span></label><input type="range" id="ct" min="0.25" max="5" step="0.05" title="Contrast">
+ <label for="gm">Gamma <span class="v" id="gmv"></span></label><input type="range" id="gm" min="0.3" max="3" step="0.05" title="Brightens or darkens mid-tones">
+ <label for="op">LiDAR opacity over aerial <span class="v" id="opv"></span></label><input type="range" id="op" min="0" max="1" step="0.05" title="See the aerial photo through the LiDAR">
+ <label for="ls">Lens size <span class="v" id="lsv"></span></label><input type="range" id="ls" min="150" max="600" step="10" title="Lens diameter in pixels">
+ <div class="row" style="margin-top:6px"><label style="margin:0" title="LiDAR over the whole map (F)"><input type="checkbox" id="fs"> LiDAR full screen</label></div>
+ <button id="lensreset" title="Recentre lens: put it back in the middle (C)" aria-label="Recentre lens">Recentre lens</button>
+ </details>
+ <details class="sec" open><summary>Tools</summary>
+ <button id="whatis" aria-pressed="false" title="Click a spot for measurements and nearby records (W)">What's here? (off)</button>
+ <button id="profile" aria-pressed="false" title="Click two points to draw a height profile (P)">Elevation profile (off)</button>
+ <button id="share" title="Copy a link to this exact view">Copy share link (this view)</button>
+ <button id="reset" title="Reset all display settings">Reset to defaults</button>
+ </details>
+ <details class="sec"><summary>Overlays</summary>
+ <div class="row"><label style="margin:0" title="Outline scheduled monuments (S)"><input type="checkbox" id="sm"> Scheduled monuments</label></div>
+ <div id="prowbox" class="row"><label style="margin:0" title="Public footpaths, bridleways and byways (working copy of the Definitive Map)"><input type="checkbox" id="prow"> Public rights of way</label></div>
+ <div id="prowkey" class="key" hidden><span style="--c:#d6336c"></span>Footpath <span style="--c:#2f9e44"></span>Bridleway <span style="--c:#e8590c"></span>Restricted byway <span style="--c:#1971c2"></span>Byway</div>
+ <div id="histbox"><label for="hist">Historic OS map</label>
+ <select id="hist" title="Old Ordnance Survey map from the National Library of Scotland, shown outside the lens"><option value="">None</option></select>
+ <label for="histop">Historic map opacity <span class="v" id="histopv"></span></label><input type="range" id="histop" min="0.1" max="1" step="0.05" value="0.8" title="Fade the historic map over the background"></div>
+ <small id="ovlnote">Overlays show outside the lens; the lens always shows LiDAR. The layers button on the map also switches the background and the old OS maps.</small>
+ </details>
+ <details class="sec" open id="models"><summary>Models (<span id="mcount">…</span>)</summary>
+ <div class="row"><label style="margin:0" title="Show Tim's detailed models on the map"><input type="checkbox" id="mshow" checked> Show models on the map</label></div>
+ <small>Outlines and pins mark detailed models. Click or tap one to list everything there.</small>
+ <details class="sub2"><summary>Area-wide</summary><ul id="mcounty" class="mlist"></ul></details>
+ <details class="sub2"><summary>All models</summary><input id="mq" type="search" placeholder="Search models" aria-label="Search models"><ul id="mlist" class="mlist"></ul></details>
+ </details>
+ <details class="sec"><summary>About / data</summary><small id="about"></small></details>
+</div>
+<div id="help" role="dialog" aria-modal="false" aria-labelledby="helph" hidden><button class="x" id="helpx" aria-label="Close help">&times;</button><h2 id="helph">How to use the LiDAR Lens</h2>
+<p>The circle is a <b>lens</b> showing the 1 m LiDAR ground model over the aerial photo. Drag its rim or top grip to move it; drag the white dot to resize. Use <b>Go to</b> for a grid ref, postcode or place, or <b>Use my location</b>.</p>
+<p><b id="helptn">What's here?</b> shows the shape of the ground (measured from the LiDAR) and nearby records for the spot you click. <b>Elevation profile</b>: click two points.</p>
+<h3>Keyboard shortcuts</h3><table class="keys">
+<tr><td>1–8</td><td>Visualisation mode</td></tr><tr><td>W</td><td id="keytn">What's here? on/off</td></tr><tr><td>P</td><td>Elevation profile on/off</td></tr>
+<tr><td>F</td><td>LiDAR full screen</td></tr><tr><td>S</td><td>Scheduled monuments</td></tr><tr><td>C</td><td>Recentre lens</td></tr><tr><td>/</td><td>Go to box</td></tr>
+<tr><td>H</td><td>Hide/show controls</td></tr><tr><td>?</td><td>This help</td></tr><tr><td>Esc</td><td>Close / tool off</td></tr></table></div>
+<div id="loading" role="status" aria-live="polite" hidden><span class="spin"></span><span id="loadt">Loading LiDAR…</span></div>
+<div id="status" role="status" aria-live="polite" hidden></div>
+<script src="assets/compat.a2e8ae5d.js"></script>
+<script defer src="assets/config.e8997090.js"></script>
+<script defer src="assets/app.fb45e3ef.js"></script>
+</body></html>
