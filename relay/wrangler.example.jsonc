@@ -1,0 +1,9 @@
+{
+  "name": "lidar-lens-england",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "r2_buckets": [{ "binding": "BLOCKS", "bucket_name": "lidar-lens-england-cache" }],
+  "vars": { "ALLOW_ORIGINS": "https://timdaw37.github.io", "CLIENT_ID": "lidar-lens-england" },
+  "ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "1005", "simple": { "limit": 600, "period": 60 } }]
+}

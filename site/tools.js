@@ -25,7 +25,8 @@ function tmInv(E,N){const {a,b}=AIRY,e2=1-b*b/(a*a);let f=LAT0,M=0;do{f=(N-N0-M)
   const sf=Math.sin(f),cf=Math.cos(f),tf=Math.tan(f),nu=a*F0/Math.sqrt(1-e2*sf*sf),rho=a*F0*(1-e2)/Math.pow(1-e2*sf*sf,1.5),eta2=nu/rho-1;
   const VII=tf/(2*rho*nu),VIII=tf/(24*rho*nu**3)*(5+3*tf*tf+eta2-9*tf*tf*eta2),IX=tf/(720*rho*nu**5)*(61+90*tf*tf+45*tf**4),X=1/(cf*nu),XI=1/(cf*6*nu**3)*(nu/rho+2*tf*tf),XII=1/(cf*120*nu**5)*(5+28*tf*tf+24*tf**4),XIIA=1/(cf*5040*nu**7)*(61+662*tf*tf+1320*tf**4+720*tf**6);
   const dE=E-E0;return [(f-VII*dE*dE+VIII*dE**4-IX*dE**6)/D2R,(LNG0+X*dE-XI*dE**3+XII*dE**5-XIIA*dE**7)/D2R]}
-let OG=null;fetch(LZ.LC.osgbGrid||'data/ostn_grid.json').then(r=>r.ok?r.json():null).then(g=>{OG=g;if(g&&g.test){const t=g.test[0],en=ll2en(t[0],t[1]);LZ.osgbCheck=[en[0]-t[2],en[1]-t[3]]}}).catch(()=>{});
+const ogDec=g=>{if(g&&g.enc==='cm-delta')for(const k of['de','dn']){let v=0;g[k]=g[k].map(d=>(v+=d)/100)}return g};   // see build_site.mjs
+let OG=null;fetch(LZ.LC.osgbGrid||'data/ostn_grid.json').then(r=>r.ok?r.json():null).then(g=>{OG=ogDec(g);g=OG;if(g&&g.test){const t=g.test[0],en=ll2en(t[0],t[1]);LZ.osgbCheck=[en[0]-t[2],en[1]-t[3]]}}).catch(()=>{});
 function corr(lat,lng){if(!OG)return [0,0];const fy=(lat-OG.lat0)/OG.step,fx=(lng-OG.lng0)/OG.step;if(fy<0||fx<0||fy>OG.nlat-1||fx>OG.nlng-1)return [0,0];
   const i=Math.min(OG.nlat-2,Math.floor(fy)),j=Math.min(OG.nlng-2,Math.floor(fx)),ty=fy-i,tx=fx-j,k=i*OG.nlng+j,bl=a=>(a[k]*(1-tx)+a[k+1]*tx)*(1-ty)+(a[k+OG.nlng]*(1-tx)+a[k+OG.nlng+1]*tx)*ty;return [bl(OG.de),bl(OG.dn)]}
 function ll2en(lat,lng){const c=helm(toCart(lat,lng,WGS),H_FWD,1),[la,lo]=fromCart(c[0],c[1],c[2],AIRY),[E,N]=tmFwd(la,lo),d=corr(lat,lng);return [E+d[0],N+d[1]]}

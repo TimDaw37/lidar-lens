@@ -11,12 +11,15 @@
    Everything fetched is kept in the browser's Cache Storage, so a place seen once comes back instantly.
    Be kind to the sources: blocks are shared between tiles, requests are de-duplicated and at most 4 run at once. */
 'use strict';
-const VER = 'v3';   // v2: drops v1 'What's here?' cells cached from a failed query; v3: 512 px blocks, size-capped caches
+const VER = 'v4';   // v2: drops v1 'What's here?' cells cached from a failed query; v3: 512 px blocks, size-capped caches; v4: blocks via the relay
 const BLOCKS = 'lens-live-blocks-' + VER, TILES = 'lens-live-tiles-' + VER, RECS = 'lens-live-recs-' + VER;
 const MINZ = 13, MAXZ = 17;          // tiles below MINZ are not made (the EA hillshade map shows instead)
 const BLOCK_PX = 512;                  // WCS block size in pixels; block side = BLOCK_PX * r metres (512: about 0.3-1 MB each)
 const WCS = 'https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wcs?service=WCS&version=2.0.1' +
   '&request=GetCoverage&CoverageId=13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m&format=image/tiff&geotiff:compression=Deflate';
+// Blocks come through the Lens's caching relay (relay/ in the repo), so a block one visitor has seen costs the EA nothing for
+// the next; if the relay is down the worker goes to the EA directly. Both carry a client id so the EA can see who we are.
+const RELAY = 'https://lidar-lens-england.tim-daw.workers.dev/wcs', CLIENT = '&client=lidar-lens-england';
 const HE = 'https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/';
 const NHLE = HE + 'National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/', AIM = HE + 'HE_AIM_data/FeatureServer/';
 const ENG = { e0: 80000, n0: 0, e1: 660000, n1: 660000 }, CELL = 5000, BUF = 200;
@@ -54,16 +57,27 @@ function tmFwd(lat, lng) { const { a, b } = AIRY, f = lat * D2R, l = lng * D2R, 
   const I = M + N0, II = nu / 2 * sf * cf, III = nu / 24 * sf * cf ** 3 * (5 - tf * tf + 9 * eta2), IIIA = nu / 720 * sf * cf ** 5 * (61 - 58 * tf * tf + tf ** 4), IV = nu * cf, V = nu / 6 * cf ** 3 * (nu / rho - tf * tf), VI = nu / 120 * cf ** 5 * (5 - 18 * tf * tf + tf ** 4 + 14 * eta2 - 58 * tf * tf * eta2);
   const dl = l - LNG0; return [E0 + IV * dl + V * dl ** 3 + VI * dl ** 5, I + II * dl * dl + III * dl ** 4 + IIIA * dl ** 6] }
 let OG = null, ogP = null;
-function loadGrid() { if (!ogP) ogP = fetch(new URL('data/ostn_grid.json', self.registration.scope)).then(r => r.ok ? r.json() : null).then(g => { OG = g }).catch(() => {}); return ogP }
+function loadGrid() { if (!ogP) ogP = fetch(new URL('data/ostn_grid.json', self.registration.scope)).then(r => r.ok ? r.json() : null).then(g => { if (g && g.enc === 'cm-delta') for (const k of ['de', 'dn']) { let v = 0; g[k] = g[k].map(d => (v += d) / 100) } OG = g }).catch(() => {}); return ogP }
 function corr(lat, lng) { if (!OG) return [0, 0]; const fy = (lat - OG.lat0) / OG.step, fx = (lng - OG.lng0) / OG.step; if (fy < 0 || fx < 0 || fy > OG.nlat - 1 || fx > OG.nlng - 1) return [0, 0];
   const i = Math.min(OG.nlat - 2, Math.floor(fy)), j = Math.min(OG.nlng - 2, Math.floor(fx)), ty = fy - i, tx = fx - j, k = i * OG.nlng + j, bl = a => (a[k] * (1 - tx) + a[k + 1] * tx) * (1 - ty) + (a[k + OG.nlng] * (1 - tx) + a[k + OG.nlng + 1] * tx) * ty; return [bl(OG.de), bl(OG.dn)] }
 function ll2en(lat, lng) { const c = helm(toCart(lat, lng, WGS)), [la, lo] = fromCart(c[0], c[1], c[2], AIRY), [E, N] = tmFwd(la, lo), d = corr(lat, lng); return [E + d[0], N + d[1]] }
 const tile2lng = (x, n) => x / n * 360 - 180, tile2lat = (y, n) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) / D2R;
 
 // ---------------------------------------------------------------- fetching, with a small queue
-let active = 0; const queue = [];
-function limited(fn) { return new Promise((res, rej) => { queue.push([fn, res, rej]); pump() }) }
-function pump() { while (active < 4 && queue.length) { const [fn, res, rej] = queue.shift(); active++; fn().then(res, rej).finally(() => { active--; pump() }) } }
+// At most 4 requests at once. A 429 or 503 (the source is busy) pauses the whole queue for Retry-After (or 2, 4, 8 s)
+// and retries that request up to 3 times, so a busy EA or HE service is not hammered.
+let active = 0, pauseUntil = 0; const queue = [];
+function limited(fn) { return new Promise((res, rej) => { queue.push([fn, res, rej, 0]); pump() }) }
+function pump() {
+  const wait = pauseUntil - Date.now(); if (wait > 0) { setTimeout(pump, wait); return }
+  while (active < 4 && queue.length) { const job = queue.shift(), [fn, res, rej, tries] = job; active++;
+    fn().then(r => {
+      if (r && (r.status === 429 || r.status === 503) && tries < 3) {
+        const ra = +(r.headers.get('Retry-After') || 0), ms = Math.min(30000, ra > 0 ? ra * 1000 : 2000 * 2 ** tries);
+        pauseUntil = Math.max(pauseUntil, Date.now() + ms); job[3] = tries + 1; queue.unshift(job);
+      } else res(r);
+    }, rej).finally(() => { active--; pump() }) }
+}
 async function cached(cacheName, url, init) {
   const c = await caches.open(cacheName), hit = await c.match(url);
   if (hit) { touch(c, url, hit.clone()); return hit }
@@ -124,8 +138,9 @@ function block(r, bx, by) {
   const key = r + '/' + bx + '/' + by;
   if (mem.has(key)) { const p = mem.get(key); mem.delete(key); mem.set(key, p); return p }
   const S = BLOCK_PX * r, x0 = bx * S - r, x1 = bx * S + S + r, y0 = by * S - r, y1 = by * S + S + r;
-  const url = WCS + `&subset=E(${x0},${x1})&subset=N(${y0},${y1})` + (r > 1 ? `&SCALEFACTOR=${1 / r}` : '');
-  const p = cached(BLOCKS, url).then(async res => {
+  const url = `${RELAY}?r=${r}&bx=${bx}&by=${by}`, direct = WCS + `&subset=E(${x0},${x1})&subset=N(${y0},${y1})` + (r > 1 ? `&SCALEFACTOR=${1 / r}` : '') + CLIENT;
+  const viaRelay = cached(BLOCKS, url).then(res => res.ok || res.status === 429 || res.headers.get('X-Upstream') ? res : Promise.reject(new Error('relay ' + res.status)));
+  const p = viaRelay.catch(() => cached(BLOCKS, direct)).then(async res => {
     if (!res.ok) return null;
     const t = await readTiff(await res.arrayBuffer());
     for (let i = 0; i < t.data.length; i++) if (!(t.data[i] > -1000)) t.data[i] = NaN;   // EA nodata is -3.4e38

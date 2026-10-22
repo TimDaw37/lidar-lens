@@ -29,8 +29,9 @@ let pre='';if(cfg){const c=fs.readFileSync(cfg,'utf8');const m=c.match(/url:\s*'
   html=html.replace('<script defer src="config.js"></script>','<script defer src="assets/'+cfgName+'"></script>')}
 if(fs.existsSync(SITE+'/icons'))for(const f of fs.readdirSync(SITE+'/icons'))fs.copyFileSync(SITE+'/icons/'+f,OUT+'/'+f);   // favicon + manifest at the site root
 if(fs.existsSync(SITE+'/models.json'))fs.copyFileSync(SITE+'/models.json',OUT+'/models.json');
-// An area's OSTN15 correction grid can sit next to its config as <config>-ostn_grid.json (e.g. configs/england-ostn_grid.json)
-if(process.argv[2]){const g=process.argv[2].replace(/\.js$/,'-ostn_grid.json');if(fs.existsSync(g)){fs.mkdirSync(OUT+'/data',{recursive:true});fs.copyFileSync(g,OUT+'/data/ostn_grid.json')}}
+// An area's OSTN15 correction grid can sit next to its config as <config>-ostn_grid.json (e.g. configs/england-ostn_grid.json);
+// it is written as whole cm, delta-coded (about half the download), and tools.js and live-sw.js decode it
+if(process.argv[2]){const g=process.argv[2].replace(/\.js$/,'-ostn_grid.json');if(fs.existsSync(g)){fs.mkdirSync(OUT+'/data',{recursive:true});{const G=JSON.parse(fs.readFileSync(g,'utf8'));if(!G.enc){for(const k of['de','dn']){let p=0;G[k]=G[k].map(x=>{const v=Math.round(x*100),d=v-p;p=v;return d})}G.enc='cm-delta'}fs.writeFileSync(OUT+'/data/ostn_grid.json',JSON.stringify(G))}}}
 if(fs.existsSync(SITE+'/live-sw.js'))fs.copyFileSync(SITE+'/live-sw.js',OUT+'/live-sw.js');   // live mode service worker: fixed name at the site root (its scope)
 html=html.replace('<title>',pre+'<title>');fs.writeFileSync(OUT+'/index.html',html.replace(/\n\s*\n/g,'\n'));
 const sz=f=>(fs.statSync(OUT+'/'+f).size/1024).toFixed(0)+' KB';
