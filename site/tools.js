@@ -75,9 +75,19 @@ function fmtPos(ll){const [E,N]=ll2en(ll.lat,ll.lng);return {gr:gridRef(E,N),ll:
 function updWhere(ll,src){wPos=ll;wSrc=src;const f=fmtPos(ll);$('wlab').textContent=src;$('wgr').textContent=f.gr||'outside GB grid';$('wll').textContent=f.ll;
   clearTimeout(wT);wT=setTimeout(async()=>{const h=await LZ.heightAt(ll);if(wPos===ll)$('wh').textContent=h==null?'':h.toFixed(1)+' m OD'},120)}
 // show the cursor position for a real mouse/pen; touch devices show the map centre instead
-map.getContainer().addEventListener('pointermove',e=>{hoverOK=e.pointerType==='mouse'||e.pointerType==='pen';if(!hoverOK)return;const r=map.getContainer().getBoundingClientRect();updWhere(map.containerPointToLatLng([e.clientX-r.left,e.clientY-r.top]),'Cursor')},true);
-map.getContainer().addEventListener('mouseleave',()=>updWhere(map.getCenter(),'Centre'));
-map.on('move',()=>{if(wSrc!=='Cursor'||!hoverOK)updWhere(map.getCenter(),wSrc==='GPS'?'Centre':'Centre')});
+// Pin: a click on the map (with no tool on) fixes the readout there, so the pointer can go to Copy without moving it.
+// Clicking again moves the pin; Esc or clicking the 'Pinned' label releases it.
+let pinned=false,pinMk=null;
+function pin(ll){pinned=true;updWhere(ll,'Pinned');if(!pinMk)pinMk=L.circleMarker(ll,{radius:6,color:'#d00',weight:2,fill:false,interactive:false}).addTo(map);else pinMk.setLatLng(ll);$('wlab').title='Click to release the pin (or press Esc)';$('wlab').style.cursor='pointer'}
+function unpin(){if(!pinned)return;pinned=false;if(pinMk){map.removeLayer(pinMk);pinMk=null}$('wlab').title='';$('wlab').style.cursor='';updWhere(map.getCenter(),'Centre')}
+map.on('click',e=>{if(LZ.tool&&LZ.tool())return;pin(e.latlng)});
+$('wlab').addEventListener('click',unpin);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&pinned&&!(LZ.tool&&LZ.tool()))unpin()});
+LZ.pin=pin;LZ.unpin=unpin;
+// show the cursor position for a real mouse/pen; touch devices show the map centre instead
+map.getContainer().addEventListener('pointermove',e=>{hoverOK=e.pointerType==='mouse'||e.pointerType==='pen';if(!hoverOK||pinned)return;const r=map.getContainer().getBoundingClientRect();updWhere(map.containerPointToLatLng([e.clientX-r.left,e.clientY-r.top]),'Cursor')},true);
+map.getContainer().addEventListener('mouseleave',()=>{if(!pinned)updWhere(map.getCenter(),'Centre')});
+map.on('move',()=>{if(pinned)return;if(wSrc!=='Cursor'||!hoverOK)updWhere(map.getCenter(),'Centre')});
 updWhere(map.getCenter(),'Centre');
 $('wcopy').onclick=()=>{if(!wPos)return;const f=fmtPos(wPos),t=f.gr+' ('+f.ll+')';(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>msg('Copied: '+t,2000),()=>prompt('Copy:',t))};
 // ===================== GPS =====================
