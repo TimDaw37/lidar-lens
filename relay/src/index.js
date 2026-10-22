@@ -20,6 +20,29 @@ function cors(req, env, h = new Headers()) {
 const err = (req, env, s, msg, extra = {}) => { const h = cors(req, env); h.set('Content-Type', 'text/plain'); h.set('Cache-Control', 'no-store');
   for (const k in extra) h.set(k, extra[k]); return new Response(msg, { status: s, headers: h }) };
 
+// Outside the EA survey (Wales, Scotland, the sea) the WCS returns a valid GeoTIFF with every height 0.0 (about 4.6 KB).
+// Such a block is 'empty': it is edge-cached so repeat requests are cheap, but never written to R2.
+async function inflate(u8) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer()) }
+async function isEmpty(buf) {
+  const dv = new DataView(buf), le = dv.getUint16(0) === 0x4949, u16 = o => dv.getUint16(o, le), u32 = o => dv.getUint32(o, le);
+  const ifd = u32(4), n = u16(ifd), T = {}, size = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 11: 4, 12: 8, 16: 8 };
+  for (let i = 0; i < n; i++) {
+    const o = ifd + 2 + i * 12, tag = u16(o), type = u16(o + 2), cnt = u32(o + 4), sz = (size[type] || 1) * cnt, at = sz <= 4 ? o + 8 : u32(o + 8);
+    const rd = k => type === 3 ? u16(at + 2 * k) : type === 4 ? u32(at + 4 * k) : dv.getUint8(at + k);
+    if ([258, 259, 273, 279, 317, 322, 324, 325].includes(tag)) T[tag] = Array.from({ length: cnt }, (_, k) => rd(k));
+  }
+  const comp = (T[259] || [1])[0];
+  if ((T[258] && T[258][0] !== 32) || (T[317] || [1])[0] !== 1) return false;          // not the layout we know: treat as real data
+  const offs = T[322] ? T[324] : T[273], cnts = T[322] ? T[325] : T[279];
+  for (let k = 0; k < offs.length; k++) {
+    let bytes = new Uint8Array(buf, offs[k], cnts[k]);
+    if (comp === 8 || comp === 32946) bytes = await inflate(bytes); else if (comp !== 1) return false;
+    const bd = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let i = 0; i + 4 <= bytes.byteLength; i += 4) { const v = bd.getFloat32(i, le); if (v !== 0 && v > -1000) return false }
+  }
+  return true;
+}
+
 export default {
   async fetch(req, env, ctx) {
     const u = new URL(req.url);
@@ -34,11 +57,12 @@ export default {
     if (x1 < ENG.e0 || x0 > ENG.e1 || y1 < ENG.n0 || y0 > ENG.n1) return err(req, env, 400, 'outside England');
     if (env.RATE_LIMITER) { const { success } = await env.RATE_LIMITER.limit({ key: req.headers.get('CF-Connecting-IP') || 'x' }); if (!success) return err(req, env, 429, 'slow down', { 'Retry-After': '10' }) }
 
-    const key = `wcs/${VER}/${r}/${bx}_${by}.tif`, edgeKey = new Request('https://relay.invalid/' + key), cache = caches.default;
+    // edge key e2/: edge copies made before empty-block detection are left behind
+    const key = `wcs/${VER}/${r}/${bx}_${by}.tif`, edgeKey = new Request('https://relay.invalid/e2/' + key), cache = caches.default;
     const send = (body, src) => { const h = cors(req, env); h.set('Content-Type', 'image/tiff'); h.set('Cache-Control', 'public, max-age=2592000, immutable'); h.set('X-Relay', src);
       return new Response(body, { status: 200, headers: h }) };
     let hit = await cache.match(edgeKey);
-    if (hit) return send(hit.body, 'edge');
+    if (hit) return send(hit.body, hit.headers.get('X-Empty') ? 'empty' : 'edge');
     const obj = await env.BLOCKS.get(key);
     if (obj) { const buf = await obj.arrayBuffer(); ctx.waitUntil(cache.put(edgeKey, new Response(buf, { headers: { 'Cache-Control': 'public, max-age=2592000' } }))); return send(buf, 'r2') }
 
@@ -51,6 +75,8 @@ export default {
     const buf = await up.arrayBuffer(), b = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
     const tiff = buf.byteLength > 8 && ((b[0] === 0x49 && b[1] === 0x49 && b[2] === 42) || (b[0] === 0x4d && b[1] === 0x4d && b[3] === 42));
     if (!tiff) return err(req, env, 502, 'EA sent something other than a GeoTIFF', { 'X-Upstream': String(up.status) });
+    let empty = false; try { empty = await isEmpty(buf) } catch (e) { empty = false }
+    if (empty) { ctx.waitUntil(cache.put(edgeKey, new Response(buf, { headers: { 'Cache-Control': 'public, max-age=2592000', 'X-Empty': '1' } }))); return send(buf, 'empty') }
     ctx.waitUntil(Promise.all([env.BLOCKS.put(key, buf, { httpMetadata: { contentType: 'image/tiff' } }),
       cache.put(edgeKey, new Response(buf, { headers: { 'Cache-Control': 'public, max-age=2592000' } }))]));
     return send(buf, 'ea');
