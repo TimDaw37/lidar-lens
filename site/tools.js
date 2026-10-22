@@ -44,7 +44,7 @@ function parseGridRef(s){const m=s.toUpperCase().replace(/[^A-Z0-9]/g,' ').trim(
 LZ.osgb={ll2en,en2ll,gridRef,parseGridRef};
 // ===================== Go to =====================
 const gores=$('gores');let lastNom=0,gotoMk=null;const geoCache=new Map();
-function showRes(items){gores.innerHTML='';items.forEach(it=>{const d=document.createElement('div');if(it.err){d.className='err';d.textContent=it.err}else{d.textContent=it.label;d.onclick=()=>{goto(it.lat,it.lng,it.z,it.label);gores.innerHTML=''}}gores.appendChild(d)})}
+function showRes(items){gores.innerHTML='';items.forEach(it=>{const d=document.createElement('div');if(it.err){d.className='err';d.textContent=it.err}else{d.textContent=it.label;d.onclick=()=>{goto(it.lat,it.lng,it.z,it.name||it.label);gores.innerHTML=''}}gores.appendChild(d)})}
 function goto(lat,lng,z,label){map.setView([lat,lng],Math.max(map.getZoom(),z||16));if(gotoMk)map.removeLayer(gotoMk);
   gotoMk=L.circleMarker([lat,lng],{radius:7,color:'#2563eb',weight:3,fill:false,interactive:false}).addTo(map);setTimeout(()=>{if(gotoMk){map.removeLayer(gotoMk);gotoMk=null}},8000);
   if(label)msg('Go to: '+label,2500)}
@@ -66,8 +66,19 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
   try{const u='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes='+((LZ.LC.geocoder||{}).countrycodes||'gb')+'&accept-language=en&viewbox='+encodeURIComponent((LZ.LC.geocoder||{}).viewbox||'')+'&bounded=0&q='+encodeURIComponent(q);
     const r=await fetch(u,{headers:{'Accept':'application/json'}});const j=await r.json();
     const items=j.map(x=>({lat:+x.lat,lng:+x.lon,label:x.display_name,z:x.type==='house'?18:(x.place_rank>=20?16:13)}));
+    // near misses: only when nothing but single buildings matched (e.g. 'Barnstable' finds two houses of that name), ask a fuzzy geocoder
+    if(!j.some(x=>x.category!=='building')){const dm=await nearMiss(q);if(dm.length){const all=dm.concat(items);geoCache.set(key,all);showRes(all);return}}
     if(!items.length){showRes([{err:'No match (try a grid ref or postcode)'}]);return}geoCache.set(key,items);if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items)}
   catch(e){showRes([{err:'Place search failed (Nominatim)'}])}}
+// 'Did you mean': Photon (OpenStreetMap, typo-tolerant) within Great Britain; keep the 1-2 names closest to what was typed
+function lev(a,b){const m=a.length,n=b.length,d=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){let p=d[0];d[0]=i;for(let j=1;j<=n;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[n]}
+async function nearMiss(q){try{const norm=t=>t.toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim(),nq=norm(q);
+  const r=await fetch('https://photon.komoot.io/api/?limit=10&lang=en&bbox=-8.7,49.8,1.9,60.9&q='+encodeURIComponent(q));if(!r.ok)return [];const j=await r.json(),seen=new Set(),out=[];
+  (j.features||[]).map((f,i)=>{const p=f.properties||{},n=p.name||'';return {i,p,n,c:f.geometry&&f.geometry.coordinates,d:lev(nq,norm(n))}})
+    .filter(x=>x.c&&x.n&&!['house','street'].includes(x.p.type)&&x.n.toLowerCase()!==q.toLowerCase().trim()&&x.d<=Math.max(2,Math.round(nq.length/4)))
+    .sort((a,b)=>a.d-b.d||a.i-b.i).forEach(x=>{const where=x.p.county||x.p.state||'',k=x.n+'|'+where;if(out.length<2&&!seen.has(k)){seen.add(k);
+      out.push({lat:x.c[1],lng:x.c[0],z:['city','town','district','county'].includes(x.p.type)?13:16,name:x.n+(where?', '+where:''),label:'Did you mean '+x.n+(where?' ('+where+')':'')+'?'})}});
+  return out}catch(e){return []}}
 $('goto').addEventListener('submit',e=>{e.preventDefault();doGoto($('gotoq').value)});
 LZ.doGoto=doGoto;
 // ===================== Where am I =====================
