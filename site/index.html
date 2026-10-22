@@ -99,6 +99,24 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 .mlist{max-height:260px;overflow:auto;margin-top:4px}#mq{width:100%;box-sizing:border-box;margin-top:4px}details.sub2{margin:6px 0}details.sub2>summary{cursor:pointer;font-weight:600}
 .mpin span{display:block;width:22px;height:22px;border-radius:50%;background:#ffd23f;border:2px solid #222;box-sizing:border-box;color:#222;font:bold 11px/18px system-ui;text-align:center}
 @media (max-width:700px){#mcard{top:auto;bottom:30px;max-height:50vh}}
+#gps .me{display:none}
+@media (max-width:700px){ /* phone: one full-width search bar with Go and Me inside it; 44 px targets */
+#titlebox{width:calc(100vw - 20px)!important}
+#goto{position:relative;display:block}
+#goto input#gotoq{width:100%;box-sizing:border-box;height:46px;min-height:46px;font-size:16px;border-radius:23px;padding:0 112px 0 14px;border:1px solid #9ca3af}
+#goto button{position:absolute;top:3px;height:40px;min-height:40px;border-radius:20px;font-size:15px;padding:0 10px}
+#goto button[type=submit]{right:72px;background:transparent;border:0;color:#1d4ed8;font-weight:600;min-width:40px}
+#gps{right:3px;min-width:64px!important;background:#2563eb!important;border:0!important;color:#fff!important;font-weight:700}
+#gps .me{display:inline}
+#gores{max-height:40vh;font-size:15px}
+#gores div{min-height:44px;box-sizing:border-box;padding:11px 10px;border-bottom:1px solid #e5e7eb;line-height:1.35}
+#gores div:last-child{border-bottom:0}
+.leaflet-touch .leaflet-bar a{width:44px;height:44px;line-height:44px;font-size:22px}
+.leaflet-touch .leaflet-control-layers-toggle{width:44px;height:44px}
+#toggle{top:auto;bottom:84px;right:10px;min-height:44px;min-width:88px;font-size:15px}
+#panel{bottom:136px;max-height:calc(100% - 290px)}
+body:has(#card[style*="block"]) #toggle{display:none}
+}
 </style></head><body>
 <div id="map"></div>
 <canvas id="gl"></canvas>
@@ -106,7 +124,7 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 <button id="toggle" aria-label="Show or hide controls (H)" title="Show or hide controls (H)">Controls</button>
 <div id="msg"></div>
 <div id="titlebox"><h1>LiDAR Lens</h1><div class="sub"><a href="#" target="_blank" rel="noopener noreferrer"></a></div>
- <form id="goto" autocomplete="off"><input id="gotoq" type="search" placeholder="Go to: grid ref, E/N, lat,long, place, postcode" aria-label="Go to location"><button type="submit">Go</button><button type="button" id="gps" title="My location (device GPS)" aria-label="My location">&#x25CE;</button></form>
+ <form id="goto" autocomplete="off"><input id="gotoq" type="search" placeholder="Go to: grid ref, E/N, lat,long, place, postcode" aria-label="Go to location"><button type="submit">Go</button><button type="button" id="gps" title="My location (device GPS)" aria-label="Use my location">&#x25CE;<span class="me"> Me</span></button></form>
  <button type="button" id="myloc" aria-label="Use my location">&#x1F4CD; Use my location</button>
  <div id="gores"></div></div>
 <div id="where"><span id="wlab">Centre</span> <b id="wgr">-</b> <span id="wll"></span> <span id="wh"></span><button id="wcopy" title="Copy grid ref and lat/long. Click the map first to pin a point.">Copy</button></div>
