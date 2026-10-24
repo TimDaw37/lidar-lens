@@ -382,7 +382,7 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
     h+='<table>'+rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')+'</table>'}
   h+='</div>';
   if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
-  h+='<div class="ft">Measurements from the 1 m EA LiDAR DTM at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC)+'.</div></div>';
+  h+='<div class="ft">Measurements from the '+esc(LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC)+'.</div></div>';
   const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
   LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
 function compass(d){return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(d/45)%8]}
