@@ -61,6 +61,11 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
       if(j.status===200&&j.result){goto(j.result.latitude,j.result.longitude,16,j.result.postcode+' (postcode centroid)');return}showRes([{err:'Postcode not found'}]);return}catch(e){showRes([{err:'Postcode lookup failed'}]);return}}
   if(/^[A-Z]{1,2}\d[A-Z\d]?$/.test(pc)){try{const r=await fetch('https://api.postcodes.io/outcodes/'+encodeURIComponent(pc));const j=await r.json();if(j.status===200&&j.result){goto(j.result.latitude,j.result.longitude,13,j.result.outcode+' (postcode district)');return}}catch(e){}}
   // place name: Nominatim, UK-only, biased to the configured viewbox; at most one request per 1.1 s, submit-only (no autocomplete), cached
+  {const nq=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim(),qq=nq(q),P=window.__placeNames||[];
+   const hit=P.filter(f=>{const p=f.properties;return [p.cy,p.en,p.alt].some(v=>v&&nq(v)===qq)});
+   const part=hit.length?hit:qq.length>=3?P.filter(f=>{const p=f.properties;return [p.cy,p.en,p.alt].some(v=>v&&nq(v).includes(qq))}):[];
+   if(part.length){const items=part.slice(0,8).map(f=>({lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],label:f.properties.n+' · '+(f.properties.te||''),z:f.properties.te==='Settlement'?15:16}));
+     if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items);return}}
   const key=q.toLowerCase();if(geoCache.has(key)){showRes(geoCache.get(key));return}
   const wait=lastNom+1100-Date.now();if(wait>0){showRes([{err:'Searching…'}]);await new Promise(r=>setTimeout(r,wait))}lastNom=Date.now();showRes([{err:'Searching…'}]);
   try{const u='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes='+((LZ.LC.geocoder||{}).countrycodes||'gb')+'&accept-language=en&viewbox='+encodeURIComponent((LZ.LC.geocoder||{}).viewbox||'')+'&bounded=0&q='+encodeURIComponent(q);

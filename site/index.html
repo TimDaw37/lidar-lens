@@ -70,7 +70,7 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 #card .b.HER{background:#7c3aed}#card .b.NHLE{background:#dc2626}#card .b.AIM{background:#0369a1}#card .b.OSM{background:#65a30d}#card .b.LB{background:#b45309}#card .b.CADW{background:#dc2626}#card .b.CADWLB{background:#b45309}#card .b.NMRW{background:#0f766e}
 #card .rec .m{color:#4b5563;font-size:12px}#card a{color:#1d4ed8}
 #card .ft{font-size:11px;color:#6b7280;margin-top:8px}
-@media (max-width:700px),(max-height:500px) and (pointer:coarse){#myloc{display:none}#gps{background:#eff6ff;border-color:#2563eb;color:#1e3a8a;font-weight:700;min-width:40px}#titlebox .xlinks{margin:0 0 4px}#titlebox .xlinks .xn{display:none}#titlebox .xlinks::before{content:'Also: '}#goto input,#goto button{min-height:36px;font-size:15px}#titlebox{width:min(290px,calc(100vw - 110px));padding:5px 7px}#titlebox h1{font-size:13px}#card{left:6px;right:6px;width:auto;top:auto;bottom:6px;max-height:62%}#where{font-size:11px}.leaflet-control-attribution{font-size:9px;max-width:70vw}#panel{width:min(270px,calc(100% - 20px));max-height:55%;top:auto;bottom:24px;right:10px}#panel.hide{display:none}#toggle{display:block}#prof{bottom:auto;top:56px;height:140px}}
+@media (max-width:700px),(max-height:500px) and (pointer:coarse){#myloc{display:none}#gps{background:#eff6ff;border-color:#2563eb;color:#1e3a8a;font-weight:700;min-width:40px}#titlebox .xlinks{margin:0 0 4px}#titlebox .xlinks .xn{display:none}#titlebox .xlinks::before{content:'Also: '}#goto input,#goto button{min-height:44px;font-size:16px}#goto button{min-width:44px}#titlebox{width:min(290px,calc(100vw - 110px));padding:5px 7px}#titlebox h1{font-size:13px}#card{left:6px;right:6px;width:auto;top:auto;bottom:6px;max-height:62%}#where{font-size:11px}.leaflet-control-attribution{font-size:9px;max-width:70vw}#panel{width:min(270px,calc(100% - 20px));max-height:55%;top:auto;bottom:24px;right:10px}#panel.hide{display:none}#toggle{display:block}#prof{bottom:auto;top:56px;height:140px}}
 
 #panel .ph{display:flex;align-items:center;justify-content:space-between}#panel .ph h1{margin:0}
 #panel button.q{width:28px;height:28px;padding:0;border-radius:50%;font-weight:700;margin:0;flex:none}
@@ -125,6 +125,7 @@ body:has(#card[style*="block"]) #toggle{display:none}
 #toggle{top:10px;bottom:auto}#panel{top:62px;bottom:auto;max-height:calc(100% - 72px)}
 #card{left:auto;right:6px;top:6px;bottom:6px;width:min(400px,calc(50vw - 12px));max-height:none}
 }
+.pn span{display:block;width:5px;height:5px;border-radius:50%;background:#fff;border:1px solid #111}.pns span{width:7px;height:7px;background:#facc15}.leaflet-tooltip.pnl{background:rgba(255,255,255,.82);border:0;box-shadow:none;padding:0 3px;font:600 11px/1.3 system-ui,sans-serif;color:#111}.leaflet-tooltip.pnl:before{display:none}
 </style></head><body>
 <div id="map"></div>
 <canvas id="gl"></canvas>
