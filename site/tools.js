@@ -135,10 +135,25 @@ function loadIndex(){if(!idxP)idxP=fetch(LCF.index).then(r=>r.ok?r.json():null).
 function loadChunk(layer,key){const id=layer+'/'+key;if(!chunkP.has(id))chunkP.set(id,fetch(LCF.url.replace('{layer}',layer).replace('{key}',key)).then(r=>r.ok?r.json():(r.status>=500&&(LZ.recErr=r.status),null)).then(j=>{if(!j){chunkP.delete(id);return null}   // not remembered, so a later click retries
     if(j.missing&&j.missing.length){LZ.recMissing=[...new Set([...(LZ.recMissing||[]),...j.missing])];chunkP.delete(id)}   // one source down: show the rest, retry next time
     if(j.f)prep(j.f);if(j.L){const o={};for(const k in j.L)o[k]=prep(j.L[k].map(g=>({g})));j.L=o}return j}).catch(()=>{chunkP.delete(id);return null}));return chunkP.get(id)}
-async function dataNear(E,N,R){await loadIndex();if(!IDX)return {recs:[],ctx:{}};const c=IDX.cell,keys=[];
+// Live Coflein (RCAHMW National Monuments Record of Wales) lookup, as in the England & Wales lens's live-sw.js: queried from
+// DataMapWales WFS on click only, never stored in the lens. Per-record links https://coflein.gov.uk/en/site/{nprn}.
+const NMRW_SRC='NMRW';
+async function nmrwNear(E,N,R){const LV=LZ.LC.liveNmrw;if(!LV)return [];const x0=Math.round(E-R),y0=Math.round(N-R),x1=Math.round(E+R),y1=Math.round(N+R);
+  const q=new URLSearchParams({service:'WFS',version:'2.0.0',request:'GetFeature',typeNames:'geonode:rcahmw_nmrw_terrestrialsites_rcahmw_bng',outputFormat:'application/json',srsName:'EPSG:27700',bbox:x0+','+y0+','+x1+','+y1+',EPSG:27700',count:500});
+  try{const r=await fetch('https://datamap.gov.wales/geoserver/ows?'+q,window.AbortSignal&&AbortSignal.timeout?{signal:AbortSignal.timeout(15000)}:{});if(!r.ok)throw 0;const j=await r.json(),out=[];
+    const cl=v=>v==null?'':String(v).trim(),tt=v=>{v=cl(v).toLowerCase();return v?v.charAt(0).toUpperCase()+v.slice(1):''},rd=v=>Math.round(v*10)/10,ring=c=>c.map(p=>[rd(p[0]),rd(p[1])]);
+    for(const x of j.features||[]){const g=x.geometry,p=x.properties||{};if(!g||!p.nprn)continue;let G=null;
+      if(g.type==='Point')G=['P',[rd(g.coordinates[0]),rd(g.coordinates[1])]];else if(g.type==='MultiPoint')G=['P',[rd(g.coordinates[0][0]),rd(g.coordinates[0][1])]];
+      else if(g.type==='LineString')G=['L',[ring(g.coordinates)]];else if(g.type==='MultiLineString')G=['L',g.coordinates.map(ring)];
+      else if(g.type==='Polygon')G=['A',[g.coordinates.map(ring)]];else if(g.type==='MultiPolygon')G=['A',g.coordinates.map(pl=>pl.map(ring))];if(!G)continue;
+      const nprn=cl(p.nprn).replace(/[^0-9]/g,''),ty=tt(p.site_type),nm=cl(p.name).split(';').map(s=>s.trim()).filter(Boolean);
+      out.push({s:NMRW_SRC,id:nprn,n:nm[0]||ty,t:ty+(nm.length>1?' (also '+nm.slice(1).join('; ')+')':''),p:cl(p.period),d:'',u:'https://coflein.gov.uk/en/site/'+nprn+'/',g:G})}
+    return prep(out)}catch(e){LZ.recMissing=[...new Set([...(LZ.recMissing||[]),'Coflein'])];return []}}
+async function dataNear(E,N,R){const liveP=nmrwNear(E,N,R);await loadIndex();if(!IDX)return {recs:[],ctx:{}};const c=IDX.cell,keys=[];
   for(let cx=Math.floor((E-R)/c);cx<=Math.floor((E+R)/c);cx++)for(let cy=Math.floor((N-R)/c);cy<=Math.floor((N+R)/c);cy++)keys.push(cx+'_'+cy);
   const jobs=[];for(const layer of LCF.names)for(const k of keys)if(IDX.layers[layer]&&IDX.layers[layer].has(k))jobs.push(loadChunk(layer,k).then(j=>[layer,j]));
   const res=await Promise.all(jobs),recs=[],ctx={};for(const [layer,j] of res){if(!j)continue;if(j.f)for(const f of j.f)recs.push(f);if(j.L)for(const k in j.L)(ctx[k]=ctx[k]||[]).push(...j.L[k])}
+  for(const f of await liveP)recs.push(f);
   return {recs,ctx}}
 function loadData(){return loadIndex()}
 function bboxOf(g){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;const add=p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1]};

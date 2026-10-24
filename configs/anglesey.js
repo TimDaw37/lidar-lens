@@ -1,5 +1,5 @@
 /* Area config: Ynys Môn (Anglesey) + 1 km buffer (covers the Menai Strait / Afon Menai and Ynys Gybi / Holy Island). 911 km2 buffered.
-   Terrain: Welsh Government national LiDAR DTM 1 m (DataMapWales COG), OGL. Public: open data only, no HER data hosted (Archwilio linked only). */
+   Terrain: Welsh Government national LiDAR DTM 1 m (DataMapWales COG), OGL. Public: open data only, no HER data hosted (Coflein queried live on click only). */
 window.LENS_CONFIG={
   title:'LiDAR Lens Ynys Môn (Anglesey)',
   pageTitle:'LiDAR Lens Ynys Môn (Anglesey)',
@@ -18,11 +18,9 @@ window.LENS_CONFIG={
     {id:'1in',name:'One-inch, 1885–1903',url:'https://mapseries-tilesets.s3.amazonaws.com/1inch_2nd_ed/{z}/{x}/{y}.png',minZoom:8,maxNativeZoom:16}],
   toolName:'What\'s here?',
   showGuess:false,
-  recordSources:'Scheduled monuments: Designated Historic Asset GIS Data, The Welsh Historic Environment Service (Cadw), received 24 Oct 2026, licensed under the Open Government Licence v3.0. Place names: Welsh Language Commissioner, List of Standardised Welsh Place-names (DataMapWales, OGL), shown Welsh first with the English form in brackets. No HER data hosted: Archwilio and Coflein are linked only.',
+  recordSources:'Scheduled monuments: Designated Historic Asset GIS Data, The Welsh Historic Environment Service (Cadw), received 24 Oct 2026, licensed under the Open Government Licence v3.0. Place names: Welsh Language Commissioner, List of Standardised Welsh Place-names (DataMapWales, OGL), shown Welsh first with the English form in brackets. Coflein: National Monuments Record of Wales (NMRW), produced by the Royal Commission on the Ancient and Historical Monuments of Wales (RCAHMW), Crown Database Right: RCAHMW, queried live from DataMapWales on click and never stored here, Open Government Licence v3.0. No HER data hosted.',
   tiles:{url:'terrain/{z}/{x}/{y}.webp',minzoom:8,maxzoom:17,crossOrigin:null},
-  herLinks:[
-    {label:'Archwilio (Heneb HER)',url:'https://www.archwilio.org.uk/',note:'search near {gr}'},
-    {label:'Coflein',url:'https://coflein.gov.uk/en/search?term=',note:'search near {gr}'}],
+  liveNmrw:true,
   scheduledOverlay:'cadw_sam.geojson',
   smLinkLabel:'Cadw report',
   placeNames:'placenames.geojson',

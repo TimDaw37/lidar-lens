@@ -6,6 +6,6 @@
   "account_id": "f55e5b1a2ee2fb89f37b36b3250b7900",
   "workers_dev": true,
   "r2_buckets": [{ "binding": "LENS_BUCKET", "bucket_name": "lidar-lens-anglesey" }],
-  "vars": { "PUBLIC_INDEX": "1" },
+  "vars": { "PUBLIC_INDEX": "1", "CSP_CONNECT": "https://datamap.gov.wales" },
   "ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "1004", "simple": { "limit": 1200, "period": 60 } }]
 }
