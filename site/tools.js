@@ -334,10 +334,44 @@ function describe(a){if(a.nodata)return 'No LiDAR data here (outside the tile co
   if(a.regSlope>=3)parts.push('on ground sloping '+a.regSlope.toFixed(0)+'° to the '+compass(a.regAspect));
   return parts.join('; ')+'.'}
 function closeCard(){card.style.display='none';if(wiMk){map.removeLayer(wiMk);wiMk=null}}
+// JFGI is one outbound link: Google AI Mode, with the place name and coordinates. No menu, no other search, no API call.
+function jfgiHref(name,gr,lat,lng){const q=[name||'this spot',gr,Number(lat).toFixed(5)+', '+Number(lng).toFixed(5)].filter(Boolean).join(' ');
+  return 'https://www.google.com/search?udm=50&q='+encodeURIComponent(q)}
+function jfgiLink(name,gr,lat,lng){return '<a class="jfgi" href="'+esc(jfgiHref(name,gr,lat,lng))+'" target="_blank" rel="noopener noreferrer">JFGI</a>'}
+const photoCache=new Map();
+function loadPhotos(el,lat,lng){if(!el)return;el.replaceChildren();const wait=document.createElement('div');wait.className='m';wait.textContent='Nearby photos…';el.appendChild(wait);
+  const key=lat.toFixed(3)+','+lng.toFixed(3);
+  const show=data=>{if(!el.isConnected)return;el.replaceChildren();
+    if(!data||data.reason==='nokey'||data.reason==='off'){el.textContent='Nearby photos need a Geograph API key on the server (Worker secret GEOGRAPH_KEY).';return}
+    const list=(data.photos||[]).filter(p=>p&&/^https:\/\/www\.geograph\.org\.uk\/photo\/\d+/i.test(p.page||'')&&/^https:\/\/([a-z0-9-]+\.)?geograph\.org\.uk\//i.test(p.thumb||'')).slice(0,6);
+    if(data.reason==='fail'){el.textContent='Nearby photos could not be loaded.';return}
+    if(!list.length){el.textContent='No Geograph photos nearby.';return}
+    const row=document.createElement('div');row.className='geos';
+    list.forEach(p=>{const a=document.createElement('a');a.href=p.page;a.target='_blank';a.rel='noopener noreferrer';
+      const img=document.createElement('img');img.src=p.thumb;img.alt=p.title||'Geograph photo';img.width=84;img.height=84;
+      const who=document.createElement('span');who.className='who';who.textContent=(p.author||'photographer')+' · CC';
+      a.appendChild(img);a.appendChild(who);row.appendChild(a)});
+    el.appendChild(row);const cred=document.createElement('div');cred.className='m';cred.style.fontSize='11px';
+    cred.appendChild(document.createTextNode('Photos © the photographers, Creative Commons, via '));
+    const g=document.createElement('a');g.href='https://www.geograph.org.uk/';g.target='_blank';g.rel='noopener noreferrer';g.textContent='Geograph';
+    cred.appendChild(g);cred.appendChild(document.createTextNode('. Click a photo for the full credit.'));el.appendChild(cred)};
+  if(photoCache.has(key)){show(photoCache.get(key));return}
+  fetch('api/geograph?lat='+encodeURIComponent(lat)+'&lng='+encodeURIComponent(lng)).then(r=>{const ct=r.headers.get('content-type')||'';if(!r.ok||ct.indexOf('json')<0)return {photos:[],reason:r.status===404?'off':'fail'};return r.json()}).catch(()=>({photos:[],reason:'fail'}))
+    .then(data=>{photoCache.set(key,data);show(data)})}
+function openPlace(ll){window.__lensEatClick=Date.now()+700;const [E,N]=ll2en(ll.lat,ll.lng),gr=gridRef(E,N)||'';
+  const html='<b>'+esc(gr||'Outside the OS grid')+'</b><br><small>'+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small><br>'+jfgiLink('this spot',gr,ll.lat,ll.lng)+'<div class="photostrip"></div>';
+  L.popup({maxWidth:320,className:'placepop'}).setLatLng(ll).setContent(html).openOn(map);
+  setTimeout(()=>{const el=document.querySelector('.leaflet-popup .photostrip');if(el)loadPhotos(el,ll.lat,ll.lng)},0)}
+(function longPress(){let timer=null,xy=null;const box=map.getContainer();
+  const ignore=e=>e.target.closest&&e.target.closest('#lens .g,#lens .h,#lens svg,.leaflet-control,.leaflet-popup,a,button,input,label');
+  box.addEventListener('pointerdown',e=>{if(e.button>0||!e.isPrimary||ignore(e))return;xy=[e.clientX,e.clientY];const ll=map.mouseEventToLatLng(e);clearTimeout(timer);timer=setTimeout(()=>{timer=null;xy=null;openPlace(ll)},560)},true);
+  box.addEventListener('pointermove',e=>{if(!xy)return;if(Math.hypot(e.clientX-xy[0],e.clientY-xy[1])>12){clearTimeout(timer);timer=null;xy=null}},true);
+  const up=()=>{clearTimeout(timer);timer=null;xy=null};box.addEventListener('pointerup',up,true);box.addEventListener('pointercancel',up,true);
+  box.addEventListener('contextmenu',e=>{if(ignore(e))return;e.preventDefault();openPlace(map.mouseEventToLatLng(e))})})();
 const CTX_NAMES={building:'a building',wood:'woodland',water:'mapped water',stream:'a stream/drain',road:'a road',track:'a track/path',fieldedge:'a field edge',settled:'a settlement/farmyard',rail:'railway',embankment:'a mapped embankment'};
 async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L.circleMarker(ll,{radius:6,color:'#facc15',weight:3,fill:false,interactive:false}).addTo(map);
-  const [E,N]=ll2en(ll.lat,ll.lng);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small></div><div class="bd">Looking at the LiDAR and records…</div>';
-  card.querySelector('.x').onclick=closeCard;
+  const [E,N]=ll2en(ll.lat,ll.lng);const gr0=gridRef(E,N);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gr0)+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small><br>'+jfgiLink('this spot',gr0,ll.lat,ll.lng)+'</div><div class="bd"><div class="photostrip"></div>Looking at the LiDAR and records…</div>';
+  card.querySelector('.x').onclick=closeCard;loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);
   const HA=LZ.LC.herApi;const herP=HA?fetch(HA.url+'?e='+Math.round(E)+'&n='+Math.round(N),{credentials:'same-origin'}).then(r=>r.ok?r.json():{r:[],err:r.status}).catch(()=>({r:[],err:1})):Promise.resolve(null);
   LZ.recErr=0;LZ.recMissing=null;const both=Promise.all([dataNear(E,N,180),herP]);const W=await dtmWindow(ll,100);if(seq!==wiSeq)return;
   // records can take seconds (live Historic England queries): show the LiDAR measurements at once, then fill the records in
@@ -358,7 +392,9 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   else recLine=recs.length?'Not recorded at this spot (nearest record '+Math.round(recs[0].d)+' m away)':'Not recorded (nothing within 100 m)';
   const ctxList=Object.entries(ctx).filter(([k,v])=>v.d<=100).sort((x,y)=>x[1].d-y[1].d).slice(0,4).map(([k,v])=>v.d<1?(k==='wood'||k==='settled'||k==='water'?'in '+CTX_NAMES[k]:'on '+CTX_NAMES[k]):Math.round(v.d)+' m from '+CTX_NAMES[k]);
   const confTxt={low:'low confidence',moderate:'moderate confidence',na:''}[cls.conf];
-  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':'')+'</small></div><div class="bd">';
+  const siteName=(atSpot.find(r=>r.f.s!=='OSM'&&r.f.s!=='HER'&&(r.f.n||r.f.t))||atSpot.find(r=>r.f.n||r.f.t)||{f:{}}).f;
+  const placeName=siteName.n||siteName.t||'this spot';
+  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':'')+'</small><br>'+jfgiLink(placeName,gridRef(E,N),ll.lat,ll.lng)+'</div><div class="bd"><div class="photostrip"></div>';
   // Heritage Gateway retired its Results_Single.aspx pages; go straight to the new search for that HE research record (saves a redirect)
   const hgLink=u=>{const m=/^https?:\/\/(?:www\.)?heritagegateway\.org\.uk\/Gateway\/Results_Single\.aspx\?uid=([^&#]+)&resourceID=19191\b/i.exec(u);return m?'https://historicengland.org.uk/listing/heritage-gateway/results?q='+encodeURIComponent(decodeURIComponent(m[1]))+'&filters%5B0%5D%5Bfield%5D=dataset&filters%5B0%5D%5Bvalues%5D%5B0%5D=Historic%20England%20research%20records&filters%5B1%5D%5Bfield%5D=layoutView&filters%5B1%5D%5Bvalues%5D%5B0%5D=list':u};
   const BADGE={CADW:'Cadw',CADWLB:'Cadw',NMRW:'Coflein'};
@@ -383,7 +419,7 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   h+='</div>';
   if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
   h+='<div class="ft">Measurements from the '+esc(LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC)+'.</div></div>';
-  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
+  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
   LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
 function compass(d){return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(d/45)%8]}
 // live mode: while What's here? is on, fetch what a click at the lens centre needs ahead of the click (5 km cells, kept in the browser)

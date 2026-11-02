@@ -14,7 +14,7 @@ const css=(await esbuild.transform(fs.readFileSync(SITE+'/vendor/leaflet.css','u
 for(const f of fs.readdirSync(SITE+'/vendor/images'))fs.copyFileSync(SITE+'/vendor/images/'+f,OUT+'/assets/images/'+f);
 const cssName='app.'+hash(css)+'.css';fs.writeFileSync(OUT+'/assets/'+cssName,css);
 // JS: Leaflet + app scripts in page order, transpiled for older browsers and minified (no eval, no modules)
-const order=['vendor/leaflet.js','lens.js','tools.js','ui.js','models.js'];
+const order=['vendor/leaflet.js','lens.js','tools.js','ui.js','layers.js','models.js'];
 let js='';for(const f of order)js+=(await esbuild.transform(fs.readFileSync(SITE+'/'+f,'utf8'),{loader:'js',minify:true,target:TARGET,supported:{destructuring:true},legalComments:'inline'})).code+';\n';
 const jsName='app.'+hash(js)+'.js';fs.writeFileSync(OUT+'/assets/'+jsName,js);
 const compat=(await esbuild.transform(fs.readFileSync(SITE+'/compat.js','utf8'),{loader:'js',minify:true,target:'es5'})).code;

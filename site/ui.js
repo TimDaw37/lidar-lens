@@ -25,7 +25,8 @@ map.on('moveend zoomend',upd);upd();LZ.coverageStatus=()=>st.hidden?'':st.textCo
 // keyboard shortcuts
 document.addEventListener('keydown',e=>{const t=e.target;if(e.ctrlKey||e.metaKey||e.altKey)return;if(t&&(t.tagName==='INPUT'&&t.type!=='checkbox'&&t.type!=='range'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable))return;
   const k=e.key;let done=true;
-  if(k>='1'&&k<='8'){ms.value=String(+k-1);ms.dispatchEvent(new Event('change'))}
+  if(k==='0'){ms.value='9';ms.dispatchEvent(new Event('change'))}
+  else if(k>='1'&&k<='9'){ms.value=String(+k-1);ms.dispatchEvent(new Event('change'))}
   else if(k==='w'||k==='W')$('whatis').click();else if(k==='p'||k==='P')$('profile').click();
   else if(k==='f'||k==='F')$('fs').click();else if(k==='s'||k==='S')$('sm').click();
   else if(k==='c'||k==='C')LZ.resetLens();else if(k==='/'){$('gotoq').focus()}
