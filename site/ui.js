@@ -88,3 +88,13 @@ if(!LC.private){const t=$('privtag');if(t)t.remove()}
 {const ac=document.querySelector('.leaflet-control-attribution');if(ac){const wrap=()=>{if(!ac.querySelector('.credbtn')){const b=document.createElement('button');b.className='credbtn';b.type='button';b.title='Show or hide map credits';b.textContent=ac.classList.contains('short')?'ⓘ Credits':'× hide';b.onclick=e=>{e.stopPropagation();ac.classList.toggle('short');b.textContent=ac.classList.contains('short')?'ⓘ Credits':'× hide'};ac.appendChild(b)}};
   ac.classList.add('short');wrap();new MutationObserver(wrap).observe(ac,{childList:true})}}
 LZ.ui={showHelp,mark};})();
+// Phone pinch guard: a two-finger pinch that lands on the panel, mode strip or title box (outside the map's touch-action:none) used to zoom the whole page, which pushed the sheet and mode buttons off screen and could leave the page scrolled after zooming back out, so the controls never came back. Pinch now zooms only the map; if the page still ends up zoomed or scrolled (older iOS ignores the viewport lock), snap it back.
+(function pinchGuard(){const stop=e=>{if(!(e.target.closest&&e.target.closest('#map')))e.preventDefault()};
+  ['gesturestart','gesturechange'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
+  document.addEventListener('touchmove',e=>{if(e.touches&&e.touches.length>1)stop(e)},{passive:false});
+  const meta=document.querySelector('meta[name=viewport]'),vv=window.visualViewport;let t=null;
+  function fix(){t=null;if(vv&&vv.scale>1.01&&meta){const c=meta.content;meta.content=c.replace(/,?\s*maximum-scale=[^,]*/,'')+', maximum-scale=1';setTimeout(()=>{meta.content=c},50)}
+    if(window.scrollX||window.scrollY)window.scrollTo(0,0);document.documentElement.scrollTop=document.body.scrollTop=0;document.documentElement.scrollLeft=document.body.scrollLeft=0;
+    const Z=window.__lens;if(Z&&Z.map)Z.map.invalidateSize();if(Z&&Z.placeLens)Z.placeLens()}
+  const later=()=>{clearTimeout(t);t=setTimeout(fix,250)};
+  if(vv){vv.addEventListener('resize',later);vv.addEventListener('scroll',later)}window.addEventListener('scroll',later,{passive:true});document.addEventListener('touchend',e=>{if(!e.touches||!e.touches.length)later()},{passive:true})})();

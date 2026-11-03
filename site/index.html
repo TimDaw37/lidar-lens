@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="description" content="Explore 1 m Environment Agency LiDAR through a movable lens: hillshade, slope, local relief and sky-view modes, with historic maps and open heritage records.">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>LiDAR Lens</title>
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -10,7 +10,7 @@
 <link rel="manifest" href="site.webmanifest">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <style>
-html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;background:#111}
+html,body{margin:0;height:100%;touch-action:pan-x pan-y;overscroll-behavior:none;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;background:#111}
 #map{position:absolute;inset:0}
 #gl{position:absolute;left:0;top:0;pointer-events:none;z-index:450}
 #lens{position:absolute;z-index:460;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.9),0 0 0 4px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.5);pointer-events:none;box-sizing:border-box}
