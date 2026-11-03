@@ -34,8 +34,12 @@ function horizonN(){const p=phoneLike();if(R&&String(R.kind).indexOf('Canvas')==
 const S=Object.assign({},DEF);
 let lensC=null; // lens centre in container px
 // ---------- hash ----------
-function readHash(){const h=new URLSearchParams(location.hash.slice(1));const out={};
-  for(const [k,v] of h){out[k]=v} return out}
+function readHash(){const raw=location.hash.slice(1);const out={};
+  const m=raw.match(/^(?:map=)?(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)/);   // also accept #zoom/lat/lng (OSM/Leaflet-hash style links)
+  if(m){out.c=m[2]+','+m[3]+','+m[1];return out}
+  const h=new URLSearchParams(raw);for(const [k,v] of h){out[k]=v}
+  if(!out.c&&out.lat&&(out.lng||out.lon))out.c=out.lat+','+(out.lng||out.lon)+','+(out.z||out.zoom||15);   // #lat=..&lng=..&z=..
+  return out}
 const H0=readHash();
 window.addEventListener('hashchange',()=>location.reload());   // a link pasted into an open tab: apply its view (the app's own saveHash uses replaceState, which doesn't fire this)
 ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>{if(H0[k]!==undefined&&!isNaN(+H0[k]))S[k]=+H0[k]});

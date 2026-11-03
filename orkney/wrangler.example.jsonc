@@ -1,0 +1,11 @@
+{
+  "name": "lidar-lens-orkney",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "account_id": "<YOUR_CLOUDFLARE_ACCOUNT_ID>",
+  "workers_dev": true,
+  "r2_buckets": [{ "binding": "LENS_BUCKET", "bucket_name": "lidar-lens-orkney" }],
+  "vars": { "PUBLIC_INDEX": "1" },
+  "ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "1009", "simple": { "limit": 1200, "period": 60 } }]
+}
