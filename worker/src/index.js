@@ -173,12 +173,25 @@ export default {
       else key = env.SITE_PREFIX + key;
     }
 
-    // Public mode: serve repeat requests for never-changing files from the Cloudflare edge cache (custom domains only;
-    // the Cache API is a no-op on workers.dev). Cuts R2 reads and absorbs bursts.
+    // Public mode: serve repeat requests for long-cached files (tiles, terrain, layer chunks, hashed assets) from the
+    // Cloudflare edge cache (caches.default). Cuts R2 reads and absorbs bursts. The cache key includes the R2 object's
+    // etag (one cheap head() per request), so re-uploading an object under the same path gets a fresh key at once
+    // instead of the old body being served until the 30-day TTL expires.
     const immutable = rel.startsWith("assets/") || rel.startsWith("tiles/") || rel.startsWith("terrain/") || (rel.startsWith("layers/") && !rel.endsWith("index.json"));
     const useEdge = !isPrivate && immutable && request.method === "GET" && !request.headers.get("range");
-    const cache = caches.default, cacheKey = new Request(url.origin + "/" + key, { method: "GET" });
-    if (useEdge) { const hit = await cache.match(cacheKey); if (hit) return hit; }
+    const cache = caches.default;
+    let cacheKey = null;
+    if (useEdge) {
+      const meta = await env.LENS_BUCKET.head(key);
+      if (meta === null) return plain(env, isPrivate, "Not found", 404);
+      cacheKey = new Request(url.origin + "/" + key + "?v=" + encodeURIComponent(meta.etag), { method: "GET" });
+      const hit = await cache.match(cacheKey);
+      if (hit) {
+        const inm = request.headers.get("if-none-match");
+        if (inm && inm === hit.headers.get("etag")) return new Response(null, { status: 304, headers: hit.headers });
+        return hit;
+      }
+    }
 
     const object = await env.LENS_BUCKET.get(key, { onlyIf: request.headers, range: request.headers });
     if (object === null) return plain(env, isPrivate, "Not found", 404);
@@ -204,7 +217,7 @@ export default {
     if (!("body" in object)) return new Response(null, { status: 304, headers }); // onlyIf precondition failed
     const res = new Response(request.method === "HEAD" ? null : object.body,
       { status: object.range && request.headers.get("range") ? 206 : 200, headers });
-    if (useEdge && res.status === 200) ctx.waitUntil(cache.put(cacheKey, res.clone()));
+    if (cacheKey && res.status === 200) ctx.waitUntil(cache.put(cacheKey, res.clone()));
     return res;
   },
 };
