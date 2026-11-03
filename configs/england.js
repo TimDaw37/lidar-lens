@@ -16,6 +16,7 @@ window.LENS_CONFIG={
   areaName:'England and Wales',
   private:false,
   repoUrl:'https://github.com/TimDaw37/lidar-lens',
+  geographApi:'https://lidar-lens-england.tim-daw.workers.dev/api/geograph',   // GitHub Pages can't run it: photos come through the relay
   live:{minzoom:13},                              // the worker makes tiles from zoom 13 (keep in step with MINZ in live-sw.js)
   basemaps:[
     {id:'eahs',name:'EA LiDAR hillshade (England only)',url:'https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wms',wms:'Lidar_Composite_Hillshade_DTM_1m',attribution:'LiDAR hillshade &copy; Environment Agency (OGL)'},
