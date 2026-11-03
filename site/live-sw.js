@@ -40,10 +40,28 @@ self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (u.origin !== location.origin) return;
   let m;
-  if ((m = u.pathname.match(/\/terrain\/(\d+)\/(\d+)\/(\d+)\.(png|webp)$/))) e.respondWith(tile(+m[1], +m[2], +m[3]));
+  if ((m = u.pathname.match(/\/terrain\/(\d+)\/(\d+)\/(\d+)\.(png|webp)$/))) e.respondWith(tile(+m[1], +m[2], +m[3], e));
   else if (u.pathname.endsWith('/layers/index.json')) e.respondWith(json(index()));
+  else if ((m = u.pathname.match(/\/layers\/v2\/rec\/near\/(\d+)_(\d+)_(\d+)\.json$/))) e.respondWith(recNear(+m[1], +m[2], Math.min(1000, +m[3]), e));
   else if ((m = u.pathname.match(/\/layers\/v2\/rec\/(-?\d+)_(-?\d+)\.json$/))) e.respondWith(recCell(+m[1], +m[2]));
+  else if (/\/assets\/[^/]*\.[0-9a-f]{8}\.(js|css)$|\/assets\/images\//.test(u.pathname) && e.request.method === 'GET') e.respondWith(asset(e.request));
 });
+// The build names its JS and CSS by content hash (assets/app.<hash>.js), so each file never changes: keep it in Cache Storage
+// and serve it from there, whatever cache time the host sends (GitHub Pages: 10 minutes). index.html still comes from the network.
+const ASSETS = 'lens-assets';
+async function asset(req) {
+  const c = await caches.open(ASSETS), hit = await c.match(req, { ignoreSearch: true });
+  if (hit) return hit;
+  const r = await fetch(req);
+  if (r.ok && r.type === 'basic') { const k = await c.keys(); if (k.length > 40) for (const x of k.slice(0, k.length - 40)) await c.delete(x); await c.put(req, r.clone()) }
+  return r;
+}
+// The page tells the worker where the lens is ({focus: [lat, lng, radius m]}) whenever it moves. LiDAR blocks nearest the lens
+// centre are fetched first, and queued blocks the lens has left behind are dropped (the page is told, so it asks again later).
+let FOCUS = null, focusSeq = 0;
+self.addEventListener('message', e => { const d = e.data || {}, f = d.focus;   // focus: [lat, lng, radius in metres]
+  if (Array.isArray(f) && f.length === 3 && f.every(Number.isFinite)) { const [E, N] = ll2en(f[0], f[1]); FOCUS = [E, N, f[2]]; focusSeq++; dropFar() } });
+async function tell(msg) { for (const c of await self.clients.matchAll({ type: 'window' })) c.postMessage(msg) }
 const json = o => new Response(JSON.stringify(o), { headers: { 'Content-Type': 'application/json' } });
 const none = () => new Response(null, { status: 404 });
 
@@ -74,12 +92,26 @@ const tile2lng = (x, n) => x / n * 360 - 180, tile2lat = (y, n) => Math.atan(Mat
 // At most 4 requests at once. A 429 or 503 (the source is busy) pauses the whole queue for Retry-After (or 2, 4, 8 s)
 // and retries that request up to 3 times, so a busy EA or HE service is not hammered.
 // Two lanes, LiDAR blocks and Historic England records, so a 'What's here?' click never waits behind a lens full of LiDAR.
+// LiDAR jobs carry where they are (at: [E, N], half-size h m, boost m); the next one to run is the nearest the lens centre
+// (less its boost: coarse blocks go before fine), newest first when there is no lens position or on a tie.
 const LANES = { lidar: { active: 0, pauseUntil: 0, queue: [] }, rec: { active: 0, pauseUntil: 0, queue: [] } };
-function limited(fn, lane = 'lidar') { return new Promise((res, rej) => { LANES[lane].queue.push([fn, res, rej, 0]); pump(lane) }) }
+let jobSeq = 0;
+const DROP = new Error('dropped: the lens moved away');
+function limited(fn, lane = 'lidar', at = null) { return new Promise((res, rej) => { const job = [fn, res, rej, 0]; job.at = at; job.seq = ++jobSeq; job.fseq = focusSeq; LANES[lane].queue.push(job); pump(lane) }) }
+const far = j => !j.at || !FOCUS ? 0 : Math.max(0, Math.hypot(j.at[0] - FOCUS[0], j.at[1] - FOCUS[1]) - j.at[2]);
+function next(queue) {
+  let bi = 0, bs = Infinity;
+  for (let i = 0; i < queue.length; i++) { const j = queue[i], sc = far(j) - (j.at ? j.at[3] || 0 : 0) - j.seq * 1e-6; if (sc < bs) { bs = sc; bi = i } }
+  return queue.splice(bi, 1)[0];
+}
+function dropFar() {
+  if (!FOCUS) return; const q = LANES.lidar.queue;
+  for (let i = q.length - 1; i >= 0; i--) { const j = q[i]; if (j.at && j.fseq < focusSeq && far(j) > FOCUS[2] + 2 * j.at[2]) { q.splice(i, 1); j[2](DROP) } }
+}
 function pump(lane) {
   const Q = LANES[lane], queue = Q.queue;
   const wait = Q.pauseUntil - Date.now(); if (wait > 0) { setTimeout(() => pump(lane), wait); return }
-  while (Q.active < 4 && queue.length) { const job = queue.shift(), [fn, res, rej, tries] = job; Q.active++;
+  while (Q.active < 4 && queue.length) { const job = lane === 'lidar' ? next(queue) : queue.shift(), [fn, res, rej, tries] = job; Q.active++;
     fn().then(r => {
       if (r && (r.status === 429 || r.status === 503) && tries < 3) {
         const ra = +(r.headers.get('Retry-After') || 0), ms = Math.min(30000, ra > 0 ? ra * 1000 : 2000 * 2 ** tries);
@@ -87,10 +119,10 @@ function pump(lane) {
       } else res(r);
     }, rej).finally(() => { Q.active--; pump(lane) }) }
 }
-async function cached(cacheName, url, init) {
+async function cached(cacheName, url, at) {
   const c = await caches.open(cacheName), hit = await c.match(url);
   if (hit) { touch(c, url, hit.clone()); return hit }
-  const r = await limited(() => fetch(url, init));
+  const r = await limited(() => fetch(url), 'lidar', at);
   if (r.ok) await putSized(cacheName, c, url, r.clone());
   return r;
 }
@@ -141,40 +173,62 @@ async function readTiff(buf) {
   return { W, H: Hh, data: out };
 }
 
+// The relay's centimetre blocks (f=cm, 'LLC1', about a fifth of the GeoTIFF): see toCm in relay/src/index.js
+async function readCm(buf) {
+  const dv = new DataView(buf), W = dv.getUint16(4, true), Hh = dv.getUint16(6, true), N = W * Hh;
+  const pl = await inflate(new Uint8Array(buf, 8)), out = new Float32Array(N), c = new Int32Array(N), N2 = 2 * N, N3 = 3 * N;
+  if (pl.length < 4 * N) throw new Error('short cm block');
+  for (let y = 0, i = 0; y < Hh; y++) for (let x = 0; x < W; x++, i++) {
+    const z = pl[i] | pl[N + i] << 8 | pl[N2 + i] << 16 | pl[N3 + i] << 24, d = (z >>> 1) ^ -(z & 1);
+    const a = x ? c[i - 1] : 0, b = y ? c[i - W] : 0, v = (x && y ? a + b - c[i - W - 1] : x ? a : b) + d;
+    c[i] = v; out[i] = v === -1000000 ? NaN : v / 100;
+  }
+  return { W, H: Hh, data: out };
+}
+const isCm = buf => buf.byteLength > 8 && new Uint32Array(buf, 0, 1)[0] === 0x31434c4c;   // 'LLC1'
+
 // ---------------------------------------------------------------- BNG blocks: BLOCK_PX x BLOCK_PX at r metres, 1-px margin
 const mem = new Map();   // decoded blocks, least recently used first
-const FAIL = { fail: true };   // a block whose source could not be fetched (as opposed to null: fetched, and no data there)
-function block(r, bx, by) {
+const FAIL = { fail: true }, DROPPED = { fail: true, dropped: true };   // a block whose source could not be fetched (as opposed to null: fetched, and no data there)
+function block(r, bx, by, boost = 0) {
   const key = r + '/' + bx + '/' + by;
   if (mem.has(key)) { const p = mem.get(key); mem.delete(key); mem.set(key, p); return p }
-  const S = BLOCK_PX * r, x0 = bx * S - r, x1 = bx * S + S + r, y0 = by * S - r, y1 = by * S + S + r;
+  const S = BLOCK_PX * r, x0 = bx * S - r, x1 = bx * S + S + r, y0 = by * S - r, y1 = by * S + S + r, at = [bx * S + S / 2, by * S + S / 2, S / 2, boost];
+  // centimetre blocks first; if the relay cannot make one, its GeoTIFF; if the relay is down, the EA directly
   const url = `${RELAY}?r=${r}&bx=${bx}&by=${by}`, direct = WCS + `&subset=E(${x0},${x1})&subset=N(${y0},${y1})` + (r > 1 ? `&SCALEFACTOR=${1 / r}` : '') + CLIENT;
-  const viaRelay = cached(BLOCKS, url).then(res => res.ok || res.status === 429 || res.headers.get('X-Upstream') ? res : Promise.reject(new Error('relay ' + res.status)));
+  const relayOk = res => res.ok || res.status === 429 || res.headers.get('X-Upstream') ? res : Promise.reject(new Error('relay ' + res.status));
+  const viaRelay = cached(BLOCKS, url + '&f=cm', at).then(relayOk).catch(e => e === DROP ? Promise.reject(e) : cached(BLOCKS, url, at).then(relayOk));
   const decode = zeroIsNoData => async res => {
     if (!res.ok) return FAIL;
-    const t = await readTiff(await res.arrayBuffer());
+    const ab = await res.arrayBuffer(), t = isCm(ab) ? await readCm(ab) : await readTiff(ab);
     // EA nodata is -3.4e38 inside its survey, but outside it (Wales, Scotland, the sea) the WCS sends 0.0: treat both as no data
     let any = false;
     for (let i = 0; i < t.data.length; i++) { const v = t.data[i]; if (!(v > -1000) || (zeroIsNoData && v === 0)) t.data[i] = NaN; else any = true }
     return any ? { ...t, x0, yTop: y1, r } : null;
   };
-  const ea = viaRelay.catch(() => cached(BLOCKS, direct)).then(decode(true)).catch(() => FAIL);
+  let dropped = false; const dr = e => { if (e === DROP) dropped = true; return FAIL };
+  const ea = viaRelay.catch(e => e === DROP ? Promise.reject(e) : cached(BLOCKS, direct, at)).then(decode(true)).catch(dr);
   const inWales = x1 > WALES.e0 && x0 < WALES.e1 && y1 > WALES.n0 && y0 < WALES.n1;
-  const both = !inWales ? ea : Promise.all([ea, cached(BLOCKS, `${RELAY_WALES}?r=${r}&bx=${bx}&by=${by}`).then(decode(false)).catch(() => FAIL)]).then(([e, w]) => {
+  const both = !inWales ? ea : Promise.all([ea, cached(BLOCKS, `${RELAY_WALES}?r=${r}&bx=${bx}&by=${by}&f=cm`, at).then(relayOk)
+    .catch(e => e === DROP ? Promise.reject(e) : cached(BLOCKS, `${RELAY_WALES}?r=${r}&bx=${bx}&by=${by}`, at)).then(decode(false)).catch(dr)]).then(([e, w]) => {
     const failed = e === FAIL || w === FAIL; if (e === FAIL) e = null; if (w === FAIL) w = null;
     if (w && e) for (let i = 0; i < w.data.length; i++) if (w.data[i] === w.data[i]) e.data[i] = w.data[i];
     const b = w && e ? e : w || e;
     return failed ? { partial: true, b } : b;
   });
   // a source that failed (busy, down) must not be remembered: drop it here, and tile() will not store a tile made without it
-  const p = both.then(v => { if (v === FAIL || (v && v.partial)) { if (mem.get(key) === p) mem.delete(key) } return v });
+  const p = both.then(v => { if (v === FAIL || (v && v.partial)) { if (mem.get(key) === p) mem.delete(key) } return dropped && (v === FAIL || (v && v.partial)) ? DROPPED : v });
   mem.set(key, p);
-  while (mem.size > 10) mem.delete(mem.keys().next().value);
+  while (mem.size > 16) mem.delete(mem.keys().next().value);
   return p;
 }
 
 // ---------------------------------------------------------------- one web-mercator tile, Terrarium PNG
-async function tile(z, x, y) {
+// On new ground at zoom 16-17 (1-2 m blocks not yet held) a tile is first drawn from 4 m blocks, which cover 4-16 times the
+// ground per download; the fine tile is made behind it and the page is told ({refine}) to swap it in.
+// A tile whose blocks were dropped (the lens moved away) answers 503 and the page is told ({drop}) to forget it.
+const COARSE = 4, refining = new Set();
+async function tile(z, x, y, ev) {
   if (z < MINZ || z > MAXZ) return none();
   const c = await caches.open(TILES), key = new Request(`https://lens-live.invalid/${VER}/${z}/${x}/${y}.png`), hit = await c.match(key);
   if (hit) { touch(c, key, hit.clone()); return hit }
@@ -183,16 +237,41 @@ async function tile(z, x, y) {
   const LE = new Float64Array((G + 1) ** 2), LN = new Float64Array((G + 1) ** 2);
   for (let j = 0; j <= G; j++) for (let i = 0; i <= G; i++) { const [E, N] = ll2en(tile2lat(y + j / G, n), tile2lng(x + i / G, n)); LE[j * (G + 1) + i] = E; LN[j * (G + 1) + i] = N }
   const lat = tile2lat(y + 0.5, n), mpp = 156543.03392 * Math.cos(lat * D2R) / n;
-  const r = Math.max(1, Math.min(64, 2 ** Math.round(Math.log2(mpp)))), S = BLOCK_PX * r;
+  const r = Math.max(1, Math.min(64, 2 ** Math.round(Math.log2(mpp))));
   const eMin = Math.min(...LE), eMax = Math.max(...LE), nMin = Math.min(...LN), nMax = Math.max(...LN);
   if (eMax < ENG.e0 || eMin > ENG.e1 || nMax < ENG.n0 || nMin > ENG.n1) return none();
-  const blocks = new Map(), jobs = [];
-  for (let bx = Math.floor(eMin / S); bx <= Math.floor(eMax / S); bx++) for (let by = Math.floor(nMin / S); by <= Math.floor(nMax / S); by++)
-    jobs.push(block(r, bx, by).then(b => blocks.set(bx + '/' + by, b)));
-  await Promise.all(jobs);
-  let partial = false;
-  for (const [k, b] of blocks) if (b === FAIL || (b && b.partial)) { partial = true; blocks.set(k, b === FAIL ? null : b.b) }
-  if (![...blocks.values()].some(Boolean)) return none();
+  const ids = rr => { const S = BLOCK_PX * rr, o = []; for (let bx = Math.floor(eMin / S); bx <= Math.floor(eMax / S); bx++) for (let by = Math.floor(nMin / S); by <= Math.floor(nMax / S); by++) o.push([bx, by]); return o };
+  const tk = z + '/' + x + '/' + y, g = { LE, LN, G };
+  if (r < COARSE && !refining.has(tk) && !(await held(r, ids(r)))) {
+    refining.add(tk);
+    const fine = draw(g, r, ids(r)).then(async f => { if (f.ok) { if (!f.partial) await putSized(TILES, c, key, f.res.clone()); tell({ refine: tk }) } else if (f.dropped) tell({ drop: tk }) })
+      .finally(() => refining.delete(tk));
+    if (ev && ev.waitUntil) ev.waitUntil(fine.catch(() => {}));
+    const co = await draw(g, COARSE, ids(COARSE), 1e5);
+    if (co.ok) return co.res;   // not stored: the fine tile replaces it
+    await fine.catch(() => {});
+    const h2 = await c.match(key); if (h2) return h2;
+    return co.dropped ? busy() : none();
+  }
+  const f = await draw(g, r, ids(r));
+  if (!f.ok) { if (f.dropped) { tell({ drop: tk }); return busy() } return none() }
+  if (!f.partial) await putSized(TILES, c, key, f.res.clone());   // incomplete: show it, but make it afresh next time
+  return f.res;
+}
+const busy = () => new Response(null, { status: 503, headers: { 'Retry-After': '1' } });
+// are all of these blocks already decoded here or in Cache Storage (centimetre or GeoTIFF form)?
+async function held(r, list) {
+  const c = await caches.open(BLOCKS);
+  for (const [bx, by] of list) { if (mem.has(r + '/' + bx + '/' + by)) continue;
+    const u = `${RELAY}?r=${r}&bx=${bx}&by=${by}`; if (!(await c.match(u + '&f=cm')) && !(await c.match(u))) return false }
+  return true;
+}
+async function draw({ LE, LN, G }, r, list, boost = 0) {
+  const S = BLOCK_PX * r, blocks = new Map();
+  await Promise.all(list.map(([bx, by]) => block(r, bx, by, boost).then(b => blocks.set(bx + '/' + by, b))));
+  let partial = false, dropped = false;
+  for (const [k, b] of blocks) { if (b === DROPPED) dropped = true; if (b === FAIL || b === DROPPED || (b && b.partial)) { partial = true; blocks.set(k, b === FAIL || b === DROPPED ? null : b.b) } }
+  if (![...blocks.values()].some(Boolean)) return { ok: false, dropped };
   const img = new ImageData(256, 256), px = img.data; let any = false;
   for (let py = 0; py < 256; py++) {
     const gy = (py + 0.5) / 256 * G, j = Math.min(G - 1, Math.floor(gy)), ty = gy - j;
@@ -211,11 +290,10 @@ async function tile(z, x, y) {
       px[o] = vi >> 8; px[o + 1] = vi & 255; px[o + 2] = Math.round((v - vi) * 256) & 255; px[o + 3] = 255; any = true;
     }
   }
-  if (!any) return none();
+  if (!any) return { ok: false, dropped };
   const cv = new OffscreenCanvas(256, 256); cv.getContext('2d').putImageData(img, 0, 0);
   const res = new Response(await cv.convertToBlob({ type: 'image/png' }), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400' } });
-  if (!partial) await putSized(TILES, c, key, res.clone());   // incomplete: show it, but make it afresh next time
-  return res;
+  return { ok: true, partial, dropped, res };
 }
 
 // ---------------------------------------------------------------- 'What's here?' records, live from Historic England
@@ -266,10 +344,37 @@ async function wfs(typeName, x0, y0, x1, y1) {
   const j = await r.json();
   return j.features || [];
 }
+const cellUrl = (cx, cy) => `https://lens-live.invalid/${VER}/rec/${cx}_${cy}.json`, cellP = new Map();
 async function recCell1(cx, cy) {
-  const url = `https://lens-live.invalid/${VER}/rec/${cx}_${cy}.json`, c = await caches.open(RECS), hit = await c.match(url);
+  const url = cellUrl(cx, cy), c = await caches.open(RECS), hit = await c.match(url);
   if (hit) return hit;
-  const x0 = cx * CELL - BUF, y0 = cy * CELL - BUF, x1 = cx * CELL + CELL + BUF, y1 = cy * CELL + CELL + BUF;
+  const k = cx + '_' + cy;   // one query per cell at a time (a click's background fill and a later click share it)
+  if (!cellP.has(k)) cellP.set(k, (async () => {
+    const x0 = cx * CELL - BUF, y0 = cy * CELL - BUF, x1 = cx * CELL + CELL + BUF, y1 = cy * CELL + CELL + BUF;
+    const { f, missing } = await recBox(x0, y0, x1, y1);
+    if (missing.length) return JSON.stringify({ f, missing });
+    const body = JSON.stringify({ f }); await putSized(RECS, c, url, json({ f })); return body;
+  })().finally(() => cellP.delete(k)));
+  return new Response(await cellP.get(k), { headers: { 'Content-Type': 'application/json' } });
+}
+// 'What's here?' at one point: if the 5 km cells around it are held, their records; if not, a quick query of a small box
+// round the click (well under a second), while the whole cells are fetched behind it for the next click
+async function recNear(E, N, R, ev) {
+  try {
+    const c = await caches.open(RECS), x0 = E - R - 20, y0 = N - R - 20, x1 = E + R + 20, y1 = N + R + 20, keys = [];
+    for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) keys.push([cx, cy]);
+    const hits = await Promise.all(keys.map(([cx, cy]) => c.match(cellUrl(cx, cy))));
+    if (hits.every(Boolean)) { const f = []; for (const h of hits) f.push(...((await h.json()).f || [])); return json({ f, cells: true }) }
+    const near = recBox(x0, y0, x1, y1);
+    const fill = near.catch(() => {}).then(() => Promise.all(keys.map(([cx, cy], i) => hits[i] ? null : recCell1(cx, cy).catch(() => null))));
+    if (ev && ev.waitUntil) ev.waitUntil(fill);
+    const { f, missing } = await near;
+    return json(missing.length ? { f, missing } : { f });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: String(e && e.message || e) }), { status: 503, headers: { 'Content-Type': 'application/json', 'Retry-After': '30' } });
+  }
+}
+async function recBox(x0, y0, x1, y1) {
   const inWales = x1 > WALES.e0 && x0 < WALES.e1 && y1 > WALES.n0 && y0 < WALES.n1;
   const walesP = inWales ? Promise.all([wfs('inspire-wg:Cadw_SAM', x0, y0, x1, y1), wfs('inspire-wg:Cadw_ListedBuildings', x0, y0, x1, y1),
     wfs('geonode:rcahmw_nmrw_terrestrialsites_rcahmw_bng', x0, y0, x1, y1)]) : Promise.resolve([[], [], []]);
@@ -297,8 +402,5 @@ async function recCell1(cx, cy) {
     add(x.geometry, { s: 'AIM', id: uid, n: m[0] ? m[0].split(',')[0] : 'AIM feature', t: m[0], p: m[1], d: 'Mapped ' + clean(p.LAYER).toLowerCase() + ' (' + m[3] + ' NMP project)', u: m[2] }) }
   for (const x of aimE) { const p = x.properties, uid = clean(p.HE_UID), m = meta[uid] || ['', '', '', ''];
     add(x.geometry, { s: 'AIM', id: uid, n: m[0] ? m[0].split(',')[0] : 'AIM monument extent', t: m[0], p: m[1], d: 'Monument extent (' + clean(p.project) + ')', u: clean(p.HE_URL1) || m[2] }) }
-  if (missing.length) return json({ f, missing });
-  const res = json({ f });
-  await putSized(RECS, c, url, res.clone());
-  return res;
+  return { f, missing };
 }

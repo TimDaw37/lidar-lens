@@ -39,5 +39,7 @@ html=html.replace('<title>',pre+'<title>');fs.writeFileSync(OUT+'/index.html',ht
 // Cloudflare static assets ignore long Cache-Control on hashed files unless _headers says so.
 fs.writeFileSync(OUT+'/_headers','/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n');
 if(fs.existsSync(SITE+'/nhle_places.json'))fs.copyFileSync(SITE+'/nhle_places.json',OUT+'/nhle_places.json');
+// an area can carry its own scheduled-monument names for type-ahead search as <config>-places.json (e.g. configs/england-places.json)
+if(process.argv[2]){const pl=process.argv[2].replace(/\.js$/,'-places.json');if(fs.existsSync(pl))fs.copyFileSync(pl,OUT+'/nhle_places.json')}
 const sz=f=>(fs.statSync(OUT+'/'+f).size/1024).toFixed(0)+' KB';
 console.log('dist/index.html',sz('index.html'),'| assets/'+jsName,sz('assets/'+jsName),'| assets/'+cssName,sz('assets/'+cssName),'| assets/'+compatName,sz('assets/'+compatName));

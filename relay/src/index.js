@@ -111,37 +111,96 @@ export default {
     if (x1 < ENG.e0 || x0 > ENG.e1 || y1 < ENG.n0 || y0 > ENG.n1) return err(req, env, 400, 'outside England');
     if (env.RATE_LIMITER) { const { success } = await env.RATE_LIMITER.limit({ key: req.headers.get('CF-Connecting-IP') || 'x' }); if (!success) return err(req, env, 429, 'slow down', { 'Retry-After': '10' }) }
 
-    // edge key e2/: edge copies made before empty-block detection are left behind
-    const key = `${wales ? 'wales' : 'wcs'}/${VER}/${r}/${bx}_${by}.tif`, edgeKey = new Request('https://relay.invalid/e2/' + key), cache = caches.default;
-    const send = (body, src) => { const h = cors(req, env); h.set('Content-Type', 'image/tiff'); h.set('Cache-Control', 'public, max-age=2592000, immutable'); h.set('X-Relay', src);
+    // f=cm: the same block as whole centimetres (see toCm), about a fifth of the GeoTIFF's size. Old clients keep the GeoTIFF.
+    const cm = u.searchParams.get('f') === 'cm';
+    const key = `${wales ? 'wales' : 'wcs'}/${VER}/${r}/${bx}_${by}.tif`, cache = caches.default;
+    const send = (body, src, type = 'image/tiff') => { const h = cors(req, env); h.set('Content-Type', type); h.set('Cache-Control', 'public, max-age=2592000, immutable'); h.set('X-Relay', src);
       return new Response(body, { status: 200, headers: h }) };
-    let hit = await cache.match(edgeKey);
-    if (hit) return send(hit.body, hit.headers.get('X-Empty') ? 'empty' : 'edge');
-    const obj = await env.BLOCKS.get(key);
-    if (obj) { const buf = await obj.arrayBuffer(); ctx.waitUntil(cache.put(edgeKey, new Response(buf, { headers: { 'Cache-Control': 'public, max-age=2592000' } }))); return send(buf, 'r2') }
-
-    if (wales) {
-      let W;
-      try { W = await walesBlock(r, bx, by, BLOCK_PX) }
-      catch (e) { const s = e.status === 429 || e.status === 503 ? e.status : 502; return err(req, env, s, 'Welsh LiDAR: ' + (e.message || e), s === 502 ? {} : { 'Retry-After': '5', 'X-Upstream': String(s) }) }
-      if (W.empty) { const buf = await emptyTiff(); ctx.waitUntil(cache.put(edgeKey, new Response(buf, { headers: { 'Cache-Control': 'public, max-age=2592000', 'X-Empty': '1' } }))); return send(buf, 'empty') }
-      ctx.waitUntil(Promise.all([env.BLOCKS.put(key, W.tiff, { httpMetadata: { contentType: 'image/tiff' } }),
-        cache.put(edgeKey, new Response(W.tiff, { headers: { 'Cache-Control': 'public, max-age=2592000' } }))]));
-      return send(W.tiff, 'wales');
-    }
-    const url = EA + `&subset=E(${x0},${x1})&subset=N(${y0},${y1})` + (r > 1 ? `&SCALEFACTOR=${1 / r}` : '') + '&client=' + encodeURIComponent(env.CLIENT_ID || 'lidar-lens-england');
-    let up;
-    try { up = await fetch(url, { headers: { 'User-Agent': 'LiDAR-Lens-England-relay (+https://github.com/TimDaw37/lidar-lens)' }, cf: { cacheTtl: 0 } }) }
-    catch (e) { return err(req, env, 502, 'EA unreachable') }
-    if (up.status === 429 || up.status === 503) return err(req, env, up.status, 'EA busy', { 'Retry-After': up.headers.get('Retry-After') || '5', 'X-Upstream': String(up.status) });
-    if (!up.ok) return err(req, env, 502, 'EA ' + up.status, { 'X-Upstream': String(up.status) });
-    const buf = await up.arrayBuffer(), b = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
-    const tiff = buf.byteLength > 8 && ((b[0] === 0x49 && b[1] === 0x49 && b[2] === 42) || (b[0] === 0x4d && b[1] === 0x4d && b[3] === 42));
-    if (!tiff) return err(req, env, 502, 'EA sent something other than a GeoTIFF', { 'X-Upstream': String(up.status) });
-    let empty = false; try { empty = await isEmpty(buf) } catch (e) { empty = false }
-    if (empty) { ctx.waitUntil(cache.put(edgeKey, new Response(buf, { headers: { 'Cache-Control': 'public, max-age=2592000', 'X-Empty': '1' } }))); return send(buf, 'empty') }
-    ctx.waitUntil(Promise.all([env.BLOCKS.put(key, buf, { httpMetadata: { contentType: 'image/tiff' } }),
-      cache.put(edgeKey, new Response(buf, { headers: { 'Cache-Control': 'public, max-age=2592000' } }))]));
-    return send(buf, 'ea');
+    if (!cm) { const t = await getTif(env, ctx, wales, key, r, bx, by, x0, x1, y0, y1); return t.res ? cors2(req, env, t.res) : send(t.buf, t.src) }
+    const cmKey = 'cm1/' + key.replace(/\.tif$/, '.llc'), cmEdge = new Request('https://relay.invalid/' + cmKey), CT = 'application/octet-stream';
+    const hit = await cache.match(cmEdge);
+    if (hit) return send(hit.body, (hit.headers.get('X-Empty') ? 'empty' : 'edge') + '-cm', CT);
+    const obj = await env.BLOCKS.get(cmKey);
+    if (obj) { const buf = await obj.arrayBuffer(); ctx.waitUntil(cache.put(cmEdge, new Response(buf, { headers: { 'Cache-Control': 'public, max-age=2592000' } }))); return send(buf, 'r2-cm', CT) }
+    const t = await getTif(env, ctx, wales, key, r, bx, by, x0, x1, y0, y1);
+    if (t.res) return cors2(req, env, t.res);
+    let out; try { out = await toCm(t.buf) } catch (e) { return send(t.buf, t.src) }   // a layout we cannot convert: the GeoTIFF itself (the client reads both)
+    const empty = t.src === 'empty';
+    ctx.waitUntil(Promise.all([empty ? null : env.BLOCKS.put(cmKey, out, { httpMetadata: { contentType: CT } }),
+      cache.put(cmEdge, new Response(out, { headers: { 'Cache-Control': 'public, max-age=2592000', ...(empty ? { 'X-Empty': '1' } : {}) } }))]));
+    return send(out, t.src + '-cm', CT);
   }
 };
+const cors2 = (req, env, res) => { const h = cors(req, env, new Headers(res.headers)); return new Response(res.body, { status: res.status, headers: h }) };
+const errR = (s, msg, extra = {}) => new Response(msg, { status: s, headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store', ...extra } });
+
+// The GeoTIFF for one block: edge cache, then R2, then the source. Returns { buf, src } or { res } (an error to pass back).
+async function getTif(env, ctx, wales, key, r, bx, by, x0, x1, y0, y1) {
+  // edge key e2/: edge copies made before empty-block detection are left behind
+  const edgeKey = new Request('https://relay.invalid/e2/' + key), cache = caches.default;
+  const hit = await cache.match(edgeKey);
+  if (hit) return { buf: await hit.arrayBuffer(), src: hit.headers.get('X-Empty') ? 'empty' : 'edge' };
+  const obj = await env.BLOCKS.get(key);
+  if (obj) { const buf = await obj.arrayBuffer(); ctx.waitUntil(cache.put(edgeKey, new Response(buf.slice(0), { headers: { 'Cache-Control': 'public, max-age=2592000' } }))); return { buf, src: 'r2' } }
+  if (wales) {
+    let W;
+    try { W = await walesBlock(r, bx, by, BLOCK_PX) }
+    catch (e) { const s = e.status === 429 || e.status === 503 ? e.status : 502; return { res: errR(s, 'Welsh LiDAR: ' + (e.message || e), s === 502 ? {} : { 'Retry-After': '5', 'X-Upstream': String(s) }) } }
+    if (W.empty) { const buf = await emptyTiff(); ctx.waitUntil(cache.put(edgeKey, new Response(buf.slice(0), { headers: { 'Cache-Control': 'public, max-age=2592000', 'X-Empty': '1' } }))); return { buf, src: 'empty' } }
+    const buf = W.tiff.buffer ? W.tiff.buffer.slice(W.tiff.byteOffset, W.tiff.byteOffset + W.tiff.byteLength) : W.tiff;
+    ctx.waitUntil(Promise.all([env.BLOCKS.put(key, buf.slice(0), { httpMetadata: { contentType: 'image/tiff' } }),
+      cache.put(edgeKey, new Response(buf.slice(0), { headers: { 'Cache-Control': 'public, max-age=2592000' } }))]));
+    return { buf, src: 'wales' };
+  }
+  const url = EA + `&subset=E(${x0},${x1})&subset=N(${y0},${y1})` + (r > 1 ? `&SCALEFACTOR=${1 / r}` : '') + '&client=' + encodeURIComponent(env.CLIENT_ID || 'lidar-lens-england');
+  let up;
+  try { up = await fetch(url, { headers: { 'User-Agent': 'LiDAR-Lens-England-relay (+https://github.com/TimDaw37/lidar-lens)' }, cf: { cacheTtl: 0 } }) }
+  catch (e) { return { res: errR(502, 'EA unreachable') } }
+  if (up.status === 429 || up.status === 503) return { res: errR(up.status, 'EA busy', { 'Retry-After': up.headers.get('Retry-After') || '5', 'X-Upstream': String(up.status) }) };
+  if (!up.ok) return { res: errR(502, 'EA ' + up.status, { 'X-Upstream': String(up.status) }) };
+  const buf = await up.arrayBuffer(), b = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
+  const tiff = buf.byteLength > 8 && ((b[0] === 0x49 && b[1] === 0x49 && b[2] === 42) || (b[0] === 0x4d && b[1] === 0x4d && b[3] === 42));
+  if (!tiff) return { res: errR(502, 'EA sent something other than a GeoTIFF', { 'X-Upstream': String(up.status) }) };
+  let empty = false; try { empty = await isEmpty(buf) } catch (e) { empty = false }
+  if (empty) { ctx.waitUntil(cache.put(edgeKey, new Response(buf.slice(0), { headers: { 'Cache-Control': 'public, max-age=2592000', 'X-Empty': '1' } }))); return { buf, src: 'empty' } }
+  ctx.waitUntil(Promise.all([env.BLOCKS.put(key, buf.slice(0), { httpMetadata: { contentType: 'image/tiff' } }),
+    cache.put(edgeKey, new Response(buf.slice(0), { headers: { 'Cache-Control': 'public, max-age=2592000' } }))]));
+  return { buf, src: 'ea' };
+}
+
+// ---- 'LLC1' centimetre blocks. Heights to whole cm (no data: -1000000), predicted from left + above - above-left, the
+// residuals zigzag-coded, split into 4 byte planes and deflated. Layout: 'LLC1', u16 W, u16 H (little-endian), zlib stream.
+// About 120 kB for a 1 m block the EA sends as 600 kB; the service worker (live-sw.js, readCm) undoes it exactly.
+async function readTif(buf) {
+  const dv = new DataView(buf), le = dv.getUint16(0) === 0x4949, u16 = o => dv.getUint16(o, le), u32 = o => dv.getUint32(o, le);
+  const ifd = u32(4), n = u16(ifd), T = {}, size = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 11: 4, 12: 8, 16: 8 };
+  for (let i = 0; i < n; i++) {
+    const o = ifd + 2 + i * 12, tag = u16(o), type = u16(o + 2), cnt = u32(o + 4), sz = (size[type] || 1) * cnt, at = sz <= 4 ? o + 8 : u32(o + 8);
+    const rd = k => type === 3 ? u16(at + 2 * k) : type === 4 ? u32(at + 4 * k) : dv.getUint8(at + k);
+    if ([256, 257, 258, 259, 273, 278, 279, 317, 322, 323, 324, 325, 339].includes(tag)) T[tag] = Array.from({ length: cnt }, (_, k) => rd(k));
+  }
+  const W = T[256][0], H = T[257][0], comp = (T[259] || [1])[0];
+  if ((T[258] && T[258][0] !== 32) || (T[317] || [1])[0] !== 1 || (T[339] && T[339][0] !== 3)) throw new Error('layout');
+  const out = new Float32Array(W * H).fill(NaN), tiled = !!T[322], tw = tiled ? T[322][0] : W, th = tiled ? T[323][0] : (T[278] || [H])[0];
+  const offs = tiled ? T[324] : T[273], cnts = tiled ? T[325] : T[279], across = Math.ceil(W / tw);
+  for (let k = 0; k < offs.length; k++) {
+    let bytes = new Uint8Array(buf, offs[k], cnts[k]);
+    if (comp === 8 || comp === 32946) bytes = await inflate(bytes); else if (comp !== 1) throw new Error('compression');
+    const bd = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), tx = (k % across) * tw, ty = Math.floor(k / across) * th, rows = Math.min(th, bytes.byteLength / 4 / tw);
+    for (let y = 0; y < rows; y++) { const Y = ty + y; if (Y >= H) break; for (let x = 0; x < tw; x++) { const X = tx + x; if (X >= W) break; out[Y * W + X] = bd.getFloat32((y * tw + x) * 4, le) } }
+  }
+  return { W, H, data: out };
+}
+async function toCm(buf) {
+  const { W, H, data } = await readTif(buf), N = W * H, c = new Int32Array(N);
+  for (let i = 0; i < N; i++) { const v = data[i]; c[i] = v > -1000 ? Math.round(v * 100) : -1000000 }
+  const pl = new Uint8Array(8 + 4 * N), N2 = 2 * N, N3 = 3 * N;
+  for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i++) {
+    const a = x ? c[i - 1] : 0, b = y ? c[i - W] : 0, p = x && y ? a + b - c[i - W - 1] : x ? a : b, d = c[i] - p, z = (d << 1) ^ (d >> 31);
+    pl[8 + i] = z; pl[8 + N + i] = z >>> 8; pl[8 + N2 + i] = z >>> 16; pl[8 + N3 + i] = z >>> 24;
+  }
+  const body = new Uint8Array(await new Response(new Blob([pl.subarray(8)]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+  const out = new Uint8Array(8 + body.length), dv = new DataView(out.buffer);
+  out.set([76, 76, 67, 49]); dv.setUint16(4, W, true); dv.setUint16(6, H, true); out.set(body, 8);
+  return out.buffer;
+}

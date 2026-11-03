@@ -170,6 +170,9 @@ async function nmrwNear(E,N,R){const LV=LZ.LC.liveNmrw;if(!LV)return [];const x0
       out.push({s:NMRW_SRC,id:nprn,n:nm[0]||ty,t:ty+(nm.length>1?' (also '+nm.slice(1).join('; ')+')':''),p:cl(p.period),d:'',u:'https://coflein.gov.uk/en/site/'+nprn+'/',g:G})}
     return prep(out)}catch(e){LZ.recMissing=[...new Set([...(LZ.recMissing||[]),'Coflein'])];return []}}
 async function dataNear(E,N,R){const liveP=nmrwNear(E,N,R);await loadIndex();if(!IDX)return {recs:[],ctx:{}};const c=IDX.cell,keys=[];
+  // live: one small query round the point; the worker answers from its 5 km cells when it holds them and fills them behind
+  if(LZ.LC.live&&IDX.built==='live'&&LCF.names.length===1){const j=await loadChunk(LCF.names[0],'near/'+Math.round(E)+'_'+Math.round(N)+'_'+R);chunkP.delete(LCF.names[0]+'/near/'+Math.round(E)+'_'+Math.round(N)+'_'+R);
+    const recs=j&&j.f?j.f.slice():[];for(const f of await liveP)recs.push(f);return {recs,ctx:{}}}
   for(let cx=Math.floor((E-R)/c);cx<=Math.floor((E+R)/c);cx++)for(let cy=Math.floor((N-R)/c);cy<=Math.floor((N+R)/c);cy++)keys.push(cx+'_'+cy);
   const jobs=[];for(const layer of LCF.names)for(const k of keys)if(IDX.layers[layer]&&IDX.layers[layer].has(k))jobs.push(loadChunk(layer,k).then(j=>[layer,j]));
   const res=await Promise.all(jobs),recs=[],ctx={};for(const [layer,j] of res){if(!j)continue;if(j.f)for(const f of j.f)recs.push(f);if(j.L)for(const k in j.L)(ctx[k]=ctx[k]||[]).push(...j.L[k])}

@@ -40,5 +40,6 @@ window.LENS_CONFIG={
   layers:{index:'layers/index.json',url:'layers/v2/{layer}/{key}.json',names:['rec']},
   osgbGrid:'data/ostn_grid.json',
   geocoder:{countrycodes:'gb',viewbox:'-6.5,55.9,1.9,49.8'},
+  localSearch:'nhle_places.json',                 // type-ahead: Historic England and Cadw scheduled monuments (configs/england-places.json, OGL)
   dataNote:'All of England and Wales, fetched live as you look (zoom 13-17): England from the Environment Agency LiDAR Composite DTM 1 m, Wales from the Welsh Government LiDAR DTM 1 m (DataMapWales), both Open Government Licence.'
 };

@@ -338,12 +338,21 @@ function tileInLens(zt,x,y){if(S.fs||!lensC)return true;const sc=Math.pow(2,map.
 let lensWait=null;
 function tileSettled(z,x,y){const t=tileCache.get(z+'/'+x+'/'+y);return !!(t&&(t.ok||t.failed))}
 function pokeLens(){const w=lensWait;if(!w)return;for(const [z,x,y] of w.tiles)if(!tileSettled(z,x,y))return;lensWait=null;w.rest.forEach(([x,y])=>getTile(w.zt,x,y,scheduleMosaic))}
+// live worker: {refine:'z/x/y'} a finer tile is ready (swap it in once loaded, no blank in between); {drop:'z/x/y'} the tile
+// was given up because the lens moved away (forget it, so it is asked for again if the lens comes back)
+let lastFocus='';
+if(LC.live&&navigator.serviceWorker)navigator.serviceWorker.addEventListener('message',e=>{const d=e.data||{};
+  if(d.drop){const t=tileCache.get(d.drop);if(t&&!t.ok){tileCache.delete(d.drop);scheduleMosaic()}}
+  if(d.refine){const t=tileCache.get(d.refine);if(!t)return;const [z,x,y]=d.refine.split('/'),im=new Image();if(CFG.xo)im.crossOrigin=CFG.xo;im.decoding='async';
+    im.onload=()=>{t.img=im;t.ok=true;t.failed=false;scheduleMosaic()};im.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)+'?fine=1'}});
 function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=false;R.clear();lensWait=null;return}
   const all=[];for(let j=0;j<want.ny;j++)for(let i=0;i<want.nx;i++)all.push([want.x0+i,want.y0+j,i*256,j*256]);
   const lens=[],rest=[];if(!LC.live&&!S.fs)all.forEach(t=>(tileInLens(want.zt,t[0],t[1])?lens:rest).push(t));else lens.push(...all);
   const defer=lens.length&&rest.length,use=defer?lens:all;
   let missing=0;const imgs=use.map(([x,y])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||!t.failed)missing++}return im});
   if(defer)rest.forEach(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||(!t.ok&&!t.failed))missing++});
+  if(LC.live&&!S.fs&&lensC&&want.key!==lastFocus){lastFocus=want.key;const sw=navigator.serviceWorker&&navigator.serviceWorker.controller;   // tell the live worker where the lens is: it fetches nearest first, drops what the lens left
+    if(sw){const c=map.containerPointToLatLng(lensC),mpp=156543.03392*Math.cos(c.lat*Math.PI/180)/Math.pow(2,map.getZoom());sw.postMessage({focus:[c.lat,c.lng,(S.ls/2+96)*mpp]})}}
   MZ=want;R.newMosaic(want);use.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});
   if(defer)rest.forEach(([x,y,px,py])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(t&&t.ok)R.putTile(t.img,px,py)});
   R.decode(want);mosaicReady=true;
