@@ -5,8 +5,8 @@ window.LENS_CONFIG={
   analyticsToken:'441b8d4f63d74ea386a1596affc15198',                  // Cloudflare Web Analytics (cookieless); the build adds the beacon before </body>
   pageTitle:'LiDAR Lens - Thornborough to the Devil\'s Arrows',
   link:{text:'lidar-lens-ure.tim-daw.workers.dev',href:'https://lidar-lens-ure.tim-daw.workers.dev/'},
-  linksNote:'All of England and Wales, fetched live (slower than this Lens, whose LiDAR is held locally):',
-  links:[{text:'LiDAR Lens England & Wales',href:'https://lidarlens.sarsen.org/'}],
+  linksNote:'Elsewhere:',
+  links:[{text:'LiDAR Lens England',href:'https://lidarlens.sarsen.org/'}],
   areaName:'the Ure-Swale henges area',
   private:false,
   repoUrl:'https://github.com/TimDaw37/lidar-lens',

@@ -56,6 +56,9 @@ if(LC.links&&LC.links.length){const tb=$('titlebox'),sub=tb&&tb.querySelector('.
   if(LC.linksNote){const n=document.createElement('span');n.className='xn';n.textContent=LC.linksNote+' ';d.appendChild(n)}
   LC.links.forEach((l,i)=>{if(i)d.appendChild(document.createTextNode(' · '));const a=document.createElement('a');a.href=l.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent=l.text;d.appendChild(a)});
   if(sub)sub.after(d);else if(tb)tb.querySelector('h1').after(d)}
+if(LC.tries&&LC.tries.length){const tb=$('titlebox'),host=tb&&(tb.querySelector('.xlinks')||tb.querySelector('.sub')||tb.querySelector('h1')),d=document.createElement('div');d.className='tries';
+  d.appendChild(document.createTextNode('Try: '));LC.tries.forEach((t,i)=>{if(i)d.appendChild(document.createTextNode(' · '));const a=document.createElement('a');a.href='#';a.textContent=t.text;a.onclick=e=>{e.preventDefault();map.setView([t.lat,t.lng],t.z||15)};d.appendChild(a)});
+  if(host)host.after(d)}
 document.title=LC.pageTitle||LC.title;{const h=document.querySelector('#titlebox h1'),a=document.querySelector('#titlebox .sub a');if(h)h.textContent=LC.title;if(a&&LC.link){a.textContent=LC.link.text;a.href=LC.link.href}else if(a)a.parentNode.style.display='none'}
 L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
 const whereCtl=L.control({position:'bottomleft'});whereCtl.onAdd=()=>{const d=$('where');L.DomEvent.disableClickPropagation(d);return d};whereCtl.addTo(map);
@@ -75,10 +78,24 @@ function defaultLensC(){const [w,h]=mapSize();const tb0=$('titlebox');
   // phone held sideways: put the lens beside the title box, centred top to bottom
   if(h<=500&&matchMedia('(pointer:coarse)').matches&&tb0){const r=tb0.getBoundingClientRect().right-map.getContainer().getBoundingClientRect().left;return [Math.min(w-S.ls/2-8,Math.max(w*0.5,r+S.ls/2+8)),h/2]}
   if(w>=700)return [w*0.42,h*0.5];
-  // phone: sit the lens just below the title box, not under it, while keeping it clear of the readout at the bottom
-  const tb=$('titlebox'),top=tb?tb.getBoundingClientRect().bottom-map.getContainer().getBoundingClientRect().top+8:60;
-  return [w/2,Math.max(S.ls/2+8,Math.min(h-S.ls/2-56,Math.max(top+S.ls/2,h*0.35)))]}
-function placeLens(){const r=S.ls/2;const [mw,mh]=mapSize();if(!S.fs){const cl=(v,m)=>Math.max(Math.min(r,m/2),Math.min(Math.max(m-r,m/2),v));lensC=[cl(lensC[0],mw),cl(lensC[1],mh)]}lensEl.style.width=lensEl.style.height=S.ls+'px';lensEl.style.left=(lensC[0]-r)+'px';lensEl.style.top=(lensC[1]-r)+'px';lensEl.classList.toggle('fs',S.fs);if(window.__placeInfoCard)window.__placeInfoCard();if(LC.live&&window.__lensMos)scheduleMosaic()}
+  // phone: below the title and the layers button, and above the readout / mode strip
+  const top=topClear();
+  return [w/2,Math.max(S.ls/2+8,Math.min(h-S.ls/2-108,Math.max(top+S.ls/2,h*0.42)))]}
+function topClear(){const mapR=map.getContainer().getBoundingClientRect(),stack=document.querySelector('.leaflet-top.leaflet-left');
+  if(stack)return stack.getBoundingClientRect().bottom-mapR.top+8;return titleClear()}
+function titleClear(){const mapR=map.getContainer().getBoundingClientRect(),tb=$('titlebox');return (tb?tb.getBoundingClientRect().bottom-mapR.top:56)+8}
+function sheetOpen(){return matchMedia('(max-width:700px) and (pointer:coarse)').matches&&$('panel')&&!$('panel').classList.contains('hide')}
+// Phone sheet: the lens sits between the title and the mode strip. It is narrower than the screen, so it clears the layers button by being centred.
+let sheetSaved=null,sheetCap=null;
+function sheetBand(){const mh=mapSize()[1],top=titleClear(),bot=mh*0.5-58;return {top,bot,cap:Math.max(150,Math.min(600,Math.floor(bot-top)-4))}}
+function syncLs(){const e=$('ls');if(e)e.value=S.ls;const v=$('lsv');if(v)v.textContent=S.ls+' px'}
+function placeLens(){const [mw,mh]=mapSize();if(!S.fs){if(sheetOpen()){const b=sheetBand();if(sheetSaved==null)sheetSaved=S.ls;sheetCap=b.cap;if(S.ls>b.cap){S.ls=b.cap;syncLs()}
+    const r=S.ls/2,top=b.top+r,bot=b.bot-r;lensC[0]=Math.max(r,Math.min(mw-r,lensC[0]));lensC[1]=bot>=top?Math.max(top,Math.min(bot,lensC[1])):top}
+  else{if(sheetSaved!=null){if(sheetCap!=null&&S.ls===sheetCap){S.ls=sheetSaved;syncLs()}sheetSaved=sheetCap=null}
+    const r=S.ls/2,cl=(v,m)=>Math.max(Math.min(r,m/2),Math.min(Math.max(m-r,m/2),v));lensC=[cl(lensC[0],mw),cl(lensC[1],mh)];
+    if(matchMedia('(max-width:700px) and (pointer:coarse)').matches){const edge=topClear()+r,low=mh-r-108;if(low>edge)lensC[1]=Math.max(edge,Math.min(low,lensC[1]))}}}
+  const r=S.ls/2;lensEl.style.width=lensEl.style.height=S.ls+'px';lensEl.style.left=(lensC[0]-r)+'px';lensEl.style.top=(lensC[1]-r)+'px';lensEl.classList.toggle('fs',S.fs);if(window.__placeInfoCard)window.__placeInfoCard();if(LC.live&&window.__lensMos)scheduleMosaic()}
+if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches)$('panel').classList.add('hide');
 (function initLens(){const [w,h]=mapSize();
   if(H0.l){const p=H0.l.split(',').map(Number);if(p.length>=2&&p.every(isFinite)){const cp=map.latLngToContainerPoint([p[0],p[1]]);lensC=[cp.x,cp.y]}}
   S.ls=Math.min(S.ls,Math.max(150,Math.min(w,h)-40));if(!lensC||lensC[0]<0||lensC[1]<0||lensC[0]>w||lensC[1]>h)lensC=defaultLensC();placeLens()})();
@@ -88,14 +105,16 @@ function startDrag(e,resize){if(S.fs)return false;e.preventDefault();e.stopPropa
 function moveDrag(e){if(!drag||e.pointerId!==drag.id)return;const rect=map.getContainer().getBoundingClientRect();
   if(drag.resize){const d=Math.hypot(e.clientX-rect.left-lensC[0],e.clientY-rect.top-lensC[1]);S.ls=Math.round(Math.max(150,Math.min(600,d*2)));$('ls').value=S.ls;$('lsv').textContent=S.ls+' px'}
   else{lensC=[Math.max(0,Math.min(rect.width,drag.c[0]+e.clientX-drag.x)),Math.max(0,Math.min(rect.height,drag.c[1]+e.clientY-drag.y))]}
-  placeLens();requestRender(true)}
+  bumpShade();placeLens();requestRender(true)}
 function endDrag(e){if(drag&&(!e||e.pointerId===drag.id)){const moved=Math.hypot(e?e.clientX-drag.x:0,e?e.clientY-drag.y:0)>2;drag=null;lensEl.classList.remove('dragging');if(moved)justDragged=Date.now();saveHash();requestRender()}}
 // rim, grip and resize handle are the only parts of the lens that take pointer events
-lensEl.querySelector('svg.rim circle').addEventListener('pointerdown',e=>startDrag(e,false));
+let sunDrag=null;
+function setSunFrom(e){const rect=map.getContainer().getBoundingClientRect();const x=e.clientX-rect.left-lensC[0],y=e.clientY-rect.top-lensC[1];S.az=Math.round((Math.atan2(x,-y)*180/Math.PI+360)%360);bumpShade();syncUI();requestRender()}
+lensEl.querySelector('svg.rim circle').addEventListener('pointerdown',e=>{if(matchMedia('(pointer:coarse)').matches){e.preventDefault();e.stopPropagation();try{e.target.setPointerCapture(e.pointerId)}catch(_){}sunDrag=e.pointerId;setSunFrom(e)}else startDrag(e,false)});
 lensEl.querySelector('.g').addEventListener('pointerdown',e=>startDrag(e,false));
 lensEl.querySelector('.h').addEventListener('pointerdown',e=>startDrag(e,true));
-['pointermove'].forEach(t=>document.addEventListener(t,moveDrag,true));
-['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,endDrag,true));
+['pointermove'].forEach(t=>document.addEventListener(t,e=>{if(sunDrag!=null&&e.pointerId===sunDrag){setSunFrom(e);return}moveDrag(e)},true));
+['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,e=>{if(sunDrag!=null&&e.pointerId===sunDrag){sunDrag=null;bumpShade();saveHash();return}endDrag(e)},true));
 function inLens(cx,cy){if(S.fs||!lensC)return false;const r=map.getContainer().getBoundingClientRect();return Math.hypot(cx-r.left-lensC[0],cy-r.top-lensC[1])<=S.ls/2}
 // Shift/Alt + drag inside the lens moves it (desktop); capture phase so Leaflet never sees it
 const mc=map.getContainer();
@@ -112,7 +131,7 @@ function tileRange(z){const p1=map.project(CFG.bounds[1],z),p0=map.project(CFG.b
 function getTile(z,x,y,cb){if(SW_WAIT)return null;const k=z+'/'+x+'/'+y;let t=tileCache.get(k);
   if(t){if(t.ok)return t.img; if(!t.failed&&cb)t.cbs.push(cb); return null}
   const img=new Image();if(CFG.xo)img.crossOrigin=CFG.xo;t={img,ok:false,failed:false,cbs:cb?[cb]:[]};tileCache.set(k,t);img.decoding='async';
-  img.onload=()=>{t.ok=true;t.cbs.forEach(f=>f());t.cbs=[]};img.onerror=()=>{t.failed=true;const c=t.cbs;t.cbs=[];c.forEach(f=>f())};   // a failed tile also triggers a rebuild, so the loading count clears
+  img.onload=()=>{t.ok=true;t.cbs.forEach(f=>f());t.cbs=[];pokeLens()};img.onerror=()=>{t.failed=true;const c=t.cbs;t.cbs=[];c.forEach(f=>f());pokeLens()};   // a failed tile also triggers a rebuild, so the loading count clears
   img.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y);return null}
 // ---------- mosaic state ----------
 let MZ=null; // {zt,x0,y0,nx,ny,w,h,key}
@@ -300,13 +319,25 @@ window.__lens={layersCtl,renderer:()=>R.kind,stretch:()=>lastStretch,S,map,CFG,L
 // ---------- render loop ----------
 let cvDpr=1,mosaicReady=false,pending=false,lastStretch=null;
 function resizeCanvas(){cvDpr=Math.min(2,window.devicePixelRatio||1);const [w,h]=mapSize();cv.style.width=w+'px';cv.style.height=h+'px';cv.width=Math.round(w*cvDpr);cv.height=Math.round(h*cvDpr)}
-function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=false;R.clear();return}
-  const need=[];for(let j=0;j<want.ny;j++)for(let i=0;i<want.nx;i++)need.push([want.x0+i,want.y0+j,i*256,j*256]);
-  let missing=0;const imgs=need.map(([x,y,px,py])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||!t.failed)missing++}return im});
-  MZ=want;R.newMosaic(want);need.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});R.decode(want);mosaicReady=true;
-  if(LC.live&&!SW_WAIT&&map.getZoom()>=(LC.live.minzoom||13)-0.25){const failed=need.filter(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);return t&&t.failed}).length;   // (nearly) every tile empty: say why, not a blank lens
-    if(failed&&failed>=need.length*0.75)msg(NO_LIDAR);else if($('msg').textContent===NO_LIDAR)msg('',1)}
-  {const ld=document.getElementById('loading');if(SW_WAIT)missing=need.length;if(ld){ld.hidden=!missing;if(missing)document.getElementById('loadt').textContent='Loading LiDAR… ('+missing+' tiles)'}}requestRender(true)}
+function tileInLens(zt,x,y){if(S.fs||!lensC)return true;const sc=Math.pow(2,map.getZoom()-zt),tl=map.containerPointToLayerPoint([0,0]).add(map.getPixelOrigin()),r=S.ls/2+48;
+  const x0=(x*256-tl.x)*sc,x1=((x+1)*256-tl.x)*sc,y0=(y*256-tl.y)*sc,y1=((y+1)*256-tl.y)*sc;
+  const nx=Math.max(x0,Math.min(lensC[0],x1)),ny=Math.max(y0,Math.min(lensC[1],y1));return Math.hypot(nx-lensC[0],ny-lensC[1])<=r}
+let lensWait=null;
+function tileSettled(z,x,y){const t=tileCache.get(z+'/'+x+'/'+y);return !!(t&&(t.ok||t.failed))}
+function pokeLens(){const w=lensWait;if(!w)return;for(const [z,x,y] of w.tiles)if(!tileSettled(z,x,y))return;lensWait=null;w.rest.forEach(([x,y])=>getTile(w.zt,x,y,scheduleMosaic))}
+function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=false;R.clear();lensWait=null;return}
+  const all=[];for(let j=0;j<want.ny;j++)for(let i=0;i<want.nx;i++)all.push([want.x0+i,want.y0+j,i*256,j*256]);
+  const lens=[],rest=[];if(!LC.live&&!S.fs)all.forEach(t=>(tileInLens(want.zt,t[0],t[1])?lens:rest).push(t));else lens.push(...all);
+  const defer=lens.length&&rest.length,use=defer?lens:all;
+  let missing=0;const imgs=use.map(([x,y])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||!t.failed)missing++}return im});
+  if(defer)rest.forEach(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||(!t.ok&&!t.failed))missing++});
+  MZ=want;R.newMosaic(want);use.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});
+  if(defer)rest.forEach(([x,y,px,py])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(t&&t.ok)R.putTile(t.img,px,py)});
+  R.decode(want);mosaicReady=true;
+  if(defer){lensWait={key:want.key,zt:want.zt,tiles:lens.map(([x,y])=>[want.zt,x,y]),rest};pokeLens()}else lensWait=null;
+  if(LC.live&&!SW_WAIT&&map.getZoom()>=(LC.live.minzoom||13)-0.25){const failed=all.filter(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);return t&&t.failed}).length;   // (nearly) every tile empty: say why, not a blank lens
+    if(failed&&failed>=all.length*0.75)msg(NO_LIDAR);else if($('msg').textContent===NO_LIDAR)msg('',1)}
+  {const ld=document.getElementById('loading');if(SW_WAIT)missing=all.length;if(ld){ld.hidden=!missing;if(missing)document.getElementById('loadt').textContent='Loading LiDAR… ('+missing+' tiles)'}}requestRender(true)}
 // tiles arrive in bursts: coalesce rebuilds (each one re-decodes the whole mosaic)
 let mosT=null,mosFirst=0;function scheduleMosaic(){clearTimeout(mosT);const now=performance.now();if(!mosFirst)mosFirst=now;
   mosT=setTimeout(()=>{mosFirst=0;buildMosaic()},now-mosFirst>600?0:150)}
@@ -315,14 +346,23 @@ function lensBox(vw){if(S.fs)return {x:0,y:0,w:MZ.w,h:MZ.h};const r=S.ls/2,m=3;
   const x0=Math.floor((vw.tl[0]+lensC[0]-r)/vw.sc-vw.org[0])-m,y0=Math.floor((vw.tl[1]+lensC[1]-r)/vw.sc-vw.org[1])-m,x1=Math.ceil((vw.tl[0]+lensC[0]+r)/vw.sc-vw.org[0])+m,y1=Math.ceil((vw.tl[1]+lensC[1]+r)/vw.sc-vw.org[1])+m;
   const X0=Math.max(0,x0),Y0=Math.max(0,y0),X1=Math.min(MZ.w,x1),Y1=Math.min(MZ.h,y1);return {x:X0,y:Y0,w:Math.max(1,X1-X0),h:Math.max(1,Y1-Y0)}}
 function fmtN(v){const a=Math.abs(v);return (a>=100?v.toFixed(1):a>=1?v.toFixed(2):v.toFixed(3))}
+// 2nd/98th percentile via a 512-bin histogram. No sort, and the step is ceil so a ~300 px lens is not scanned pixel by pixel.
+function histPct(n,visit){if(n<21)return null;let lo=Infinity,hi=-Infinity;visit(v=>{if(v<lo)lo=v;if(v>hi)hi=v});if(!(hi>lo))return [lo,lo+1e-3];
+  const bins=new Uint32Array(512),sc=511/(hi-lo);visit(v=>{bins[Math.min(511,((v-lo)*sc)|0)]++});
+  const at=target=>{let c=0;for(let i=0;i<512;i++){const next=c+bins[i];if(next>target){const f=bins[i]?(target-c)/bins[i]:0;return lo+(i+f)*(hi-lo)/511}c=next}return hi};
+  return [at(0.02*(n-1)),at(0.98*(n-1))]}
+let shadeBusy=false,shadeT=null;
+function bumpShade(){shadeBusy=true;clearTimeout(shadeT);shadeT=setTimeout(()=>{shadeBusy=false;requestRender()},150)}
 function stretch(vw,box){const base=MODE_RANGE[S.mode]||[0,1];let lo,hi;
   if(!S.auto){const m=manual[S.mode]||base;lo=m[0];hi=m[1];if(!(hi>lo))hi=lo+1e-3;lastStretch=[lo,hi];return lastStretch}
-  const vals=[];const n=phoneLike()?40:56;const cx=(vw.tl[0]+lensC[0])/vw.sc-vw.org[0],cy=(vw.tl[1]+lensC[1])/vw.sc-vw.org[1],rad=S.ls/2/vw.sc;
-  if(R.sample){const a=R.sample(box,n,cx,cy,rad);if(a)for(let i=0;i<a.length;i+=4)if(a[i+3]>0.5)vals.push(a[i])}
-  else if(R.readBox){const a=R.readBox(box);if(a){const ch=S.mode===5?1:0,step=Math.max(1,Math.floor(Math.sqrt(box.w*box.h/1600)));
-    for(let j=0;j<box.h;j+=step)for(let i=0;i<box.w;i+=step){const k=(j*box.w+i)*4;if(a[k+3]<0.5)continue;if(!S.fs&&Math.hypot(box.x+i+0.5-cx,box.y+j+0.5-cy)>rad)continue;vals.push(a[k+ch])}}}
-  if(vals.length>20){vals.sort((x,y)=>x-y);const q=p=>vals[Math.min(vals.length-1,Math.round(p*(vals.length-1)))];lo=q(0.02);hi=q(0.98);
-    if(DIVERGING(S.mode)){const m=Math.max(Math.abs(lo),Math.abs(hi),1e-3);lo=-m;hi=m}if(!(hi>lo))hi=lo+1e-3}
+  if(shadeBusy&&lastStretch)return lastStretch; // lens drag and sun turn: keep the last range, no readback
+  const nSamp=phoneLike()?40:56;const cx=(vw.tl[0]+lensC[0])/vw.sc-vw.org[0],cy=(vw.tl[1]+lensC[1])/vw.sc-vw.org[1],rad=S.ls/2/vw.sc;
+  let pr=null;
+  if(R.sample){const a=R.sample(box,nSamp,cx,cy,rad);if(a){let n=0;for(let i=3;i<a.length;i+=4)if(a[i]>0.5)n++;pr=histPct(n,fn=>{for(let i=0;i<a.length;i+=4)if(a[i+3]>0.5)fn(a[i])})}}
+  else if(R.readBox){const a=R.readBox(box);if(a){const ch=S.mode===5?1:0,step=Math.max(1,Math.ceil(Math.sqrt(box.w*box.h/40000)));const ix=[];
+    for(let j=0;j<box.h;j+=step)for(let i=0;i<box.w;i+=step){const k=(j*box.w+i)*4;if(a[k+3]<0.5)continue;if(!S.fs&&Math.hypot(box.x+i+0.5-cx,box.y+j+0.5-cy)>rad)continue;ix.push(k+ch)}
+    pr=histPct(ix.length,fn=>{for(const k of ix)fn(a[k])})}}
+  if(pr){lo=pr[0];hi=pr[1];if(DIVERGING(S.mode)){const m=Math.max(Math.abs(lo),Math.abs(hi),1e-3);lo=-m;hi=m}if(!(hi>lo))hi=lo+1e-3}
   else{lo=base[0];hi=base[1]}
   const c=(lo+hi)/2,hw=(hi-lo)/2/Math.max(S.ct,0.05);lastStretch=[c-hw,c+hw];return lastStretch}
 let viewBusy=false,busyT=null,computedMode=null,lastLo=null,lastHi=null;
@@ -360,15 +400,14 @@ function resetDefaults(){clearTimeout(hT);const keep={base:S.base,sm:S.sm};Objec
   const [w,h]=mapSize();S.ls=Math.min(DEF.ls,Math.max(150,Math.min(w,h)-40));lensC=defaultLensC();placeLens();syncUI();requestRender();
   try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}suppressHash=true;setTimeout(()=>{suppressHash=false},400);msg('Settings reset to defaults',1800)}
 $('reset').onclick=resetDefaults;window.__lens.reset=resetDefaults;
-$('toggle').onclick=()=>$('panel').classList.toggle('hide');
-if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches)$('panel').classList.add('hide');
+$('toggle').onclick=()=>{$('panel').classList.toggle('hide');placeLens();requestRender()};
 // sun dial
 const dial=$('dial'),dx=dial.getContext('2d')||new Proxy({},{get:()=>()=>{},set:()=>true});
 function drawDial(){const w=dial.width,c=w/2,r=c-14;dx.clearRect(0,0,w,w);dx.lineWidth=3;dx.strokeStyle='#888';dx.beginPath();dx.arc(c,c,r,0,7);dx.stroke();
   dx.fillStyle='#333';dx.font='bold 20px system-ui';dx.textAlign='center';dx.textBaseline='middle';[['N',0],['E',90],['S',180],['W',270]].forEach(([t,a])=>{const q=a*Math.PI/180;dx.fillText(t,c+Math.sin(q)*(r-20),c-Math.cos(q)*(r-20))});
   const q=S.az*Math.PI/180;dx.strokeStyle='#f59e0b';dx.lineWidth=6;dx.beginPath();dx.moveTo(c,c);dx.lineTo(c+Math.sin(q)*r,c-Math.cos(q)*r);dx.stroke();
   dx.fillStyle='#f59e0b';dx.beginPath();dx.arc(c+Math.sin(q)*r,c-Math.cos(q)*r,11,0,7);dx.fill()}
-let dd=false;const dialSet=e=>{const b=dial.getBoundingClientRect();S.az=Math.round((Math.atan2(e.clientX-b.left-b.width/2,-(e.clientY-b.top-b.height/2))*180/Math.PI+360)%360);syncUI();requestRender();saveHashSoon()};
+let dd=false;const dialSet=e=>{const b=dial.getBoundingClientRect();S.az=Math.round((Math.atan2(e.clientX-b.left-b.width/2,-(e.clientY-b.top-b.height/2))*180/Math.PI+360)%360);bumpShade();syncUI();requestRender();saveHashSoon()};
 dial.addEventListener('pointerdown',e=>{dd=true;dial.setPointerCapture(e.pointerId);dialSet(e)});dial.addEventListener('pointermove',e=>{if(dd)dialSet(e)});dial.addEventListener('pointerup',()=>dd=false);
 // ---------- share hash ----------
 function hashStr(){const c=map.getCenter(),ll=map.containerPointToLatLng(lensC);const p=new URLSearchParams();
@@ -414,6 +453,6 @@ function drawProfile(hs,dist){const box=$('prof');box.style.display='block';cons
 document.querySelector('#prof .x').onclick=()=>{clearProfile(true);if(tool==='profile')setTool(null)};
 // ---------- go ----------
 $('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
-Object.assign(window.__lens,{H0,saveHashSoon,RAMPS,syncUI,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},tileData,heightAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
+Object.assign(window.__lens,{H0,saveHashSoon,RAMPS,syncUI,placeLens,requestRender,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},tileData,heightAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
 resizeCanvas();syncUI();if(S.sm)setSM(true);buildMosaic();
 })();

@@ -45,7 +45,7 @@ LZ.osgb={ll2en,en2ll,gridRef,parseGridRef};
 // ===================== Go to =====================
 const gores=$('gores');let lastNom=0,gotoMk=null;const geoCache=new Map();
 function showRes(items){gores.innerHTML='';items.forEach(it=>{const d=document.createElement('div');if(it.err){d.className='err';d.textContent=it.err}else{d.textContent=it.label;d.onclick=()=>{goto(it.lat,it.lng,it.z,it.name||it.label);gores.innerHTML=''}}gores.appendChild(d)})}
-function goto(lat,lng,z,label){map.setView([lat,lng],Math.max(map.getZoom(),z||16));if(gotoMk)map.removeLayer(gotoMk);
+function goto(lat,lng,z,label){if(typeof closeCard==='function')closeCard();map.setView([lat,lng],Math.max(map.getZoom(),z||16));if(gotoMk)map.removeLayer(gotoMk);
   gotoMk=L.circleMarker([lat,lng],{radius:7,color:'#2563eb',weight:3,fill:false,interactive:false}).addTo(map);setTimeout(()=>{if(gotoMk){map.removeLayer(gotoMk);gotoMk=null}},8000);
   if(label)msg('Go to: '+label,2500)}
 function parseLatLng(q){const t=q.trim().toUpperCase().replace(/°/g,' ');const m=t.match(/^(-?\d+(?:\.\d+)?)\s*([NS])?\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*([EW])?$/);if(!m)return null;
@@ -66,6 +66,7 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
    const part=hit.length?hit:qq.length>=3?P.filter(f=>{const p=f.properties;return [p.cy,p.en,p.alt].some(v=>v&&nq(v).includes(qq))}):[];
    if(part.length){const items=part.slice(0,8).map(f=>({lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],label:f.properties.n+' · '+(f.properties.te||''),z:f.properties.te==='Settlement'?15:16}));
      if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items);return}}
+  await loadLocalPlaces();{const hits=localHits(q);if(hits.length){if(hits.length===1){goto(hits[0].lat,hits[0].lng,hits[0].z,hits[0].label);gores.innerHTML=''}else showRes(hits);return}}
   const key=q.toLowerCase();if(geoCache.has(key)){showRes(geoCache.get(key));return}
   const wait=lastNom+1100-Date.now();if(wait>0){showRes([{err:'Searching…'}]);await new Promise(r=>setTimeout(r,wait))}lastNom=Date.now();showRes([{err:'Searching…'}]);
   try{const u='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes='+((LZ.LC.geocoder||{}).countrycodes||'gb')+'&accept-language=en&viewbox='+encodeURIComponent((LZ.LC.geocoder||{}).viewbox||'')+'&bounded=0&q='+encodeURIComponent(q);
@@ -84,6 +85,15 @@ async function nearMiss(q){try{const norm=t=>t.toLowerCase().replace(/[^a-z0-9 ]
     .sort((a,b)=>a.d-b.d||a.i-b.i).forEach(x=>{const where=x.p.county||x.p.state||'',k=x.n+'|'+where;if(out.length<2&&!seen.has(k)){seen.add(k);
       out.push({lat:x.c[1],lng:x.c[0],z:['city','town','district','county'].includes(x.p.type)?13:16,name:x.n+(where?', '+where:''),label:'Did you mean '+x.n+(where?' ('+where+')':'')+'?'})}});
   return out}catch(e){return []}}
+let localPlaces=null,localP=null;
+function loadLocalPlaces(){const url=LZ.LC.localSearch;if(!url)return Promise.resolve([]);if(!localP)localP=fetch(url).then(r=>r.ok?r.json():[]).then(a=>{localPlaces=a||[];return localPlaces}).catch(()=>{localPlaces=[];return []});return localP}
+function localHits(q){if(!localPlaces||q.length<2)return [];const n=q.toLowerCase();const pref=[],rest=[];
+  for(const p of localPlaces){const name=p[0],l=name.toLowerCase();if(l.startsWith(n))pref.push(p);else if(l.includes(n))rest.push(p);if(pref.length>=8)break}
+  return pref.concat(rest).slice(0,8).map(p=>({lat:p[1],lng:p[2],z:16,label:p[0]}))}
+let taT=null;
+$('gotoq').addEventListener('focus',()=>loadLocalPlaces());
+$('gotoq').addEventListener('input',()=>{clearTimeout(taT);const q=$('gotoq').value.trim();if(q.length<2){gores.innerHTML='';return}
+  taT=setTimeout(async()=>{await loadLocalPlaces();if($('gotoq').value.trim()!==q)return;const hits=localHits(q);if(hits.length)showRes(hits);else gores.innerHTML=''},120)});
 $('goto').addEventListener('submit',e=>{e.preventDefault();if(matchMedia('(pointer:coarse)').matches)$('gotoq').blur();doGoto($('gotoq').value)});   // touch: drop the on-screen keyboard so the map shows
 LZ.doGoto=doGoto;
 // ===================== Where am I =====================
@@ -158,7 +168,10 @@ async function dataNear(E,N,R){const liveP=nmrwNear(E,N,R);await loadIndex();if(
 function loadData(){return loadIndex()}
 function bboxOf(g){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;const add=p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1]};
   if(g[0]==='P')add(g[1]);else if(g[0]==='L')g[1].forEach(l=>l.forEach(add));else g[1].forEach(poly=>poly[0].forEach(add));return [x0,y0,x1,y1]}
-function prep(arr){arr.forEach(f=>{f.bb=bboxOf(f.g)});return arr}
+function expandGeom(g){if(!g)return g;const k=g[0];if(k==='P'||k==='L'||k==='A')return g;
+  const ring=(a,close)=>{const o=[];if(!a||a.length<2)return o;let x=a[0],y=a[1];o.push([x,y]);for(let i=2;i+1<a.length;i+=2){x+=a[i];y+=a[i+1];o.push([x,y])}if(close&&o.length>1)o.push([o[0][0],o[0][1]]);return o};
+  if(k==='p')return ['P',[g[1],g[2]]];if(k==='l')return ['L',g.slice(1).map(a=>ring(a,false))];if(k==='a')return ['A',g.slice(1).map(poly=>poly.map(a=>ring(a,true)))];return g}
+function prep(arr){arr.forEach(f=>{if(f.g)f.g=expandGeom(f.g);f.bb=bboxOf(f.g)});return arr}
 function segD(px,py,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy;let t=l?((px-a[0])*dx+(py-a[1])*dy)/l:0;t=Math.max(0,Math.min(1,t));return Math.hypot(px-a[0]-t*dx,py-a[1]-t*dy)}
 function inRing(px,py,r){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],b=r[j];if((a[1]>py)!==(b[1]>py)&&px<(b[0]-a[0])*(py-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
 function geomDist(g,px,py){if(g[0]==='P')return Math.hypot(px-g[1][0],py-g[1][1]);let d=1e9;

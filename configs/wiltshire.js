@@ -6,8 +6,8 @@ window.LENS_CONFIG={
   analyticsToken:'a9668ad61a5a4bbc858080e53d9c4139',                  // Cloudflare Web Analytics (cookieless); the build adds the beacon before </body>
   pageTitle:'LiDAR Lens - Wiltshire',
   link:{text:'lidar-lens-public.tim-daw.workers.dev',href:'https://lidar-lens-public.tim-daw.workers.dev/'},
-  linksNote:'All of England and Wales, fetched live (slower than this Lens, whose LiDAR is held locally):',
-  links:[{text:'LiDAR Lens England & Wales',href:'https://lidarlens.sarsen.org/'}],
+  linksNote:'Elsewhere:',
+  links:[{text:'LiDAR Lens England',href:'https://lidarlens.sarsen.org/'}],
   areaName:'Wiltshire',
   private:false,                                   // true shows "(private)" on the controls
   repoUrl:'https://github.com/TimDaw37/lidar-lens',
@@ -38,7 +38,13 @@ window.LENS_CONFIG={
   scheduledOverlay:'scheduled_monuments.geojson',  // NHLE scheduled monuments (OGL), clipped to the area
   bounds:[[50.9360,-2.3799],[51.7121,-1.4712]],
   outline:'coverage_outline.geojson',
-  start:{lat:51.32,lng:-1.92,zoom:9},
+  start:{lat:51.1278,lng:-2.1017,zoom:15},   // Great Ridge Wood field system
+  tries:[
+    {text:'Great Ridge fields',lat:51.1278,lng:-2.1017,z:15},
+    {text:'Avebury',lat:51.4286,lng:-1.8543,z:16},
+    {text:'Stonehenge',lat:51.1789,lng:-1.8262,z:16},
+    {text:'Old Sarum',lat:51.0936,lng:-1.8045,z:16}],
+  localSearch:'nhle_places.json',
   minZoom:8,
   layers:{index:'layers/index.json',url:'layers/{layer}/{key}.json',names:['rec','ctx']},   // add 'her' only in a private build
   osgbGrid:'data/ostn_grid.json',
