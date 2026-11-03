@@ -340,8 +340,13 @@ function lookHref(name,gr){let n=plainBit(name,60);if(/^(this spot|this place|th
   const q=n&&g?'Archaeology and history of '+n+' near '+g:g?'Archaeology and history near '+g:n?'Archaeology and history of '+n:'Archaeology and history of this place';
   return 'https://www.google.com/search?udm=50&q='+encodeURIComponent(q)}
 function lookLink(name,gr){return '<a class="lookup" href="'+esc(lookHref(name,gr))+'" target="_blank" rel="noopener noreferrer" title="Look here up">Look here up</a>'}
-// Keep the What's here card off the lens circle, on screen, and above the lens. Phone and desktop.
-function placeCard(){if(card.style.display==='none')return;const st=LZ.lensState?LZ.lensState():null;const vw=document.documentElement.clientWidth,vh=document.documentElement.clientHeight,margin=8;
+// Desktop: card stays top-left, under the title bar, scrolling inside the viewport. It may cover a lens that sits on the left (the card is above the lens). Phone: keep the card in the gap outside the circle.
+function placeCard(){if(card.style.display==='none')return;const phone=matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches;
+  const st=LZ.lensState?LZ.lensState():null;const vw=document.documentElement.clientWidth,vh=document.documentElement.clientHeight,margin=8;
+  card.style.zIndex='2600';card.style.boxSizing='border-box';card.style.overflow='auto';card.style.right='auto';card.style.bottom='auto';
+  if(!phone){const w=Math.min(360,vw-margin*2);let y=margin;const title=document.getElementById('titlebox');
+    if(title){const cs=getComputedStyle(title);if(cs.display!=='none'&&cs.visibility!=='hidden'){const r=title.getBoundingClientRect();if(r.width>2&&r.height>2&&r.left<margin+w)y=Math.max(y,r.bottom+8)}}
+    card.style.width=w+'px';card.style.maxHeight=Math.max(140,vh-margin-y)+'px';card.style.left=margin+'px';card.style.top=y+'px';return}
   const lc=st&&st.c?st.c:[vw/2,vh/2],rad=st&&!st.fs?st.ls/2+12:0;
   const blocks=[];['panel','titlebox','toggle'].forEach(id=>{const el=document.getElementById(id);if(!el)return;const cs=getComputedStyle(el);if(cs.display==='none'||cs.visibility==='hidden')return;const r=el.getBoundingClientRect();if(r.width>2&&r.height>2)blocks.push(r)});
   const leftW=rad?Math.max(0,lc[0]-rad-margin):vw-margin*2,rightW=rad?Math.max(0,vw-(lc[0]+rad)-margin):0;
@@ -350,7 +355,7 @@ function placeCard(){if(card.style.display==='none')return;const st=LZ.lensState
     blocks.forEach(b=>{if(x<b.right&&x+w>b.left)y=Math.max(y,b.bottom+8)});maxH=Math.max(140,vh-margin-y)}
   else{const above=rad?Math.max(0,lc[1]-rad-margin):vh,below=rad?Math.max(0,vh-(lc[1]+rad)-margin):0;w=want;x=Math.max(margin,Math.min(vw-margin-w,(vw-w)/2));
     if(below>=above){y=rad?lc[1]+rad+8:margin;maxH=Math.max(140,vh-margin-y)}else{maxH=Math.max(140,above-8);y=Math.max(margin,lc[1]-rad-8-maxH)}}
-  card.style.zIndex='2600';card.style.boxSizing='border-box';card.style.width=w+'px';card.style.maxHeight=maxH+'px';card.style.left=x+'px';card.style.top=y+'px';card.style.right='auto';card.style.bottom='auto'}
+  card.style.width=w+'px';card.style.maxHeight=maxH+'px';card.style.left=x+'px';card.style.top=y+'px'}
 window.__placeInfoCard=placeCard;
 // Leaflet popups live inside the map, under the lens canvas. Move the popup pane above the lens and keep its map transform.
 (function liftPopups(){const pane=map.getPane('popupPane'),mapPane=map.getPane('mapPane');if(!pane||!mapPane)return;
