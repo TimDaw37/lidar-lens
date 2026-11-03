@@ -7,6 +7,7 @@
    Trade-offs vs a county build: 1-3 s to fill the lens on new ground, more data per view, and it depends on the EA's service. */
 window.LENS_CONFIG={
   title:'LiDAR Lens - England & Wales (live)',
+  analyticsToken:'5bd2fd0fa889423f8d4bf10bff1a42d5',                  // Cloudflare Web Analytics (cookieless); the build adds the beacon before </body>
   pageTitle:'LiDAR Lens - England & Wales (live)',
   link:null,
   cname:'lidarlens.sarsen.org',                  // GitHub Pages custom domain: the build writes dist/CNAME
@@ -15,7 +16,6 @@ window.LENS_CONFIG={
   areaName:'England and Wales',
   private:false,
   repoUrl:'https://github.com/TimDaw37/lidar-lens',
-  geographApi:'https://lidar-lens-england.tim-daw.workers.dev/api/geograph',   // GitHub Pages can't run it: photos come through the relay
   live:{minzoom:13},                              // the worker makes tiles from zoom 13 (keep in step with MINZ in live-sw.js)
   basemaps:[
     {id:'eahs',name:'EA LiDAR hillshade (England only)',url:'https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wms',wms:'Lidar_Composite_Hillshade_DTM_1m',attribution:'LiDAR hillshade &copy; Environment Agency (OGL)'},
@@ -40,5 +40,6 @@ window.LENS_CONFIG={
   layers:{index:'layers/index.json',url:'layers/v2/{layer}/{key}.json',names:['rec']},
   osgbGrid:'data/ostn_grid.json',
   geocoder:{countrycodes:'gb',viewbox:'-6.5,55.9,1.9,49.8'},
+  localSearch:'nhle_places.json',                 // type-ahead: Historic England and Cadw scheduled monuments (configs/england-places.json, OGL)
   dataNote:'All of England and Wales, fetched live as you look (zoom 13-17): England from the Environment Agency LiDAR Composite DTM 1 m, Wales from the Welsh Government LiDAR DTM 1 m (DataMapWales), both Open Government Licence.'
 };
