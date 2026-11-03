@@ -52,7 +52,7 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 #gores{margin-top:4px;max-height:150px;overflow:auto;font-size:12px}#gores div{padding:3px 4px;border-radius:3px;cursor:pointer}#gores div:hover{background:#e5e7eb}#gores .err{color:#b91c1c;cursor:default}
 #where{background:rgba(255,255,255,.94);border-radius:6px;box-shadow:0 1px 6px rgba(0,0,0,.35);padding:3px 6px;font-size:12px;font-variant-numeric:tabular-nums;display:flex;gap:6px;align-items:center;max-width:calc(100vw - 30px)}
 #where b{font-weight:600}#where button{font-size:11px;padding:1px 6px;cursor:pointer}
-#card{position:absolute;z-index:1001;top:10px;right:292px;width:360px;max-height:calc(100% - 20px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.45);font-size:13px;display:none;box-sizing:border-box}
+#card{position:absolute;z-index:2600;top:10px;right:292px;width:360px;max-height:calc(100% - 20px);overflow:auto;background:#fff;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.45);font-size:13px;display:none;box-sizing:border-box}
 #card .hd{background:#1f2937;color:#fff;padding:7px 10px;border-radius:10px 10px 0 0;position:sticky;top:0}
 #card .hd .x{float:right;cursor:pointer;font-size:18px;line-height:16px;padding:0 2px}
 #card .hd small{color:#cbd5e1}
@@ -87,7 +87,8 @@ html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Robo
 #panel .key{font-size:11px;color:#444;margin:2px 0 4px;line-height:1.6}#panel .key span{display:inline-block;width:14px;height:3px;background:var(--c);vertical-align:middle;margin:0 3px 0 6px}#panel .key span:first-child{margin-left:0}
 #rangeread{font-size:12px;color:#555;margin:2px 0 4px}#manrange input{width:100%;box-sizing:border-box}
 #laylist .lg{font-weight:600;margin:8px 0 2px;font-size:12px;color:#111}#laylist label{display:flex;gap:6px;align-items:flex-start;margin:2px 0}#laylist .laymeta{color:#6b7280;font-size:11px;margin:0 0 6px 22px;line-height:1.35}
-a.jfgi{display:inline-block;margin:4px 0;padding:2px 8px;border:1px solid #1d4ed8;border-radius:4px;background:#eff6ff;color:#1e3a8a;font-weight:700;font-size:12px;text-decoration:none}
+a.lookup{display:inline-block;margin:4px 0;padding:2px 8px;border:1px solid #1d4ed8;border-radius:4px;background:#eff6ff;color:#1e3a8a;font-weight:700;font-size:12px;text-decoration:none}
+.leaflet-popup{pointer-events:auto}
 .photostrip{margin:6px 0}.geos{display:flex;gap:6px;overflow:auto}.geos a{flex:0 0 auto;width:84px;font-size:10px;line-height:1.2;text-decoration:none}.geos img{width:84px;height:84px;object-fit:cover;border-radius:4px;display:block;background:#eee}.geos .who{display:block;margin-top:2px;color:#374151}
 #panel.hide{display:none}body.panelhidden #toggle{display:block}
 @media (max-width:700px),(max-height:500px) and (pointer:coarse){#prof{top:auto;bottom:40px}}
