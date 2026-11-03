@@ -12,8 +12,12 @@ sel.addEventListener('change',mark);const ms=$('mode');ms.addEventListener('chan
 const modeBar=$('modes');
 if(modeBar){const names=['Hillshade','Multi-direction','Slope','Local relief','Sky-view','Aspect','Red relief','Combined'];
   for(let i=0;i<8;i++){const b=document.createElement('button');b.type='button';b.textContent=String(i+1);b.title=names[i];b.setAttribute('aria-label',names[i]+', key '+(i+1));
-    b.onclick=()=>{ms.value=String(i);ms.dispatchEvent(new Event('change'));paintModes()};modeBar.appendChild(b)}
+    b.onclick=()=>{ms.value=String(i);ms.dispatchEvent(new Event('change'));paintModes();flashMode(names[i])};modeBar.appendChild(b)}
   function paintModes(){[...modeBar.children].forEach((b,i)=>b.classList.toggle('on',ms.value===String(i)))}
+  function flashMode(name){if(!matchMedia('(pointer:coarse)').matches)return;const m=$('msg');
+    const up=matchMedia('(max-width:700px) and (pointer:coarse)').matches&&!$('panel').classList.contains('hide');
+    m.style.top='auto';m.style.bottom=up?'calc(50vh + 60px)':'72px';LZ.msg(name,1200);
+    setTimeout(()=>{if(m.textContent===name){m.style.top='';m.style.bottom=''}},1200)}
   ms.addEventListener('change',paintModes);$('reset').addEventListener('click',()=>setTimeout(paintModes,0));paintModes()}
 // lens reset
 $('lensreset').onclick=()=>LZ.resetLens();
@@ -76,7 +80,7 @@ const REPO=LC.repoUrl||'https://github.com/TimDaw37/lidar-lens';const rl='<a hre
 help.insertAdjacentHTML('beforeend','<p style="margin-top:10px">Open source: the code and a step-by-step protocol to build your own LiDAR Lens for another area are on '+rl+'.</p>');
 $('about').insertAdjacentHTML('beforeend','<br><br>Code and replication protocol: '+rl+'.');
 if(map.attributionControl)map.attributionControl.addAttribution('<a href="'+REPO+'" target="_blank" rel="noopener noreferrer">LiDAR Lens code</a>');
-if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches)document.querySelectorAll('#panel details.sec').forEach(d=>{d.open=/Tools/.test(d.querySelector('summary').textContent)});
+if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches){const sheet=matchMedia('(max-width:700px) and (pointer:coarse)').matches;document.querySelectorAll('#panel details.sec').forEach(d=>{const name=d.querySelector('summary').textContent;d.open=sheet?/Visualisation/.test(name):/Tools/.test(name)})}
 if(matchMedia('(pointer:coarse)').matches){const p=document.querySelector('#help p');if(p)p.innerHTML=p.innerHTML.replace('Drag its rim or top grip to move it; drag the white dot to resize.','Drag the grip to move the lens and the white dot to resize. Drag a finger around the rim to turn the sun.')}
 if(!LC.private){const t=$('privtag');if(t)t.remove()}
 {const n=LC.toolName||'What is it?';const a=$('helptn'),k=$('keytn');if(a)a.textContent=n;if(k)k.textContent=n+' on/off';LZ.updateToolButtons&&LZ.updateToolButtons()}

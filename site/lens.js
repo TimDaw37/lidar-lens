@@ -3,6 +3,19 @@
 (function(){
 'use strict';
 const LC=window.LENS_CONFIG;if(!LC)throw new Error('config.js missing (window.LENS_CONFIG)');
+// The public Wiltshire worker keeps its own config.js (the county overview at zoom 9, and the long
+// "fetched live" note). Fill the keys that file does not have, so a build that copies it still opens
+// on Great Ridge, offers the Try links, and searches scheduled-monument names. An explicit tries list,
+// a start at zoom 12 or closer, or localSearch:false in config.js is left alone.
+if(/^wiltshire$/i.test(LC.areaName||'')){
+  if(!LC.tries){LC.tries=[
+    {text:'Great Ridge fields',lat:51.1278,lng:-2.1017,z:15},
+    {text:'Avebury',lat:51.4286,lng:-1.8543,z:16},
+    {text:'Stonehenge',lat:51.1789,lng:-1.8262,z:16},
+    {text:'Old Sarum',lat:51.0936,lng:-1.8045,z:16}];
+    if(!LC.start||!(LC.start.zoom>=12))LC.start={lat:51.1278,lng:-2.1017,zoom:15}}
+  if(LC.localSearch==null)LC.localSearch='nhle_places.json'}
+if(typeof LC.linksNote==='string'&&/fetched live|Rest of England/i.test(LC.linksNote))LC.linksNote='Elsewhere:';
 // Live mode (LC.live): tiles and records are made on demand from public sources by live-sw.js (a service worker).
 // On the first visit the worker isn't in control yet, so register it and reload once it is.
 if(LC.live){if(!('serviceWorker' in navigator)){document.addEventListener('DOMContentLoaded',()=>{const m=document.getElementById('msg');if(m){m.textContent='This browser cannot run the live LiDAR (no service workers). Try a current Chrome, Edge, Firefox or Safari.';m.style.display='block'}})}

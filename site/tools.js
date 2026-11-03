@@ -66,16 +66,23 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
    const part=hit.length?hit:qq.length>=3?P.filter(f=>{const p=f.properties;return [p.cy,p.en,p.alt].some(v=>v&&nq(v).includes(qq))}):[];
    if(part.length){const items=part.slice(0,8).map(f=>({lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],label:f.properties.n+' · '+(f.properties.te||''),z:f.properties.te==='Settlement'?15:16}));
      if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items);return}}
-  await loadLocalPlaces();{const hits=localHits(q);if(hits.length){if(hits.length===1){goto(hits[0].lat,hits[0].lng,hits[0].z,hits[0].label);gores.innerHTML=''}else showRes(hits);return}}
-  const key=q.toLowerCase();if(geoCache.has(key)){showRes(geoCache.get(key));return}
-  const wait=lastNom+1100-Date.now();if(wait>0){showRes([{err:'Searching…'}]);await new Promise(r=>setTimeout(r,wait))}lastNom=Date.now();showRes([{err:'Searching…'}]);
+  await loadLocalPlaces();const hits=localHits(q);
+  if(hits.length)showRes(hits); // monuments and local names stay on screen while the geocoder answers, and rank above it
+  const key=q.toLowerCase();
+  const join=items=>{const seen=new Set(hits.map(h=>h.label.toLowerCase()));const extra=items.filter(it=>{const k=it.label.toLowerCase();if(seen.has(k))return false;seen.add(k);return true});return hits.concat(extra)};
+  if(geoCache.has(key)){const all=join(geoCache.get(key));if(all.length===1){goto(all[0].lat,all[0].lng,all[0].z,all[0].label);gores.innerHTML=''}else showRes(all);return}
+  const wait=lastNom+1100-Date.now();if(wait>0&&!hits.length){showRes([{err:'Searching…'}]);await new Promise(r=>setTimeout(r,wait))}else if(wait>0)await new Promise(r=>setTimeout(r,wait));
+  lastNom=Date.now();if(!hits.length)showRes([{err:'Searching…'}]);
   try{const u='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes='+((LZ.LC.geocoder||{}).countrycodes||'gb')+'&accept-language=en&viewbox='+encodeURIComponent((LZ.LC.geocoder||{}).viewbox||'')+'&bounded=0&q='+encodeURIComponent(q);
     const r=await fetch(u,{headers:{'Accept':'application/json'}});const j=await r.json();
-    const items=j.map(x=>({lat:+x.lat,lng:+x.lon,label:x.display_name,z:x.type==='house'?18:(x.place_rank>=20?16:13)}));
+    let items=j.map(x=>({lat:+x.lat,lng:+x.lon,label:x.display_name,z:x.type==='house'?18:(x.place_rank>=20?16:13),house:x.category==='building'||x.type==='house'}));
+    items.sort((a,b)=>(a.house===b.house?0:a.house?1:-1));
     // near misses: only when nothing but single buildings matched (e.g. 'Barnstable' finds two houses of that name), ask a fuzzy geocoder
-    if(!j.some(x=>x.category!=='building')){const dm=await nearMiss(q);if(dm.length){const all=dm.concat(items);geoCache.set(key,all);showRes(all);return}}
-    if(!items.length){showRes([{err:'No match (try a grid ref or postcode)'}]);return}geoCache.set(key,items);if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items)}
-  catch(e){showRes([{err:'Place search failed (Nominatim)'}])}}
+    if(!hits.length&&!j.some(x=>x.category!=='building')){const dm=await nearMiss(q);if(dm.length)items=dm.concat(items)}
+    const all=join(items);geoCache.set(key,items);
+    if(!all.length){showRes([{err:'No match (try a grid ref or postcode)'}]);return}
+    if(all.length===1){goto(all[0].lat,all[0].lng,all[0].z,all[0].label);gores.innerHTML=''}else showRes(all)}
+  catch(e){if(hits.length)showRes(hits);else showRes([{err:'Place search failed (Nominatim)'}])}}
 // 'Did you mean': Photon (OpenStreetMap, typo-tolerant) within Great Britain; keep the 1-2 names closest to what was typed
 function lev(a,b){const m=a.length,n=b.length,d=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){let p=d[0];d[0]=i;for(let j=1;j<=n;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[n]}
 async function nearMiss(q){try{const norm=t=>t.toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim(),nq=norm(q);
@@ -87,9 +94,12 @@ async function nearMiss(q){try{const norm=t=>t.toLowerCase().replace(/[^a-z0-9 ]
   return out}catch(e){return []}}
 let localPlaces=null,localP=null;
 function loadLocalPlaces(){const url=LZ.LC.localSearch;if(!url)return Promise.resolve([]);if(!localP)localP=fetch(url).then(r=>r.ok?r.json():[]).then(a=>{localPlaces=a||[];return localPlaces}).catch(()=>{localPlaces=[];return []});return localP}
-function localHits(q){if(!localPlaces||q.length<2)return [];const n=q.toLowerCase();const pref=[],rest=[];
-  for(const p of localPlaces){const name=p[0],l=name.toLowerCase();if(l.startsWith(n))pref.push(p);else if(l.includes(n))rest.push(p);if(pref.length>=8)break}
-  return pref.concat(rest).slice(0,8).map(p=>({lat:p[1],lng:p[2],z:16,label:p[0]}))}
+function localHits(q){if(!localPlaces||q.length<2)return [];const n=q.toLowerCase();const scored=[];
+  for(const p of localPlaces){const name=p[0],l=name.toLowerCase();let rank=3;
+    if(l.startsWith(n))rank=0;else if(l.split(/[^a-z0-9]+/).some(w=>w.startsWith(n)))rank=1;else if(l.includes(n))rank=2;else continue;
+    scored.push({p,rank,len:name.length})}
+  scored.sort((a,b)=>a.rank-b.rank||a.len-b.len);
+  return scored.slice(0,8).map(({p})=>({lat:p[1],lng:p[2],z:16,label:p[0]}))}
 let taT=null;
 $('gotoq').addEventListener('focus',()=>loadLocalPlaces());
 $('gotoq').addEventListener('input',()=>{clearTimeout(taT);const q=$('gotoq').value.trim();if(q.length<2){gores.innerHTML='';return}
