@@ -50,11 +50,57 @@ async function isEmpty(buf) {
 let emptyP = null;
 async function emptyTiff() { if (!emptyP) emptyP = tiff(new Float32Array((BLOCK_PX + 2) ** 2).fill(-9999), BLOCK_PX + 2); return (await emptyP).slice(0) }
 
+// ---- Nearby Geograph photos for the GitHub Pages Lens (same reply as the main Worker's /api/geograph).
+// The key is the Worker secret GEOGRAPH_KEY and never reaches the browser. Only ALLOW_ORIGINS may call it from a page.
+const geoHits = new Map();
+function geoLimit(ip) { const now = Date.now(); let h = geoHits.get(ip);
+  if (!h || now > h.reset) { h = { n: 0, reset: now + 60000 }; if (geoHits.size > 5000) geoHits.clear(); geoHits.set(ip, h) }
+  return ++h.n <= 20 }
+async function geograph(req, env, u, ctx) {
+  const reply = (body, status = 200, cacheable = false) => { const h = cors(req, env); h.set('Content-Type', 'application/json');
+    h.set('Cache-Control', cacheable ? 'public, max-age=3600' : 'no-store'); return new Response(JSON.stringify(body), { status, headers: h }) };
+  if (req.method !== 'GET') return err(req, env, 405, 'GET only');
+  const o = req.headers.get('Origin'), allow = (env.ALLOW_ORIGINS || '').split(/\s+/).filter(Boolean);
+  if (!o || !allow.includes(o)) return err(req, env, 403, 'origin not allowed');
+  const lat = Number(u.searchParams.get('lat')), lng = Number(u.searchParams.get('lng'));
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return err(req, env, 400, 'bad point');
+  if (!env.GEOGRAPH_KEY) return reply({ photos: [], reason: 'nokey' });
+  // edge cache on a rounded point (~100 m), so repeat clicks nearby cost Geograph nothing
+  const cache = caches.default, ck = new Request('https://relay.invalid/geo/' + lat.toFixed(3) + ',' + lng.toFixed(3));
+  const hit = await cache.match(ck);
+  if (hit) return reply(await hit.json(), 200, true);
+  const ip = req.headers.get('CF-Connecting-IP') || 'x';
+  if (!geoLimit(ip)) return reply({ photos: [], reason: 'busy' }, 429);
+  if (env.RATE_LIMITER) { const { success } = await env.RATE_LIMITER.limit({ key: 'geo:' + ip }); if (!success) return reply({ photos: [], reason: 'busy' }, 429) }
+  const q = new URL('https://api.geograph.org.uk/syndicator.php');
+  q.searchParams.set('key', env.GEOGRAPH_KEY); q.searchParams.set('format', 'JSON');
+  q.searchParams.set('location', lat.toFixed(5) + ',' + lng.toFixed(5)); q.searchParams.set('distance', '1'); q.searchParams.set('perpage', '6');
+  let body;
+  try { const up = await fetch(q, { headers: { 'Accept': 'application/json', 'User-Agent': 'lidar-lens nearby-photos' } });
+    if (!up.ok) return reply({ photos: [], reason: 'upstream' }); body = await up.json() }
+  catch (e) { return reply({ photos: [], reason: 'upstream' }) }
+  const raw = body.items || body.item || (body.channel && (body.channel.item || body.channel.items)) || (Array.isArray(body) ? body : []);
+  const list = Array.isArray(raw) ? raw : (raw ? [raw] : []), photos = [];
+  for (const it of list) {
+    if (!it || typeof it !== 'object') continue;
+    const link = String(it.link || it.url || ''), id = String(it.id || '').match(/(\d+)\s*$/);
+    const page = /^https:\/\/www\.geograph\.org\.uk\/photo\/\d+/i.test(link) ? link.split('?')[0] : (id ? 'https://www.geograph.org.uk/photo/' + id[1] : '');
+    const thumb = String(it.thumbURL || it.thumb || it.thumbnail || '');
+    if (!page || !/^https:\/\/([a-z0-9-]+\.)?geograph\.org\.uk\//i.test(thumb)) continue;
+    photos.push({ title: String(it.title || '').slice(0, 140), page, thumb, author: String(it.author || it.credit || 'photographer').slice(0, 80) });
+    if (photos.length === 6) break;
+  }
+  const out = { photos };
+  ctx.waitUntil(cache.put(ck, new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' } })));
+  return reply(out, 200, true);
+}
+
 export default {
   async fetch(req, env, ctx) {
     const u = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req, env, new Headers({ 'Access-Control-Allow-Methods': 'GET', 'Access-Control-Max-Age': '86400' })) });
     if (u.pathname === '/') return err(req, env, 200, 'LiDAR Lens England & Wales relay: caches Environment Agency LiDAR Composite DTM 1 m and Welsh Government LiDAR DTM 1 m (both OGL) blocks for LiDAR Lens England & Wales, https://lidarlens.sarsen.org/');
+    if (u.pathname === '/api/geograph') return geograph(req, env, u, ctx);
     const wales = u.pathname === '/wales';
     if ((u.pathname !== '/wcs' && !wales) || req.method !== 'GET') return err(req, env, 404, 'not found');
     const o = req.headers.get('Origin'), allow = (env.ALLOW_ORIGINS || '').split(/\s+/).filter(Boolean);

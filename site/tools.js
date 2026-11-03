@@ -407,7 +407,7 @@ function loadPhotos(el,lat,lng){if(!el)return;el.replaceChildren();const wait=do
     const g=document.createElement('a');g.href='https://www.geograph.org.uk/';g.target='_blank';g.rel='noopener noreferrer';g.textContent='Geograph';
     cred.appendChild(g);cred.appendChild(document.createTextNode('. Click a photo for the full credit.'));el.appendChild(cred)};
   if(photoCache.has(key)){show(photoCache.get(key));return}
-  fetch('api/geograph?lat='+encodeURIComponent(lat)+'&lng='+encodeURIComponent(lng)).then(r=>{const ct=r.headers.get('content-type')||'';if(!r.ok||ct.indexOf('json')<0)return {photos:[],reason:r.status===404?'off':'fail'};return r.json()}).catch(()=>({photos:[],reason:'fail'}))
+  fetch(((window.LENS_CONFIG&&LENS_CONFIG.geographApi)||'api/geograph')+'?lat='+encodeURIComponent(lat)+'&lng='+encodeURIComponent(lng)).then(r=>{const ct=r.headers.get('content-type')||'';if(!r.ok||ct.indexOf('json')<0)return {photos:[],reason:r.status===404?'off':'fail'};return r.json()}).catch(()=>({photos:[],reason:'fail'}))
     .then(data=>{photoCache.set(key,data);show(data)})}
 function openPlace(ll){window.__lensEatClick=Date.now()+700;const [E,N]=ll2en(ll.lat,ll.lng),gr=gridRef(E,N)||'';
   const html='<b>'+esc(gr||'Outside the OS grid')+'</b><br><small>'+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small><br>'+lookLink('',gr)+'<div class="photostrip"></div>';
