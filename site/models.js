@@ -30,11 +30,16 @@ function build(){
     const r=L.rectangle(m.geometry.latlngBounds,{color:'#ffd23f',weight:2,dashArray:m.approx?'4 6':null,fill:true,fillOpacity:0.03,className:'mbox'});
     r.bindTooltip(esc(m.title)+(m.approx?' (approx. area)':''),{sticky:true});
     r.on('click',e=>{L.DomEvent.stop(e);if(toTool(e))return;showCard(e.latlng,at(e.latlng))});layer.addLayer(r)});
-  const pins=[];site.filter(m=>m.geometry.latlng).forEach(m=>{const p=pins.find(q=>map.distance(q.ll,m.geometry.latlng)<=PT_R);if(p)p.ms.push(m);else pins.push({ll:L.latLng(m.geometry.latlng),ms:[m]})});
-  pins.forEach(p=>{const n=p.ms.length;const mk=L.marker(p.ll,{icon:L.divIcon({className:'mpin',html:'<span>'+(n>1?n:'')+'</span>',iconSize:[22,22],iconAnchor:[11,11]}),riseOnHover:true});
-    mk.bindTooltip(p.ms.map(m=>esc(m.title)).join('<br>'),{direction:'top',offset:[0,-10]});
-    mk.on('click',e=>{L.DomEvent.stop(e);if(toTool(e))return;showCard(p.ll,at(p.ll))});layer.addLayer(mk)});
+  const pts=site.filter(m=>m.geometry.latlng).map(m=>({ll:L.latLng(m.geometry.latlng),m}));
+  const pins=[];
+  if(map.getZoom()<13){const cell=56;pts.forEach(p=>{const pt=map.latLngToContainerPoint(p.ll);let g=pins.find(q=>Math.hypot(q.x-pt.x,q.y-pt.y)<cell);
+    if(!g){g={x:pt.x,y:pt.y,ll:p.ll,ms:[]};pins.push(g)}g.ms.push(p.m);const n=g.ms.length;g.x=(g.x*(n-1)+pt.x)/n;g.y=(g.y*(n-1)+pt.y)/n;g.ll=map.containerPointToLatLng([g.x,g.y])})}
+  else pts.forEach(p=>{const g=pins.find(q=>map.distance(q.ll,p.ll)<=PT_R);if(g)g.ms.push(p.m);else pins.push({ll:p.ll,ms:[p.m]})});
+  pins.forEach(p=>{const n=p.ms.length,big=n>1&&map.getZoom()<13;const sz=big?30:22;const mk=L.marker(p.ll,{icon:L.divIcon({className:'mpin'+(big?' mclu':''),html:'<span>'+(n>1?n:'')+'</span>',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),riseOnHover:true});
+    mk.bindTooltip(n>6?n+' models here':p.ms.map(m=>esc(m.title)).join('<br>'),{direction:'top',offset:[0,-10]});
+    mk.on('click',e=>{L.DomEvent.stop(e);if(toTool(e))return;if(big){map.flyTo(p.ll,Math.min(15,map.getZoom()+2));return}showCard(p.ll,at(p.ll))});layer.addLayer(mk)});
   if(on)layer.addTo(map)}
+map.on('zoomend',()=>{if(M.length)build()});
 function lists(){
   const cw=M.filter(m=>m.scope==='county');
   $('mcounty').innerHTML=cw.map(row).join('');$('mcounty').closest('details').hidden=!cw.length;

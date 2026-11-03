@@ -14,7 +14,7 @@ const css=(await esbuild.transform(fs.readFileSync(SITE+'/vendor/leaflet.css','u
 for(const f of fs.readdirSync(SITE+'/vendor/images'))fs.copyFileSync(SITE+'/vendor/images/'+f,OUT+'/assets/images/'+f);
 const cssName='app.'+hash(css)+'.css';fs.writeFileSync(OUT+'/assets/'+cssName,css);
 // JS: Leaflet + app scripts in page order, transpiled for older browsers and minified (no eval, no modules)
-const order=['vendor/leaflet.js','lens.js','tools.js','ui.js','models.js'];
+const order=['vendor/leaflet.js','lens.js','tools.js','ui.js','layers.js','models.js'];
 let js='';for(const f of order)js+=(await esbuild.transform(fs.readFileSync(SITE+'/'+f,'utf8'),{loader:'js',minify:true,target:TARGET,supported:{destructuring:true},legalComments:'inline'})).code+';\n';
 const jsName='app.'+hash(js)+'.js';fs.writeFileSync(OUT+'/assets/'+jsName,js);
 const compat=(await esbuild.transform(fs.readFileSync(SITE+'/compat.js','utf8'),{loader:'js',minify:true,target:'es5'})).code;
@@ -36,5 +36,8 @@ if(fs.existsSync(SITE+'/models.json'))fs.copyFileSync(SITE+'/models.json',OUT+'/
 if(process.argv[2]){const g=process.argv[2].replace(/\.js$/,'-ostn_grid.json');if(fs.existsSync(g)){fs.mkdirSync(OUT+'/data',{recursive:true});{const G=JSON.parse(fs.readFileSync(g,'utf8'));if(!G.enc){for(const k of['de','dn']){let p=0;G[k]=G[k].map(x=>{const v=Math.round(x*100),d=v-p;p=v;return d})}G.enc='cm-delta'}fs.writeFileSync(OUT+'/data/ostn_grid.json',JSON.stringify(G))}}}
 if(fs.existsSync(SITE+'/live-sw.js'))fs.copyFileSync(SITE+'/live-sw.js',OUT+'/live-sw.js');   // live mode service worker: fixed name at the site root (its scope)
 html=html.replace('<title>',pre+'<title>');fs.writeFileSync(OUT+'/index.html',html.replace(/\n\s*\n/g,'\n'));
+// Cloudflare static assets ignore long Cache-Control on hashed files unless _headers says so.
+fs.writeFileSync(OUT+'/_headers','/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n');
+if(fs.existsSync(SITE+'/nhle_places.json'))fs.copyFileSync(SITE+'/nhle_places.json',OUT+'/nhle_places.json');
 const sz=f=>(fs.statSync(OUT+'/'+f).size/1024).toFixed(0)+' KB';
 console.log('dist/index.html',sz('index.html'),'| assets/'+jsName,sz('assets/'+jsName),'| assets/'+cssName,sz('assets/'+cssName),'| assets/'+compatName,sz('assets/'+compatName));

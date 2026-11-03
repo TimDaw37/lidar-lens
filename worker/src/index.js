@@ -20,7 +20,8 @@ const TYPES = { webp: "image/webp", json: "application/json", geojson: "applicat
 
 function csp(env) {
   const img = ["'self'", "data:", "blob:", "https:"].concat((env.CSP_IMG || "").split(/\s+/).filter(Boolean));
-  const connect = ["'self'", "https://api.postcodes.io", "https://nominatim.openstreetmap.org", "https://cloudflareinsights.com"].concat((env.CSP_CONNECT || "").split(/\s+/).filter(Boolean));
+  const connect = ["'self'", "https://api.postcodes.io", "https://nominatim.openstreetmap.org", "https://cloudflareinsights.com",
+    "https://services-eu1.arcgis.com", "https://services.arcgis.com", "https://environment.data.gov.uk", "https://map.bgs.ac.uk"].concat((env.CSP_CONNECT || "").split(/\s+/).filter(Boolean));
   return ["default-src 'self'", "script-src 'self' https://static.cloudflareinsights.com", "style-src 'self' 'unsafe-inline'", "img-src " + img.join(" "),
     "connect-src " + connect.join(" "), "font-src 'self'", "worker-src 'none'", "object-src 'none'", "base-uri 'none'",
     "form-action 'self'", "frame-ancestors 'none'", "upgrade-insecure-requests"].join("; ");
@@ -39,6 +40,42 @@ function secure(h, env, isPrivate) {
 }
 const plain = (env, isPrivate, body, status, extra = {}) =>
   new Response(body, { status, headers: secure(new Headers({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", ...extra }), env, isPrivate) });
+const json = (env, isPrivate, body, status) =>
+  new Response(JSON.stringify(body), { status, headers: secure(new Headers({ "Content-Type": "application/json", "Cache-Control": "private, max-age=300" }), env, isPrivate) });
+
+// Nearby Geograph photos. The key is the Worker secret GEOGRAPH_KEY, never sent to the browser.
+// Geograph's syndicator is for on-demand lookups of a few images, with photographer credit and a link back. Creative Commons.
+async function geographNearby(env, url) {
+  const key = env.GEOGRAPH_KEY;
+  if (!key) return { photos: [], reason: "nokey" };
+  const lat = Number(url.searchParams.get("lat")), lng = Number(url.searchParams.get("lng"));
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  const q = new URL("https://api.geograph.org.uk/syndicator.php");
+  q.searchParams.set("key", key);
+  q.searchParams.set("format", "JSON");
+  q.searchParams.set("location", lat.toFixed(5) + "," + lng.toFixed(5));
+  q.searchParams.set("distance", "1");
+  q.searchParams.set("perpage", "6");
+  let upstream;
+  try { upstream = await fetch(q, { headers: { "Accept": "application/json", "User-Agent": "lidar-lens nearby-photos" } }); }
+  catch (e) { return { photos: [], reason: "upstream" }; }
+  if (!upstream.ok) return { photos: [], reason: "upstream" };
+  let body; try { body = await upstream.json(); } catch (e) { return { photos: [], reason: "upstream" }; }
+  const raw = body.items || body.item || (body.channel && (body.channel.item || body.channel.items)) || (Array.isArray(body) ? body : []);
+  const list = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+  const photos = [];
+  for (const it of list) {
+    if (!it || typeof it !== "object") continue;
+    const link = String(it.link || it.url || "");
+    const id = String(it.id || "").match(/(\d+)\s*$/);
+    const page = /^https:\/\/www\.geograph\.org\.uk\/photo\/\d+/i.test(link) ? link.split("?")[0] : (id ? "https://www.geograph.org.uk/photo/" + id[1] : "");
+    const thumb = String(it.thumbURL || it.thumb || it.thumbnail || "");
+    if (!page || !/^https:\/\/([a-z0-9-]+\.)?geograph\.org\.uk\//i.test(thumb)) continue;
+    photos.push({ title: String(it.title || "").slice(0, 140), page, thumb, author: String(it.author || it.credit || "photographer").slice(0, 80) });
+    if (photos.length === 6) break;
+  }
+  return { photos };
+}
 
 
 // ---- HER point lookup (links only) ----
@@ -88,6 +125,15 @@ export default {
       const ip = request.headers.get("CF-Connecting-IP") || "anon";
       const { success } = await env.RATE_LIMITER.limit({ key: ip });
       if (!success) return plain(env, isPrivate, "Too many requests, please slow down", 429, { "Retry-After": "60" });
+    }
+    if (url.pathname === "/api/geograph") {
+      const ip = request.headers.get("CF-Connecting-IP") || "anon";
+      if (!localLimit(ip, 20)) return json(env, isPrivate, { photos: [], reason: "busy" }, 429);
+      const sameOrigin = !request.headers.get("Origin") || request.headers.get("Origin") === url.origin;
+      if (!sameOrigin) return plain(env, isPrivate, "Forbidden", 403);
+      const out = await geographNearby(env, url);
+      if (out === null) return plain(env, isPrivate, "Bad point", 400);
+      return json(env, isPrivate, out, 200);
     }
     if (url.pathname === "/api/her") {
       if (env.HER_API !== "1") return plain(env, isPrivate, "Not found", 404);

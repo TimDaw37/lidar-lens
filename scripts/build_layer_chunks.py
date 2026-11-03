@@ -20,22 +20,38 @@ cells=[(cx,cy) for cx in range(int(X0//CELL),int(X1//CELL)+1) for cy in range(in
 cboxes=np.array([box(cx*CELL-BUF,cy*CELL-BUF,(cx+1)*CELL+BUF,(cy+1)*CELL+BUF) for cx,cy in cells]);tree=shapely.STRtree(cboxes)
 print('cells',len(cells),flush=True)
 areabuf=area.buffer(BUF)
-def r(v): return round(v*2)/2
-def ring(cs): return [[r(c[0]),r(c[1])] for c in cs]
+def flat_delta(cs, close):
+    pts=[(int(round(c[0])),int(round(c[1]))) for c in cs]
+    if len(pts)>1 and pts[0]==pts[-1]: pts=pts[:-1]
+    if len(pts)<(3 if close else 2): return []
+    out=[pts[0][0],pts[0][1]];x,y=pts[0]
+    for px,py in pts[1:]:
+        out.append(px-x);out.append(py-y);x,y=px,py
+    return out
 def enc(g):
+    """Compact geometry: integer metres, delta-encoded. Tags p/l/a. The viewer still reads the older P/L/A arrays."""
     if g is None or g.is_empty: return None
     t=g.geom_type
-    if t=='Point': return ['P',[r(g.x),r(g.y)]]
-    if t=='MultiPoint': return ['P',[r(g.geoms[0].x),r(g.geoms[0].y)]]
-    if t in('LineString','LinearRing'): return ['L',[ring(g.coords)]] if len(g.coords)>1 else None
-    if t=='MultiLineString': return ['L',[ring(l.coords) for l in g.geoms if len(l.coords)>1]]
-    if t=='Polygon': return ['A',[[ring(g.exterior.coords)]+[ring(i.coords) for i in g.interiors]]]
-    if t=='MultiPolygon': return ['A',[[ring(p.exterior.coords)]+[ring(i.coords) for i in p.interiors] for p in g.geoms]]
+    if t=='Point': return ['p',int(round(g.x)),int(round(g.y))]
+    if t=='MultiPoint': return ['p',int(round(g.geoms[0].x)),int(round(g.geoms[0].y))]
+    if t in('LineString','LinearRing'):
+        d=flat_delta(g.coords, False); return ['l',d] if d else None
+    if t=='MultiLineString':
+        lines=[flat_delta(l.coords, False) for l in g.geoms]; lines=[d for d in lines if d]
+        return ['l',*lines] if lines else None
+    if t=='Polygon':
+        rings=[flat_delta(g.exterior.coords, True)]+[flat_delta(i.coords, True) for i in g.interiors]
+        rings=[d for d in rings if d]; return ['a',rings] if rings else None
+    if t=='MultiPolygon':
+        polys=[]
+        for p in g.geoms:
+            rings=[flat_delta(p.exterior.coords, True)]+[flat_delta(i.coords, True) for i in p.interiors]
+            rings=[d for d in rings if d]
+            if rings: polys.append(rings)
+        return ['a',*polys] if polys else None
     if t=='GeometryCollection':
         ps=[enc(x) for x in g.geoms];ps=[p for p in ps if p]
-        if not ps: return None
-        k=ps[0][0];same=[p for p in ps if p[0]==k]
-        return [k,sum((p[1] for p in same),[])] if k!='P' else ps[0]
+        return ps[0] if ps else None
     return None
 store={'her':{},'rec':{},'ctx':{}}  # 'her' stays empty unless --include-her
 def add(layer,geoms,props,tol):
@@ -68,10 +84,10 @@ HG='https://historicengland.org.uk/listing/heritage-gateway/results/record/%s/'%
 for f in (sorted(glob.glob(RAW+'/her_*.geojson')) if A.include_her else []):
     g=rd(f);g=g[g.intersects(areabuf)]
     props=[{'s':'HER','id':clean(x.MONUMENT_UID),'n':clean(x.NAME),'t':clean(x.MONUMENT_TYPE).title(),'p':clean(x.PERIOD),'d':clean(x.SUMMARY)[:220],'u':HG+clean(x.MONUMENT_UID) if A.her_guid and A.her_prefix and clean(x.MONUMENT_UID).startswith(A.her_prefix) else ''} for x in g.itertuples()]
-    add('her',g.geometry.values,props,0.5)
+    add('her',g.geometry.values,props,1.0)
 # ---------------- open records ----------------
 g=rd(RAW+'/nhle_sched.geojson');g=g[g.intersects(areabuf)]
-add('rec',g.geometry.values,[{'s':'NHLE','id':str(x.ListEntry),'n':clean(x.Name),'t':'Scheduled monument','p':'','d':'','u':clean(x.hyperlink)} for x in g.itertuples()],0.5)
+add('rec',g.geometry.values,[{'s':'NHLE','id':str(x.ListEntry),'n':clean(x.Name),'t':'Scheduled monument','p':'','d':'','u':clean(x.hyperlink)} for x in g.itertuples()],1.0)
 if os.path.exists(RAW+'/nhle_listed_pts.geojson'):
     g=rd(RAW+'/nhle_listed_pts.geojson');g=g[g.intersects(areabuf)]
     add('rec',g.geometry.values,[{'s':'LB','id':str(x.ListEntry),'n':clean(x.Name),'t':'Listed building, grade '+clean(x.Grade),'p':'','d':'','u':clean(x.hyperlink)} for x in g.itertuples()],0)
@@ -88,13 +104,13 @@ gs=[];ps=[]
 for (uid,lay),grp in a.groupby(['uid','LAYER']):
     m=meta.get(uid,('','','',''));gs.append(shapely.union_all(shapely.make_valid(grp.geometry.values)))
     ps.append({'s':'AIM','id':uid,'n':m[0].split(',')[0] if m[0] else 'AIM feature','t':m[0],'p':m[1],'d':'Mapped '+str(lay).lower()+' ('+m[3]+' NMP project)','u':m[2]})
-add('rec',gs,ps,0.7)
+add('rec',gs,ps,1.0)
 e=rd(RAW+'/aim_extents.geojson');e=e[e.intersects(areabuf)]
 ps=[];
 for x in e.itertuples():
     uid=clean(x.HE_UID);m=meta.get(uid,('','','',''))
     ps.append({'s':'AIM','id':uid,'n':m[0].split(',')[0] if m[0] else 'AIM monument extent','t':m[0],'p':m[1],'d':'Monument extent ('+clean(x.project)+')','u':clean(x.HE_URL1) or m[2]})
-add('rec',e.geometry.values,ps,0.7)
+add('rec',e.geometry.values,ps,1.0)
 # ---------------- OSM (records + context) ----------------
 rows=[json.loads(l) for l in open(RAW+'/osm/osm_whatis.geojsonl')]
 og=gpd.GeoDataFrame([r_['properties'] for r_ in rows],geometry=[shape(r_['geometry']) for r_ in rows],crs=4326).to_crs(27700)
@@ -102,7 +118,7 @@ og=og[og.intersects(areabuf)];print('osm in area',len(og),round(time.time()-t0),
 h=og[og.k=='historic']
 def osmtype(x):
     kind=x.site or x.historic;return (kind.replace('_',' ')+(' ('+x.historic.replace('_',' ')+')' if kind!=x.historic else '')).capitalize()
-add('rec',h.geometry.values,[{'s':'OSM','id':x.id,'n':clean(x.name),'t':osmtype(x),'p':clean(x.period),'d':clean(x.desc),'u':'https://www.openstreetmap.org/'+x.id} for x in h.itertuples()],0.5)
+add('rec',h.geometry.values,[{'s':'OSM','id':x.id,'n':clean(x.name),'t':osmtype(x),'p':clean(x.period),'d':clean(x.desc),'u':'https://www.openstreetmap.org/'+x.id} for x in h.itertuples()],1.0)
 for k in ['track','fieldedge','settled','wood','water','stream','embankment']:
     s=og[og.k==k];add('ctx',s.geometry.values,[k]*len(s),1.0)
 fp=og[og.k=='fieldpoly'];add('ctx',shapely.boundary(fp.geometry.values),['fieldedge']*len(fp),1.0)

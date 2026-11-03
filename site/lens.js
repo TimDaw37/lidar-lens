@@ -3,6 +3,19 @@
 (function(){
 'use strict';
 const LC=window.LENS_CONFIG;if(!LC)throw new Error('config.js missing (window.LENS_CONFIG)');
+// The public Wiltshire worker keeps its own config.js (the county overview at zoom 9, and the long
+// "fetched live" note). Fill the keys that file does not have, so a build that copies it still opens
+// on Great Ridge, offers the Try links, and searches scheduled-monument names. An explicit tries list,
+// a start at zoom 12 or closer, or localSearch:false in config.js is left alone.
+if(/^wiltshire$/i.test(LC.areaName||'')){
+  if(!LC.tries){LC.tries=[
+    {text:'Great Ridge fields',lat:51.1278,lng:-2.1017,z:15},
+    {text:'Avebury',lat:51.4286,lng:-1.8543,z:16},
+    {text:'Stonehenge',lat:51.1789,lng:-1.8262,z:16},
+    {text:'Old Sarum',lat:51.0936,lng:-1.8045,z:16}];
+    if(!LC.start||!(LC.start.zoom>=12))LC.start={lat:51.1278,lng:-2.1017,zoom:15}}
+  if(LC.localSearch==null)LC.localSearch='nhle_places.json'}
+if(typeof LC.linksNote==='string'&&/fetched live|Rest of England/i.test(LC.linksNote))LC.linksNote='Elsewhere:';
 // Live mode (LC.live): tiles and records are made on demand from public sources by live-sw.js (a service worker).
 // On the first visit the worker isn't in control yet, so register it and reload once it is.
 if(LC.live){if(!('serviceWorker' in navigator)){document.addEventListener('DOMContentLoaded',()=>{const m=document.getElementById('msg');if(m){m.textContent='This browser cannot run the live LiDAR (no service workers). Try a current Chrome, Edge, Firefox or Safari.';m.style.display='block'}})}
@@ -11,9 +24,13 @@ if(LC.live){if(!('serviceWorker' in navigator)){document.addEventListener('DOMCo
 const CFG={tiles:LC.tiles.url,minz:LC.tiles.minzoom,maxz:LC.tiles.maxzoom,xo:LC.tiles.crossOrigin||null,bounds:LC.bounds,start:{lat:LC.start.lat,lng:LC.start.lng,z:LC.start.zoom}};
 const $=id=>document.getElementById(id);
 const DEF={mode:0,az:315,el:35,ve:2,rad:10,ramp:'grey',auto:true,ct:1,gm:1,op:1,ls:340,fs:false,sm:false,base:'sat'};
-const MODE_RAMP={0:'grey',1:'grey',2:'greyinv',3:'rdbu',4:'grey',5:'grey',6:'rdbu',7:'rdbu'};
-const MODE_RANGE={0:[0,1],1:[0.2,1],2:[0,35],3:[-0.5,0.5],4:[0.8,1],5:[0,30],6:[-0.5,0.5],7:[-0.5,0.5]};
+const MODE_RAMP={0:'grey',1:'grey',2:'greyinv',3:'rdbu',4:'grey',5:'grey',6:'rdbu',7:'rdbu',8:'grey',9:'grey'};
+const MODE_RANGE={0:[0,1],1:[0.2,1],2:[0,35],3:[-0.5,0.5],4:[0.8,1],5:[0,30],6:[-0.5,0.5],7:[-0.5,0.5],8:[65,90],9:[65,90]};
 const DIVERGING=m=>m===3||m===6||m===7;
+const isLRM=m=>m===3||m===6||m===7;          // local relief, red relief, LRM×hillshade
+const isHeavy=m=>m===4||m===8||m===9;       // sky-view and the two openness modes share the horizon search
+function phoneLike(){return matchMedia('(pointer:coarse)').matches||matchMedia('(max-width:700px)').matches}
+function horizonN(){const p=phoneLike();if(R&&String(R.kind).indexOf('Canvas')===0)return p?{nd:8,ns:6}:{nd:12,ns:10};return p?{nd:8,ns:6}:{nd:16,ns:14}}
 const S=Object.assign({},DEF);
 let lensC=null; // lens centre in container px
 // ---------- hash ----------
@@ -24,6 +41,8 @@ window.addEventListener('hashchange',()=>location.reload());   // a link pasted 
 ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>{if(H0[k]!==undefined&&!isNaN(+H0[k]))S[k]=+H0[k]});
 if(H0.ramp)S.ramp=H0.ramp; else S.ramp=MODE_RAMP[S.mode];
 if(H0.auto!==undefined)S.auto=H0.auto==='1'; if(H0.fs!==undefined)S.fs=H0.fs==='1'; if(H0.sm!==undefined)S.sm=H0.sm==='1'; if(H0.base)S.base=H0.base;
+const manual={}; // per-mode display range when auto contrast is off
+if(H0.mlo!==undefined&&H0.mhi!==undefined&&isFinite(+H0.mlo)&&isFinite(+H0.mhi))manual[S.mode]=[+H0.mlo,+H0.mhi];
 let start=CFG.start; if(H0.c){const p=H0.c.split(',').map(Number); if(p.length===3&&p.every(isFinite))start={lat:p[0],lng:p[1],z:p[2]}}
 // ---------- map ----------
 const map=L.map('map',{zoomControl:false,maxZoom:20,minZoom:LC.minZoom||8,zoomSnap:0.25,wheelPxPerZoomLevel:90}).setView([start.lat,start.lng],start.z);
@@ -50,6 +69,9 @@ if(LC.links&&LC.links.length){const tb=$('titlebox'),sub=tb&&tb.querySelector('.
   if(LC.linksNote){const n=document.createElement('span');n.className='xn';n.textContent=LC.linksNote+' ';d.appendChild(n)}
   LC.links.forEach((l,i)=>{if(i)d.appendChild(document.createTextNode(' · '));const a=document.createElement('a');a.href=l.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent=l.text;d.appendChild(a)});
   if(sub)sub.after(d);else if(tb)tb.querySelector('h1').after(d)}
+if(LC.tries&&LC.tries.length){const tb=$('titlebox'),host=tb&&(tb.querySelector('.xlinks')||tb.querySelector('.sub')||tb.querySelector('h1')),d=document.createElement('div');d.className='tries';
+  d.appendChild(document.createTextNode('Try: '));LC.tries.forEach((t,i)=>{if(i)d.appendChild(document.createTextNode(' · '));const a=document.createElement('a');a.href='#';a.textContent=t.text;a.onclick=e=>{e.preventDefault();map.setView([t.lat,t.lng],t.z||15)};d.appendChild(a)});
+  if(host)host.after(d)}
 document.title=LC.pageTitle||LC.title;{const h=document.querySelector('#titlebox h1'),a=document.querySelector('#titlebox .sub a');if(h)h.textContent=LC.title;if(a&&LC.link){a.textContent=LC.link.text;a.href=LC.link.href}else if(a)a.parentNode.style.display='none'}
 L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
 const whereCtl=L.control({position:'bottomleft'});whereCtl.onAdd=()=>{const d=$('where');L.DomEvent.disableClickPropagation(d);return d};whereCtl.addTo(map);
@@ -69,10 +91,24 @@ function defaultLensC(){const [w,h]=mapSize();const tb0=$('titlebox');
   // phone held sideways: put the lens beside the title box, centred top to bottom
   if(h<=500&&matchMedia('(pointer:coarse)').matches&&tb0){const r=tb0.getBoundingClientRect().right-map.getContainer().getBoundingClientRect().left;return [Math.min(w-S.ls/2-8,Math.max(w*0.5,r+S.ls/2+8)),h/2]}
   if(w>=700)return [w*0.42,h*0.5];
-  // phone: sit the lens just below the title box, not under it, while keeping it clear of the readout at the bottom
-  const tb=$('titlebox'),top=tb?tb.getBoundingClientRect().bottom-map.getContainer().getBoundingClientRect().top+8:60;
-  return [w/2,Math.max(S.ls/2+8,Math.min(h-S.ls/2-56,Math.max(top+S.ls/2,h*0.35)))]}
-function placeLens(){const r=S.ls/2;const [mw,mh]=mapSize();if(!S.fs){const cl=(v,m)=>Math.max(Math.min(r,m/2),Math.min(Math.max(m-r,m/2),v));lensC=[cl(lensC[0],mw),cl(lensC[1],mh)]}lensEl.style.width=lensEl.style.height=S.ls+'px';lensEl.style.left=(lensC[0]-r)+'px';lensEl.style.top=(lensC[1]-r)+'px';lensEl.classList.toggle('fs',S.fs);if(LC.live&&window.__lensMos)scheduleMosaic()}
+  // phone: below the title and the layers button, and above the readout / mode strip
+  const top=topClear();
+  return [w/2,Math.max(S.ls/2+8,Math.min(h-S.ls/2-108,Math.max(top+S.ls/2,h*0.42)))]}
+function topClear(){const mapR=map.getContainer().getBoundingClientRect(),stack=document.querySelector('.leaflet-top.leaflet-left');
+  if(stack)return stack.getBoundingClientRect().bottom-mapR.top+8;return titleClear()}
+function titleClear(){const mapR=map.getContainer().getBoundingClientRect(),tb=$('titlebox');return (tb?tb.getBoundingClientRect().bottom-mapR.top:56)+8}
+function sheetOpen(){return matchMedia('(max-width:700px) and (pointer:coarse)').matches&&$('panel')&&!$('panel').classList.contains('hide')}
+// Phone sheet: the lens sits between the title and the mode strip. It is narrower than the screen, so it clears the layers button by being centred.
+let sheetSaved=null,sheetCap=null;
+function sheetBand(){const mh=mapSize()[1],top=titleClear(),bot=mh*0.5-58;return {top,bot,cap:Math.max(150,Math.min(600,Math.floor(bot-top)-4))}}
+function syncLs(){const e=$('ls');if(e)e.value=S.ls;const v=$('lsv');if(v)v.textContent=S.ls+' px'}
+function placeLens(){const [mw,mh]=mapSize();if(!S.fs){if(sheetOpen()){const b=sheetBand();if(sheetSaved==null)sheetSaved=S.ls;sheetCap=b.cap;if(S.ls>b.cap){S.ls=b.cap;syncLs()}
+    const r=S.ls/2,top=b.top+r,bot=b.bot-r;lensC[0]=Math.max(r,Math.min(mw-r,lensC[0]));lensC[1]=bot>=top?Math.max(top,Math.min(bot,lensC[1])):top}
+  else{if(sheetSaved!=null){if(sheetCap!=null&&S.ls===sheetCap){S.ls=sheetSaved;syncLs()}sheetSaved=sheetCap=null}
+    const r=S.ls/2,cl=(v,m)=>Math.max(Math.min(r,m/2),Math.min(Math.max(m-r,m/2),v));lensC=[cl(lensC[0],mw),cl(lensC[1],mh)];
+    if(matchMedia('(max-width:700px) and (pointer:coarse)').matches){const edge=topClear()+r,low=mh-r-108;if(low>edge)lensC[1]=Math.max(edge,Math.min(low,lensC[1]))}}}
+  const r=S.ls/2;lensEl.style.width=lensEl.style.height=S.ls+'px';lensEl.style.left=(lensC[0]-r)+'px';lensEl.style.top=(lensC[1]-r)+'px';lensEl.classList.toggle('fs',S.fs);if(window.__placeInfoCard)window.__placeInfoCard();if(LC.live&&window.__lensMos)scheduleMosaic()}
+if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches)$('panel').classList.add('hide');
 (function initLens(){const [w,h]=mapSize();
   if(H0.l){const p=H0.l.split(',').map(Number);if(p.length>=2&&p.every(isFinite)){const cp=map.latLngToContainerPoint([p[0],p[1]]);lensC=[cp.x,cp.y]}}
   S.ls=Math.min(S.ls,Math.max(150,Math.min(w,h)-40));if(!lensC||lensC[0]<0||lensC[1]<0||lensC[0]>w||lensC[1]>h)lensC=defaultLensC();placeLens()})();
@@ -82,14 +118,16 @@ function startDrag(e,resize){if(S.fs)return false;e.preventDefault();e.stopPropa
 function moveDrag(e){if(!drag||e.pointerId!==drag.id)return;const rect=map.getContainer().getBoundingClientRect();
   if(drag.resize){const d=Math.hypot(e.clientX-rect.left-lensC[0],e.clientY-rect.top-lensC[1]);S.ls=Math.round(Math.max(150,Math.min(600,d*2)));$('ls').value=S.ls;$('lsv').textContent=S.ls+' px'}
   else{lensC=[Math.max(0,Math.min(rect.width,drag.c[0]+e.clientX-drag.x)),Math.max(0,Math.min(rect.height,drag.c[1]+e.clientY-drag.y))]}
-  placeLens();requestRender(true)}
-function endDrag(e){if(drag&&(!e||e.pointerId===drag.id)){const moved=Math.hypot(e?e.clientX-drag.x:0,e?e.clientY-drag.y:0)>2;drag=null;lensEl.classList.remove('dragging');if(moved)justDragged=Date.now();saveHash()}}
+  bumpShade();placeLens();requestRender(true)}
+function endDrag(e){if(drag&&(!e||e.pointerId===drag.id)){const moved=Math.hypot(e?e.clientX-drag.x:0,e?e.clientY-drag.y:0)>2;drag=null;lensEl.classList.remove('dragging');if(moved)justDragged=Date.now();saveHash();requestRender()}}
 // rim, grip and resize handle are the only parts of the lens that take pointer events
-lensEl.querySelector('svg.rim circle').addEventListener('pointerdown',e=>startDrag(e,false));
+let sunDrag=null;
+function setSunFrom(e){const rect=map.getContainer().getBoundingClientRect();const x=e.clientX-rect.left-lensC[0],y=e.clientY-rect.top-lensC[1];S.az=Math.round((Math.atan2(x,-y)*180/Math.PI+360)%360);bumpShade();syncUI();requestRender()}
+lensEl.querySelector('svg.rim circle').addEventListener('pointerdown',e=>{if(matchMedia('(pointer:coarse)').matches){e.preventDefault();e.stopPropagation();try{e.target.setPointerCapture(e.pointerId)}catch(_){}sunDrag=e.pointerId;setSunFrom(e)}else startDrag(e,false)});
 lensEl.querySelector('.g').addEventListener('pointerdown',e=>startDrag(e,false));
 lensEl.querySelector('.h').addEventListener('pointerdown',e=>startDrag(e,true));
-['pointermove'].forEach(t=>document.addEventListener(t,moveDrag,true));
-['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,endDrag,true));
+['pointermove'].forEach(t=>document.addEventListener(t,e=>{if(sunDrag!=null&&e.pointerId===sunDrag){setSunFrom(e);return}moveDrag(e)},true));
+['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,e=>{if(sunDrag!=null&&e.pointerId===sunDrag){sunDrag=null;bumpShade();saveHash();return}endDrag(e)},true));
 function inLens(cx,cy){if(S.fs||!lensC)return false;const r=map.getContainer().getBoundingClientRect();return Math.hypot(cx-r.left-lensC[0],cy-r.top-lensC[1])<=S.ls/2}
 // Shift/Alt + drag inside the lens moves it (desktop); capture phase so Leaflet never sees it
 const mc=map.getContainer();
@@ -106,7 +144,7 @@ function tileRange(z){const p1=map.project(CFG.bounds[1],z),p0=map.project(CFG.b
 function getTile(z,x,y,cb){if(SW_WAIT)return null;const k=z+'/'+x+'/'+y;let t=tileCache.get(k);
   if(t){if(t.ok)return t.img; if(!t.failed&&cb)t.cbs.push(cb); return null}
   const img=new Image();if(CFG.xo)img.crossOrigin=CFG.xo;t={img,ok:false,failed:false,cbs:cb?[cb]:[]};tileCache.set(k,t);img.decoding='async';
-  img.onload=()=>{t.ok=true;t.cbs.forEach(f=>f());t.cbs=[]};img.onerror=()=>{t.failed=true;const c=t.cbs;t.cbs=[];c.forEach(f=>f())};   // a failed tile also triggers a rebuild, so the loading count clears
+  img.onload=()=>{t.ok=true;t.cbs.forEach(f=>f());t.cbs=[];pokeLens()};img.onerror=()=>{t.failed=true;const c=t.cbs;t.cbs=[];c.forEach(f=>f());pokeLens()};   // a failed tile also triggers a rebuild, so the loading count clears
   img.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y);return null}
 // ---------- mosaic state ----------
 let MZ=null; // {zt,x0,y0,nx,ny,w,h,key}
@@ -121,11 +159,25 @@ function wantMosaic(){const z=map.getZoom();const zt=Math.max(CFG.minz,Math.min(
 function view(){const z=map.getZoom();const sc=Math.pow(2,z-MZ.zt);const tl=map.containerPointToLayerPoint([0,0]).add(map.getPixelOrigin());
   const lat=map.getCenter().lat;return {sc,tl:[tl.x,tl.y],org:[MZ.x0*256,MZ.y0*256],mpp:156543.03392*Math.cos(lat*Math.PI/180)/Math.pow(2,MZ.zt)}}
 // ---------- colour ramps ----------
-const RAMPS={grey:['#000000','#ffffff'],greyinv:['#ffffff','#000000'],viridis:['#440154','#414487','#2a788e','#22a884','#7ad151','#fde725'],
- magma:['#000004','#3b0f70','#8c2981','#de4968','#fe9f6d','#fcfdbf'],rdbu:['#2166ac','#67a9cf','#d1e5f0','#f7f7f7','#fddbc7','#ef8a62','#b2182b'],
- terrain:['#1a4d2e','#4f7942','#a3b86c','#e8d8a0','#b08b5a','#7a5c3e','#ffffff'],cividis:['#00224e','#35456c','#666970','#948e77','#c8b866','#fee838']};
-function rampBytes(name){const st=(RAMPS[name]||RAMPS.grey).map(h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16)));const a=new Uint8Array(256*4);
-  for(let i=0;i<256;i++){const t=i/255*(st.length-1),k=Math.min(st.length-2,Math.floor(t)),f=t-k;for(let c=0;c<3;c++)a[i*4+c]=Math.round(st[k][c]*(1-f)+st[k+1][c]*f);a[i*4+3]=255}return a}
+// Stops are interpolated in Oklab so equal steps in the data look even. rdbu is ColorBrewer RdBu (11), pinned so the middle is neutral grey: relief modes map zero there.
+const RAMPS={grey:['#000000','#ffffff'],greyinv:['#ffffff','#000000'],
+ viridis:['#440154','#482878','#3e4989','#31688e','#26828e','#1f9e89','#35b779','#6ece58','#b5de2b','#fde725'],
+ magma:['#000004','#1b1044','#3b0f70','#641a80','#8c2981','#b5367a','#de4968','#f66e5b','#fe9f6d','#fecf92','#fcfdbf'],
+ rdbu:['#053061','#2166ac','#4393c3','#92c5de','#d1e5f0','#f7f7f7','#fddbc7','#f4a582','#d6604d','#b2182b','#67001f'],
+ terrain:['#1a4d2e','#4f7942','#a3b86c','#e8d8a0','#b08b5a','#7a5c3e','#ffffff'],
+ cividis:['#00224e','#0d2e6b','#2a4068','#48546a','#666970','#847f71','#a3976c','#c2b15e','#e1cc4e','#fee838']};
+function s2lin(c){c/=255;return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4)}
+function lin2s(c){c=c<=0.0031308?12.92*c:1.055*Math.pow(Math.max(0,c),1/2.4)-0.055;return Math.round(Math.min(255,Math.max(0,c*255)))}
+function rgbToOklab(r,g,b){const R=s2lin(r),G=s2lin(g),B=s2lin(b);
+  const l=Math.cbrt(0.4122214708*R+0.5363325363*G+0.0514459929*B),m=Math.cbrt(0.2119034982*R+0.6806995451*G+0.1073969566*B),s=Math.cbrt(0.0883024619*R+0.2817188376*G+0.6299787005*B);
+  return [0.2104542553*l+0.7936177850*m-0.0040720468*s,1.9779984951*l-2.4285922050*m+0.4505937099*s,0.0259040371*l+0.7827717662*m-0.8086757660*s]}
+function oklabToRgb(L,a,b){const l=L+0.3963377774*a+0.2158037573*b,m=L-0.1055613458*a-0.0638541728*b,s=L-0.0894841775*a-1.2914855480*b,l3=l*l*l,m3=m*m*m,s3=s*s*s;
+  return [lin2s(4.0767416621*l3-3.3077115913*m3+0.2309699292*s3),lin2s(-1.2684380046*l3+2.6097574011*m3-0.3413193965*s3),lin2s(-0.0041960863*l3-0.7034186147*m3+1.7076147010*s3)]}
+function rampBytes(name){const hex=(RAMPS[name]||RAMPS.grey);const st=hex.map(h=>rgbToOklab(parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)));
+  const mid=name==='rdbu'?[parseInt('f7',16),parseInt('f7',16),parseInt('f7',16)]:null;const a=new Uint8Array(256*4);
+  for(let i=0;i<256;i++){let R,G,B;if(mid&&(i===127||i===128)){R=mid[0];G=mid[1];B=mid[2]}
+    else{const t=i/255*(st.length-1),k=Math.min(st.length-2,Math.floor(t)),f=t-k;const c=oklabToRgb(st[k][0]*(1-f)+st[k+1][0]*f,st[k][1]*(1-f)+st[k+1][1]*f,st[k][2]*(1-f)+st[k+1][2]*f);R=c[0];G=c[1];B=c[2]}
+    a[i*4]=R;a[i*4+1]=G;a[i*4+2]=B;a[i*4+3]=255}return a}
 // ---------- renderer ----------
 let R=null; const forceCPU=/[?&]cpu=1/.test(location.search);
 function msg(t,ms){const m=$('msg');m.textContent=t;m.style.display=t?'block':'none';if(ms)setTimeout(()=>{if(m.textContent===t)m.style.display='none'},ms)}
@@ -142,9 +194,22 @@ float h=c.a<0.5?-9999.0:(round(c.r*255.0)*256.0+round(c.g*255.0)+round(c.b*255.0
   const BLUR=HEAD+`uniform sampler2D H;uniform ivec2 dir;uniform float sig;uniform int rad;void main(){ivec2 p=ivec2(gl_FragCoord.xy);ivec2 sz=textureSize(H,0);
 float s=0.0,w=0.0;for(int k=-rad;k<=rad;k++){ivec2 q=clamp(p+dir*k,ivec2(0),sz-1);float h=texelFetch(H,q,0).r;if(h>-9000.0){float g=exp(-float(k*k)/(2.0*sig*sig));s+=g*h;w+=g;}}
 o=vec4(w>0.0?s/w:-9999.0,0.0,0.0,1.0);}`;
-  const VAL=HEAD+`uniform sampler2D H;uniform sampler2D B;uniform int mode;uniform float mpp,ve,az,el,radpx;
+  const VAL=HEAD+`uniform sampler2D H;uniform sampler2D B;uniform int mode,hnd,hns;uniform float mpp,ve,az,el,radpx;
 ivec2 SZ;float hh(ivec2 q){return texelFetch(H,clamp(q,ivec2(0),SZ-1),0).r;}
 float shade(vec3 n,float a,float e){return max(0.0,dot(n,vec3(sin(a)*cos(e),cos(a)*cos(e),sin(e))));}
+// One horizon search (Zaksek, Ostir, Kokalj 2011; Yokoyama, Shirasawa, Pike 2002). hnd/hns are smaller on a phone.
+float horizon(ivec2 p,float h0){float acc=0.0;float nd=float(max(hnd,1));float ns=float(max(hns,1));
+ for(int k=0;k<16;k++){if(k>=hnd) break;float t=float(k)*6.2831853/nd;vec2 dv=vec2(cos(t),sin(t));
+  float mx=-1.5707963;float mn=1.5707963;bool hit=false;
+  for(int s=1;s<=14;s++){if(s>hns) break;float dist=max(1.0,radpx*pow(float(s)/ns,1.6));
+   ivec2 q=p+ivec2(round(dv*dist));float hq=hh(q);if(hq<-9000.0) continue;
+   float ang=atan((hq-h0)*ve,dist*mpp);mx=max(mx,ang);mn=min(mn,ang);hit=true;}
+  if(!hit){mx=0.0;mn=0.0;}
+  if(mode==4) acc+=sin(max(mx,0.0));
+  else if(mode==8) acc+=1.5707963-mx;
+  else acc+=1.5707963+mn;}
+ if(mode==4) return 1.0-acc/nd;
+ return degrees(acc/nd);}
 void main(){SZ=textureSize(H,0);ivec2 p=ivec2(gl_FragCoord.xy);
 float a=hh(p+ivec2(-1,-1)),b=hh(p+ivec2(0,-1)),c=hh(p+ivec2(1,-1)),d=hh(p+ivec2(-1,0)),h0=hh(p),f=hh(p+ivec2(1,0)),g=hh(p+ivec2(-1,1)),h=hh(p+ivec2(0,1)),i=hh(p+ivec2(1,1));
 if(min(min(min(a,b),min(c,d)),min(min(h0,f),min(min(g,h),i)))<-9000.0){o=vec4(0.0);return;}
@@ -155,12 +220,14 @@ float mh=0.0;for(int k=0;k<8;k++){mh+=shade(n,A+float(k)*0.785398,E);}mh/=8.0;
 float r=0.0,G=slope,Bc=hs;
 if(mode==0)r=hs;else if(mode==1){r=mh;Bc=mh;}else if(mode==2)r=slope;
 else if(mode==3||mode==6||mode==7){float bl=texelFetch(B,p,0).r;r=bl>-9000.0?h0-bl:0.0;Bc=mh;}
-else if(mode==4){float sv=0.0;const int ND=16;const int NS=14;for(int k=0;k<ND;k++){float t=float(k)*6.2831853/float(ND);vec2 dv=vec2(cos(t),sin(t));float mx=0.0;
- for(int s=1;s<=NS;s++){float dist=max(1.0,radpx*pow(float(s)/float(NS),1.6));ivec2 q=p+ivec2(round(dv*dist));float hq=hh(q);if(hq<-9000.0)continue;
- mx=max(mx,atan((hq-h0)*ve,dist*mpp));}sv+=sin(mx);}r=1.0-sv/float(ND);}
+else if(mode==4||mode==8||mode==9) r=horizon(p,h0);
 else if(mode==5){r=mod(degrees(atan(-gx,-gn))+360.0,360.0);Bc=mh;}
 o=vec4(r,G,Bc,1.0);}`;
-  const FIN=HEAD+`uniform sampler2D V;uniform sampler2D RP;uniform vec2 tl,org,lc;uniform float sc,dpr,ch,lr,lo,hi,gm,op;uniform int fs,mode;
+  const SAMP=HEAD+`uniform sampler2D V;uniform vec2 b0,bs,lc;uniform int mode,fs,n;uniform float rad;
+void main(){vec2 mp=b0+(gl_FragCoord.xy/float(max(n,1)))*bs;if(fs==0&&distance(mp,lc)>rad){o=vec4(0.0);return;}
+ivec2 sz=textureSize(V,0);ivec2 ip=ivec2(floor(mp));if(ip.x<0||ip.y<0||ip.x>=sz.x||ip.y>=sz.y){o=vec4(0.0);return;}
+vec4 v=texelFetch(V,ip,0);if(v.a<0.5){o=vec4(0.0);return;}o=vec4(mode==5?v.g:v.r,0.0,0.0,1.0);}`;
+  const FIN=HEAD+`uniform sampler2D V;uniform sampler2D RP;uniform vec2 tl,org,lc;uniform float sc,dpr,ch,lr,lo,hi,gm,op;uniform int fs,mode,dvg;
 vec3 hsv(float h,float s,float v){vec3 k=mod(vec3(5.0,3.0,1.0)+h*6.0,6.0);return v-v*s*clamp(min(k,4.0-k),0.0,1.0);}
 void main(){vec2 css=vec2(gl_FragCoord.x,ch-gl_FragCoord.y)/dpr;float ea=1.0;
 if(fs==0){float dd=distance(css,lc);if(dd>lr)discard;ea=clamp((lr-dd)/1.5,0.0,1.0);}
@@ -168,7 +235,8 @@ vec2 m=(tl+css)/sc-org-0.5;ivec2 sz=textureSize(V,0);ivec2 i0=ivec2(floor(m));ve
 vec4 v00=texelFetch(V,clamp(i0,ivec2(0),sz-1),0),v10=texelFetch(V,clamp(i0+ivec2(1,0),ivec2(0),sz-1),0),v01=texelFetch(V,clamp(i0+ivec2(0,1),ivec2(0),sz-1),0),v11=texelFetch(V,clamp(i0+ivec2(1,1),ivec2(0),sz-1),0);
 vec4 v;if(v00.a*v10.a*v01.a*v11.a>0.5){v=mix(mix(v00,v10,fr.x),mix(v01,v11,fr.x),fr.y);if(mode==5){vec4 vn=fr.x<0.5?(fr.y<0.5?v00:v01):(fr.y<0.5?v10:v11);v.r=vn.r;}}
 else{v=fr.x<0.5?(fr.y<0.5?v00:v01):(fr.y<0.5?v10:v11);if(v.a<0.5)discard;}
-float sv=mode==5?v.g:v.r;float t=clamp((sv-lo)/max(hi-lo,1e-6),0.0,1.0);t=pow(t,gm);vec3 col;
+float sv=mode==5?v.g:v.r;float t;if(dvg==1){float posv=max(hi,1e-6);float negv=min(lo,-1e-6);
+ t=sv>=0.0?0.5+0.5*clamp(sv/posv,0.0,1.0):0.5-0.5*clamp(sv/negv,0.0,1.0);}else t=clamp((sv-lo)/max(hi-lo,1e-6),0.0,1.0);t=pow(clamp(t,0.0,1.0),gm);vec3 col;
 if(mode==5){col=hsv(v.r/360.0,t,0.35+0.65*v.b);}
 else if(mode==6){float s=clamp(v.g/40.0,0.0,1.0);col=vec3(t,t*(1.0-0.8*s),t*(1.0-0.95*s));}
 else{col=texture(RP,vec2(t*0.996+0.002,0.5)).rgb;if(mode==7)col*=0.3+0.7*v.b;}
@@ -177,7 +245,7 @@ o=vec4(col,op*ea);}`;
   const vs=sh(gl.VERTEX_SHADER,VS);
   function prog(fs){const p=gl.createProgram();gl.attachShader(p,vs);gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
     const u={};const n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let k=0;k<n;k++){const a=gl.getActiveUniform(p,k);u[a.name]=gl.getUniformLocation(p,a.name)}return {p,u}}
-  const P={dec:prog(DEC),blur:prog(BLUR),val:prog(VAL),fin:prog(FIN)};
+  const P={dec:prog(DEC),blur:prog(BLUR),val:prog(VAL),fin:prog(FIN),samp:prog(SAMP)};
   gl.bindVertexArray(gl.createVertexArray());
   function tex(w,h,fmt,data){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);
     if(fmt==='rgba8')gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,data||null);
@@ -186,7 +254,7 @@ o=vec4(col,op*ea);}`;
     const f=fmt==='ramp'?gl.LINEAR:gl.NEAREST;gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,f);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,f);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t}
   function fbo(t){const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);return f}
-  let T={},rampTex=null,rampName=null,blurKey=null,haveBlur=false;
+  let T={},rampTex=null,rampName=null,blurKey=null,haveBlur=false,sampTex=null,sampFb=null,sampN=0;
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,gl.NONE);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
   function allocate(w,h){for(const k in T){if(T[k].tex)gl.deleteTexture(T[k].tex);if(T[k].fb)gl.deleteFramebuffer(T[k].fb)}
     T={rgb:{tex:tex(w,h,'rgba8')}};['H','B1','B2'].forEach(k=>{const t=tex(w,h,'r32f');T[k]={tex:t,fb:fbo(t)}});const t=tex(w,h,'rgba32f');T.V={tex:t,fb:fbo(t)};blurKey=null}
@@ -199,20 +267,25 @@ o=vec4(col,op*ea);}`;
     putTile(img,x,y){gl.bindTexture(gl.TEXTURE_2D,T.rgb.tex);gl.texSubImage2D(gl.TEXTURE_2D,0,x,y,gl.RGBA,gl.UNSIGNED_BYTE,img)},
     decode(mz){bindT(0,T.rgb.tex,P.dec,'T');quad(P.dec,T.H.fb,mz.w,mz.h);blurKey=null},
     compute(mz,vw,box){const sig=Math.max(0.6,S.rad/vw.mpp),key=sig.toFixed(3);
-      if(S.mode===3||S.mode>=6){if(blurKey!==key){const rad=Math.min(200,Math.ceil(sig*3));gl.useProgram(P.blur.p);gl.uniform1f(P.blur.u.sig,sig);gl.uniform1i(P.blur.u.rad,rad);
+      if(isLRM(S.mode)){if(blurKey!==key){const rad=Math.min(200,Math.ceil(sig*3));gl.useProgram(P.blur.p);gl.uniform1f(P.blur.u.sig,sig);gl.uniform1i(P.blur.u.rad,rad);
         gl.uniform2i(P.blur.u.dir,1,0);bindT(0,T.H.tex,P.blur,'H');quad(P.blur,T.B1.fb,mz.w,mz.h);
         gl.useProgram(P.blur.p);gl.uniform2i(P.blur.u.dir,0,1);bindT(0,T.B1.tex,P.blur,'H');quad(P.blur,T.B2.fb,mz.w,mz.h);blurKey=key}}
       const p=P.val;gl.useProgram(p.p);bindT(0,T.H.tex,p,'H');bindT(1,T.B2.tex,p,'B');gl.uniform1i(p.u.mode,S.mode);gl.uniform1f(p.u.mpp,vw.mpp);gl.uniform1f(p.u.ve,S.ve);
       gl.uniform1f(p.u.az,S.az);gl.uniform1f(p.u.el,S.el);gl.uniform1f(p.u.radpx,Math.max(2,Math.min(120,S.rad/vw.mpp)));
+      const hn=horizonN();gl.uniform1i(p.u.hnd,hn.nd);gl.uniform1i(p.u.hns,hn.ns);
       gl.bindFramebuffer(gl.FRAMEBUFFER,T.V.fb);gl.disable(gl.SCISSOR_TEST);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
       quad(p,T.V.fb,mz.w,mz.h,[box.x,box.y,box.w,box.h])},
     readBox(box){gl.bindFramebuffer(gl.FRAMEBUFFER,T.V.fb);const a=new Float32Array(box.w*box.h*4);gl.readPixels(box.x,box.y,box.w,box.h,gl.RGBA,gl.FLOAT,a);return a},
+    sample(box,n,cx,cy,rad){if(sampN!==n){if(sampTex){gl.deleteTexture(sampTex);gl.deleteFramebuffer(sampFb)}sampTex=tex(n,n,'rgba32f');sampFb=fbo(sampTex);sampN=n}
+      const p=P.samp;gl.useProgram(p.p);bindT(0,T.V.tex,p,'V');gl.uniform2f(p.u.b0,box.x,box.y);gl.uniform2f(p.u.bs,box.w,box.h);gl.uniform2f(p.u.lc,cx,cy);
+      gl.uniform1i(p.u.mode,S.mode);gl.uniform1i(p.u.fs,S.fs?1:0);gl.uniform1i(p.u.n,n);gl.uniform1f(p.u.rad,rad);quad(p,sampFb,n,n);
+      const a=new Float32Array(n*n*4);gl.bindFramebuffer(gl.FRAMEBUFFER,sampFb);gl.readPixels(0,0,n,n,gl.RGBA,gl.FLOAT,a);return a},
     draw(vw,lo,hi){if(rampName!==S.ramp){if(rampTex)gl.deleteTexture(rampTex);rampTex=tex(256,1,'rgba8',rampBytes(S.ramp));gl.bindTexture(gl.TEXTURE_2D,rampTex);
         gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);rampName=S.ramp}
       const p=P.fin;gl.useProgram(p.p);bindT(0,T.V.tex,p,'V');bindT(1,rampTex,p,'RP');const dpr=cvDpr;
       gl.uniform2f(p.u.tl,vw.tl[0],vw.tl[1]);gl.uniform2f(p.u.org,vw.org[0],vw.org[1]);gl.uniform2f(p.u.lc,lensC[0],lensC[1]);gl.uniform1f(p.u.sc,vw.sc);gl.uniform1f(p.u.dpr,dpr);
       gl.uniform1f(p.u.ch,cv.height);gl.uniform1f(p.u.lr,S.ls/2);gl.uniform1f(p.u.lo,lo);gl.uniform1f(p.u.hi,hi);gl.uniform1f(p.u.gm,S.gm);gl.uniform1f(p.u.op,S.op);
-      gl.uniform1i(p.u.fs,S.fs?1:0);gl.uniform1i(p.u.mode,S.mode);
+      gl.uniform1i(p.u.fs,S.fs?1:0);gl.uniform1i(p.u.mode,S.mode);gl.uniform1i(p.u.dvg,DIVERGING(S.mode)?1:0);
       gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height);gl.disable(gl.SCISSOR_TEST);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.drawArrays(gl.TRIANGLES,0,3)},
     clear(){gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT)}
   }}
@@ -227,22 +300,22 @@ function makeCPU(){const ctx=cv.getContext('2d');const mc=document.createElement
     decode(mz){const d=mx.getImageData(0,0,W,Hgt).data;Hh=new Float32Array(W*Hgt);for(let i=0;i<W*Hgt;i++)Hh[i]=d[i*4+3]<128?-9999:d[i*4]*256+d[i*4+1]+d[i*4+2]/256-32768;blurKey=null},
     compute(mz,vw,bx){box=bx;const w=bx.w,h=bx.h,mpp=vw.mpp,ve=S.ve,A=S.az*Math.PI/180,E=S.el*Math.PI/180;Vv=new Float32Array(w*h*4);
       const hh=(x,y)=>Hh[Math.min(Hgt-1,Math.max(0,y))*W+Math.min(W-1,Math.max(0,x))];
-      let BL=null;if(S.mode===3||S.mode>=6){const sig=Math.max(0.6,S.rad/mpp),m=Math.ceil(sig*3),x0=Math.max(0,bx.x-m),y0=Math.max(0,bx.y-m),x1=Math.min(W,bx.x+w+m),y1=Math.min(Hgt,bx.y+h+m),ww=x1-x0,hw=y1-y0;
+      let BL=null;if(isLRM(S.mode)){const sig=Math.max(0.6,S.rad/mpp),m=Math.ceil(sig*3),x0=Math.max(0,bx.x-m),y0=Math.max(0,bx.y-m),x1=Math.min(W,bx.x+w+m),y1=Math.min(Hgt,bx.y+h+m),ww=x1-x0,hw=y1-y0;
         const sub=new Float32Array(ww*hw);for(let y=0;y<hw;y++)for(let x=0;x<ww;x++)sub[y*ww+x]=Hh[(y+y0)*W+x+x0];const t1=new Float32Array(ww*hw),t2=new Float32Array(ww*hw);blur1(sub,t1,ww,hw,sig,true);blur1(t1,t2,ww,hw,sig,false);BL=(x,y)=>t2[(y-y0)*ww+(x-x0)]}
-      const sh=(nx,ny,nz,a)=>Math.max(0,nx*Math.sin(a)*Math.cos(E)+ny*Math.cos(a)*Math.cos(E)+nz*Math.sin(E));const radpx=Math.max(2,Math.min(120,S.rad/mpp));
+      const sh=(nx,ny,nz,a)=>Math.max(0,nx*Math.sin(a)*Math.cos(E)+ny*Math.cos(a)*Math.cos(E)+nz*Math.sin(E));const radpx=Math.max(2,Math.min(120,S.rad/mpp));const hsamp=horizonN(),ND=hsamp.nd,NS=hsamp.ns;
       for(let j=0;j<h;j++)for(let i=0;i<w;i++){const x=bx.x+i,y=bx.y+j,o=(j*w+i)*4;
         const a=hh(x-1,y-1),b=hh(x,y-1),c=hh(x+1,y-1),d=hh(x-1,y),h0=hh(x,y),f=hh(x+1,y),g=hh(x-1,y+1),hb=hh(x,y+1),ii=hh(x+1,y+1);
         if(Math.min(a,b,c,d,h0,f,g,hb,ii)<-9000)continue;
         const gx=((c+2*f+ii)-(a+2*d+g))/(8*mpp),gn=-((g+2*hb+ii)-(a+2*b+c))/(8*mpp);let nx=-gx*ve,ny=-gn*ve,nz=1;const L=Math.hypot(nx,ny,nz);nx/=L;ny/=L;nz/=L;
         const slope=Math.atan(Math.hypot(gx,gn)*ve)*180/Math.PI,hs=sh(nx,ny,nz,A);let mh=0;for(let k=0;k<8;k++)mh+=sh(nx,ny,nz,A+k*Math.PI/4);mh/=8;
         let r=0,G=slope,B=hs;const m=S.mode;
-        if(m===0)r=hs;else if(m===1){r=mh;B=mh}else if(m===2)r=slope;else if(m===3||m>=6){const bl=BL(x,y);r=bl>-9000?h0-bl:0;B=mh}
-        else if(m===4){let sv=0;for(let k=0;k<12;k++){const t=k*Math.PI/6,dx=Math.cos(t),dy=Math.sin(t);let mxa=0;for(let s=1;s<=10;s++){const dist=Math.max(1,radpx*Math.pow(s/10,1.6));const hq=hh(Math.round(x+dx*dist),Math.round(y+dy*dist));if(hq<-9000)continue;mxa=Math.max(mxa,Math.atan2((hq-h0)*ve,dist*mpp))}sv+=Math.sin(mxa)}r=1-sv/12}
+        if(m===0)r=hs;else if(m===1){r=mh;B=mh}else if(m===2)r=slope;else if(isLRM(m)){const bl=BL(x,y);r=bl>-9000?h0-bl:0;B=mh}
+        else if(m===4||m===8||m===9){let acc=0;for(let k=0;k<ND;k++){const t=k*2*Math.PI/ND,dx=Math.cos(t),dy=Math.sin(t);let mx=-Math.PI/2,mn=Math.PI/2,hit=false;for(let s=1;s<=NS;s++){const dist=Math.max(1,radpx*Math.pow(s/NS,1.6));const hq=hh(Math.round(x+dx*dist),Math.round(y+dy*dist));if(hq<-9000)continue;const ang=Math.atan2((hq-h0)*ve,dist*mpp);if(ang>mx)mx=ang;if(ang<mn)mn=ang;hit=true}if(!hit){mx=0;mn=0}if(m===4)acc+=Math.sin(Math.max(mx,0));else if(m===8)acc+=Math.PI/2-mx;else acc+=Math.PI/2+mn}r=m===4?1-acc/ND:acc/ND*180/Math.PI}
         else if(m===5){r=(Math.atan2(-gx,-gn)*180/Math.PI+360)%360;B=mh}
         Vv[o]=r;Vv[o+1]=G;Vv[o+2]=B;Vv[o+3]=1}},
     readBox(bx){return Vv},
     draw(vw,lo,hi){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);if(!Vv)return;const w=box.w,h=box.h;oc.width=w;oc.height=h;const im=ox.createImageData(w,h),q=im.data,rb=rampBytes(S.ramp);
-      for(let k=0;k<w*h;k++){if(!Vv[k*4+3])continue;const m=S.mode,sv=m===5?Vv[k*4+1]:Vv[k*4];let t=Math.min(1,Math.max(0,(sv-lo)/Math.max(hi-lo,1e-6)));t=Math.pow(t,S.gm);let R,G,B;
+      for(let k=0;k<w*h;k++){if(!Vv[k*4+3])continue;const m=S.mode,sv=m===5?Vv[k*4+1]:Vv[k*4];let t;if(DIVERGING(m)){const pos=Math.max(hi,1e-6),neg=Math.min(lo,-1e-6);t=sv>=0?0.5+0.5*Math.min(1,Math.max(0,sv/pos)):0.5-0.5*Math.min(1,Math.max(0,sv/neg))}else t=Math.min(1,Math.max(0,(sv-lo)/Math.max(hi-lo,1e-6)));t=Math.pow(Math.min(1,Math.max(0,t)),S.gm);let R,G,B;
         if(m===5){const hh=Vv[k*4]/360,v=0.35+0.65*Vv[k*4+2],kk=n=>{const x=(n+hh*6)%6;return v-v*t*Math.max(0,Math.min(1,Math.min(x,4-x)))};R=kk(5)*255;G=kk(3)*255;B=kk(1)*255}
         else if(m===6){const s=Math.min(1,Vv[k*4+1]/40);R=t*255;G=t*(1-0.8*s)*255;B=t*(1-0.95*s)*255}
         else{const ix=Math.round(t*255)*4,f=m===7?0.3+0.7*Vv[k*4+2]:1;R=rb[ix]*f;G=rb[ix+1]*f;B=rb[ix+2]*f}
@@ -253,19 +326,31 @@ function makeCPU(){const ctx=cv.getContext('2d');const mc=document.createElement
 try{if(!forceCPU)R=makeGL()}catch(e){console.error(e);R=null}
 if(!R){try{R=makeCPU();if(!cv.getContext('2d'))throw new Error('no 2d')}catch(e){R=null}
   if(R)msg('This browser has no WebGL2 float support: using the basic (slower) renderer. All modes still work.',6000);
-  else{const nop=()=>{};R={kind:'none',newMosaic:nop,putTile:nop,decode:nop,compute:nop,readBox:()=>null,draw:nop,clear:nop};
+  else{const nop=()=>{};R={kind:'none',newMosaic:nop,putTile:nop,decode:nop,compute:nop,readBox:()=>null,sample:()=>null,draw:nop,clear:nop};
     msg('This browser cannot draw the LiDAR (no WebGL or canvas). The background map, Go to and records still work; try an up-to-date Chrome, Firefox, Safari or Samsung Internet.',0)}}
 window.__lens={layersCtl,renderer:()=>R.kind,stretch:()=>lastStretch,S,map,CFG,LC,msg,lensState:()=>({c:lensC.slice(),ls:S.ls,fs:S.fs})};
 // ---------- render loop ----------
 let cvDpr=1,mosaicReady=false,pending=false,lastStretch=null;
 function resizeCanvas(){cvDpr=Math.min(2,window.devicePixelRatio||1);const [w,h]=mapSize();cv.style.width=w+'px';cv.style.height=h+'px';cv.width=Math.round(w*cvDpr);cv.height=Math.round(h*cvDpr)}
-function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=false;R.clear();return}
-  const need=[];for(let j=0;j<want.ny;j++)for(let i=0;i<want.nx;i++)need.push([want.x0+i,want.y0+j,i*256,j*256]);
-  let missing=0;const imgs=need.map(([x,y,px,py])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||!t.failed)missing++}return im});
-  MZ=want;R.newMosaic(want);need.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});R.decode(want);mosaicReady=true;
-  if(LC.live&&!SW_WAIT&&map.getZoom()>=(LC.live.minzoom||13)-0.25){const failed=need.filter(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);return t&&t.failed}).length;   // (nearly) every tile empty: say why, not a blank lens
-    if(failed&&failed>=need.length*0.75)msg(NO_LIDAR);else if($('msg').textContent===NO_LIDAR)msg('',1)}
-  {const ld=document.getElementById('loading');if(SW_WAIT)missing=need.length;if(ld){ld.hidden=!missing;if(missing)document.getElementById('loadt').textContent='Loading LiDAR… ('+missing+' tiles)'}}requestRender(true)}
+function tileInLens(zt,x,y){if(S.fs||!lensC)return true;const sc=Math.pow(2,map.getZoom()-zt),tl=map.containerPointToLayerPoint([0,0]).add(map.getPixelOrigin()),r=S.ls/2+48;
+  const x0=(x*256-tl.x)*sc,x1=((x+1)*256-tl.x)*sc,y0=(y*256-tl.y)*sc,y1=((y+1)*256-tl.y)*sc;
+  const nx=Math.max(x0,Math.min(lensC[0],x1)),ny=Math.max(y0,Math.min(lensC[1],y1));return Math.hypot(nx-lensC[0],ny-lensC[1])<=r}
+let lensWait=null;
+function tileSettled(z,x,y){const t=tileCache.get(z+'/'+x+'/'+y);return !!(t&&(t.ok||t.failed))}
+function pokeLens(){const w=lensWait;if(!w)return;for(const [z,x,y] of w.tiles)if(!tileSettled(z,x,y))return;lensWait=null;w.rest.forEach(([x,y])=>getTile(w.zt,x,y,scheduleMosaic))}
+function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=false;R.clear();lensWait=null;return}
+  const all=[];for(let j=0;j<want.ny;j++)for(let i=0;i<want.nx;i++)all.push([want.x0+i,want.y0+j,i*256,j*256]);
+  const lens=[],rest=[];if(!LC.live&&!S.fs)all.forEach(t=>(tileInLens(want.zt,t[0],t[1])?lens:rest).push(t));else lens.push(...all);
+  const defer=lens.length&&rest.length,use=defer?lens:all;
+  let missing=0;const imgs=use.map(([x,y])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||!t.failed)missing++}return im});
+  if(defer)rest.forEach(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||(!t.ok&&!t.failed))missing++});
+  MZ=want;R.newMosaic(want);use.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});
+  if(defer)rest.forEach(([x,y,px,py])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(t&&t.ok)R.putTile(t.img,px,py)});
+  R.decode(want);mosaicReady=true;
+  if(defer){lensWait={key:want.key,zt:want.zt,tiles:lens.map(([x,y])=>[want.zt,x,y]),rest};pokeLens()}else lensWait=null;
+  if(LC.live&&!SW_WAIT&&map.getZoom()>=(LC.live.minzoom||13)-0.25){const failed=all.filter(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);return t&&t.failed}).length;   // (nearly) every tile empty: say why, not a blank lens
+    if(failed&&failed>=all.length*0.75)msg(NO_LIDAR);else if($('msg').textContent===NO_LIDAR)msg('',1)}
+  {const ld=document.getElementById('loading');if(SW_WAIT)missing=all.length;if(ld){ld.hidden=!missing;if(missing)document.getElementById('loadt').textContent='Loading LiDAR… ('+missing+' tiles)'}}requestRender(true)}
 // tiles arrive in bursts: coalesce rebuilds (each one re-decodes the whole mosaic)
 let mosT=null,mosFirst=0;function scheduleMosaic(){clearTimeout(mosT);const now=performance.now();if(!mosFirst)mosFirst=now;
   mosT=setTimeout(()=>{mosFirst=0;buildMosaic()},now-mosFirst>600?0:150)}
@@ -273,17 +358,36 @@ window.__lensMos=true;   // from here on, moving or resizing the lens may rebuil
 function lensBox(vw){if(S.fs)return {x:0,y:0,w:MZ.w,h:MZ.h};const r=S.ls/2,m=3;
   const x0=Math.floor((vw.tl[0]+lensC[0]-r)/vw.sc-vw.org[0])-m,y0=Math.floor((vw.tl[1]+lensC[1]-r)/vw.sc-vw.org[1])-m,x1=Math.ceil((vw.tl[0]+lensC[0]+r)/vw.sc-vw.org[0])+m,y1=Math.ceil((vw.tl[1]+lensC[1]+r)/vw.sc-vw.org[1])+m;
   const X0=Math.max(0,x0),Y0=Math.max(0,y0),X1=Math.min(MZ.w,x1),Y1=Math.min(MZ.h,y1);return {x:X0,y:Y0,w:Math.max(1,X1-X0),h:Math.max(1,Y1-Y0)}}
-function stretch(vw,box){const base=MODE_RANGE[S.mode];let lo=base[0],hi=base[1];
-  if(S.auto){const a=R.readBox(box),ch=S.mode===5?1:0,vals=[];const r=S.ls/2/vw.sc,cx=(vw.tl[0]+lensC[0])/vw.sc-vw.org[0],cy=(vw.tl[1]+lensC[1])/vw.sc-vw.org[1];
-    const step=Math.max(1,Math.floor(Math.sqrt(box.w*box.h/40000)));
-    for(let j=0;j<box.h;j+=step)for(let i=0;i<box.w;i+=step){const k=(j*box.w+i)*4;if(a[k+3]<0.5)continue;if(!S.fs&&Math.hypot(box.x+i+0.5-cx,box.y+j+0.5-cy)>r)continue;vals.push(a[k+ch])}
-    if(vals.length>20){vals.sort((x,y)=>x-y);const q=p=>vals[Math.min(vals.length-1,Math.floor(p*vals.length))];lo=q(0.02);hi=q(0.98);
-      if(DIVERGING(S.mode)){const m=Math.max(Math.abs(lo),Math.abs(hi),1e-3);lo=-m;hi=m}if(hi-lo<1e-6)hi=lo+1e-3}}
-  const c=(lo+hi)/2,hw=(hi-lo)/2/S.ct;lastStretch=[c-hw,c+hw];return lastStretch}
-function render(){pending=false;if(R.kind==='none')return;if(!mosaicReady||!MZ){R.clear();return}const vw=view();const box=lensBox(vw);R.compute(MZ,vw,box);const [lo,hi]=stretch(vw,box);R.draw(vw,lo,hi);
-  $('about').dataset.range=lo.toFixed(3)+' … '+hi.toFixed(3)}
+function fmtN(v){const a=Math.abs(v);return (a>=100?v.toFixed(1):a>=1?v.toFixed(2):v.toFixed(3))}
+// 2nd/98th percentile via a 512-bin histogram. No sort, and the step is ceil so a ~300 px lens is not scanned pixel by pixel.
+function histPct(n,visit){if(n<21)return null;let lo=Infinity,hi=-Infinity;visit(v=>{if(v<lo)lo=v;if(v>hi)hi=v});if(!(hi>lo))return [lo,lo+1e-3];
+  const bins=new Uint32Array(512),sc=511/(hi-lo);visit(v=>{bins[Math.min(511,((v-lo)*sc)|0)]++});
+  const at=target=>{let c=0;for(let i=0;i<512;i++){const next=c+bins[i];if(next>target){const f=bins[i]?(target-c)/bins[i]:0;return lo+(i+f)*(hi-lo)/511}c=next}return hi};
+  return [at(0.02*(n-1)),at(0.98*(n-1))]}
+let shadeBusy=false,shadeT=null;
+function bumpShade(){shadeBusy=true;clearTimeout(shadeT);shadeT=setTimeout(()=>{shadeBusy=false;requestRender()},150)}
+function stretch(vw,box){const base=MODE_RANGE[S.mode]||[0,1];let lo,hi;
+  if(!S.auto){const m=manual[S.mode]||base;lo=m[0];hi=m[1];if(!(hi>lo))hi=lo+1e-3;lastStretch=[lo,hi];return lastStretch}
+  if(shadeBusy&&lastStretch)return lastStretch; // lens drag and sun turn: keep the last range, no readback
+  const nSamp=phoneLike()?40:56;const cx=(vw.tl[0]+lensC[0])/vw.sc-vw.org[0],cy=(vw.tl[1]+lensC[1])/vw.sc-vw.org[1],rad=S.ls/2/vw.sc;
+  let pr=null;
+  if(R.sample){const a=R.sample(box,nSamp,cx,cy,rad);if(a){let n=0;for(let i=3;i<a.length;i+=4)if(a[i]>0.5)n++;pr=histPct(n,fn=>{for(let i=0;i<a.length;i+=4)if(a[i+3]>0.5)fn(a[i])})}}
+  else if(R.readBox){const a=R.readBox(box);if(a){const ch=S.mode===5?1:0,step=Math.max(1,Math.ceil(Math.sqrt(box.w*box.h/40000)));const ix=[];
+    for(let j=0;j<box.h;j+=step)for(let i=0;i<box.w;i+=step){const k=(j*box.w+i)*4;if(a[k+3]<0.5)continue;if(!S.fs&&Math.hypot(box.x+i+0.5-cx,box.y+j+0.5-cy)>rad)continue;ix.push(k+ch)}
+    pr=histPct(ix.length,fn=>{for(const k of ix)fn(a[k])})}}
+  if(pr){lo=pr[0];hi=pr[1];if(DIVERGING(S.mode)){const m=Math.max(Math.abs(lo),Math.abs(hi),1e-3);lo=-m;hi=m}if(!(hi>lo))hi=lo+1e-3}
+  else{lo=base[0];hi=base[1]}
+  const c=(lo+hi)/2,hw=(hi-lo)/2/Math.max(S.ct,0.05);lastStretch=[c-hw,c+hw];return lastStretch}
+let viewBusy=false,busyT=null,computedMode=null,lastLo=null,lastHi=null;
+function render(){pending=false;if(R.kind==='none')return;if(!mosaicReady||!MZ){R.clear();return}const vw=view();const box=lensBox(vw);
+  const defer=isHeavy(S.mode)&&(viewBusy||drag)&&computedMode===S.mode&&lastLo!=null;
+  if(!defer){R.compute(MZ,vw,box);const sh=stretch(vw,box);lastLo=sh[0];lastHi=sh[1];computedMode=S.mode}
+  if(lastLo==null)return;R.draw(vw,lastLo,lastHi);
+  $('about').dataset.range=lastLo.toFixed(3)+' … '+lastHi.toFixed(3);
+  const rr=$('rangeread');if(rr)rr.textContent=S.auto?('On screen, 2–98%: '+fmtN(lastLo)+' … '+fmtN(lastHi)):(DIVERGING(S.mode)?'Manual range. Colours still meet at zero.':'Manual range for this view.')}
 function requestRender(){if(!pending){pending=true;requestAnimationFrame(render)}}
-map.on('move',requestRender);map.on('moveend',()=>{scheduleMosaic();saveHash();liveHint()});
+map.on('movestart',()=>{viewBusy=true});
+map.on('move',requestRender);map.on('moveend',()=>{scheduleMosaic();saveHash();liveHint();clearTimeout(busyT);busyT=setTimeout(()=>{viewBusy=false;requestRender()},220)});
 // live mode: below the worker's first zoom the lens is empty, so say why
 map.whenReady(()=>setTimeout(()=>liveHint(),300));
 const NO_LIDAR=LC.noLidarText||'Little or no LiDAR here: the Environment Agency survey covers England only, and stops at the coast.';
@@ -295,31 +399,33 @@ map.on('resize',()=>{resizeCanvas();placeLens();scheduleMosaic()});
 const ctl=[['mode','',v=>+v],['el','°',v=>+v],['ve','x',v=>+v],['rad',' m',v=>+v],['ct','x',v=>+v],['gm','',v=>+v],['op','',v=>+v],['ls',' px',v=>+v]];
 function syncUI(){ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$(k+'v');if(o)o.textContent=(k==='op'?Math.round(S[k]*100)+'%':S[k]+u)});
   $('ramp').value=S.ramp;$('auto').checked=S.auto;$('fs').checked=S.fs;$('sm').checked=S.sm;$('azv').textContent=Math.round(S.az)+'°';drawDial();
-  $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(S.mode===3||S.mode===4||S.mode>=6)?'':'none';
-  $('ramp').disabled=S.mode===5||S.mode===6}
-ctl.forEach(([k,u,f])=>{const e=$(k);e.addEventListener('input',()=>{S[k]=f(e.value);if(k==='mode'){S.ramp=MODE_RAMP[S.mode]}if(k==='ls')placeLens();syncUI();requestRender();saveHashSoon()})});
+  $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))?'':'none';
+  $('ramp').disabled=S.mode===5||S.mode===6;if($('ct'))$('ct').disabled=!S.auto;const man=$('manrange');if(man)man.hidden=!!S.auto;
+  if(!S.auto&&$('rlo')&&document.activeElement!==$('rlo')&&document.activeElement!==$('rhi')){const b=manual[S.mode]||MODE_RANGE[S.mode]||[0,1];$('rlo').value=b[0];$('rhi').value=b[1]}}
+ctl.forEach(([k,u,f])=>{const e=$(k);const on=()=>{S[k]=f(e.value);if(k==='mode'){S.ramp=MODE_RAMP[S.mode]}if(k==='ls')placeLens();syncUI();requestRender();saveHashSoon()};e.addEventListener('input',on);e.addEventListener('change',on)});
 $('ramp').onchange=e=>{S.ramp=e.target.value;requestRender();saveHashSoon()};
-$('auto').onchange=e=>{S.auto=e.target.checked;requestRender();saveHashSoon()};
+$('auto').onchange=e=>{S.auto=e.target.checked;if(!S.auto){const b=lastStretch||MODE_RANGE[S.mode]||[0,1];manual[S.mode]=[b[0],b[1]]}syncUI();requestRender();saveHashSoon()};
+function readManual(){const lo=parseFloat($('rlo').value),hi=parseFloat($('rhi').value);if(!isFinite(lo)||!isFinite(hi)||!(hi>lo))return;manual[S.mode]=[lo,hi];requestRender();saveHashSoon()}
+if($('rlo')){$('rlo').addEventListener('change',readManual);$('rhi').addEventListener('change',readManual)}
 $('fs').onchange=e=>{S.fs=e.target.checked;placeLens();requestRender();saveHashSoon()};
 $('sm').onchange=e=>{S.sm=e.target.checked;setSM(S.sm);saveHashSoon()};
-function resetDefaults(){clearTimeout(hT);const keep={base:S.base,sm:S.sm};Object.assign(S,DEF,keep);S.ramp=MODE_RAMP[S.mode];
+function resetDefaults(){clearTimeout(hT);const keep={base:S.base,sm:S.sm};Object.assign(S,DEF,keep);S.ramp=MODE_RAMP[S.mode];for(const k of Object.keys(manual))delete manual[k];
   const [w,h]=mapSize();S.ls=Math.min(DEF.ls,Math.max(150,Math.min(w,h)-40));lensC=defaultLensC();placeLens();syncUI();requestRender();
   try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}suppressHash=true;setTimeout(()=>{suppressHash=false},400);msg('Settings reset to defaults',1800)}
 $('reset').onclick=resetDefaults;window.__lens.reset=resetDefaults;
-$('toggle').onclick=()=>$('panel').classList.toggle('hide');
-if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches)$('panel').classList.add('hide');
+$('toggle').onclick=()=>{$('panel').classList.toggle('hide');placeLens();requestRender()};
 // sun dial
 const dial=$('dial'),dx=dial.getContext('2d')||new Proxy({},{get:()=>()=>{},set:()=>true});
 function drawDial(){const w=dial.width,c=w/2,r=c-14;dx.clearRect(0,0,w,w);dx.lineWidth=3;dx.strokeStyle='#888';dx.beginPath();dx.arc(c,c,r,0,7);dx.stroke();
   dx.fillStyle='#333';dx.font='bold 20px system-ui';dx.textAlign='center';dx.textBaseline='middle';[['N',0],['E',90],['S',180],['W',270]].forEach(([t,a])=>{const q=a*Math.PI/180;dx.fillText(t,c+Math.sin(q)*(r-20),c-Math.cos(q)*(r-20))});
   const q=S.az*Math.PI/180;dx.strokeStyle='#f59e0b';dx.lineWidth=6;dx.beginPath();dx.moveTo(c,c);dx.lineTo(c+Math.sin(q)*r,c-Math.cos(q)*r);dx.stroke();
   dx.fillStyle='#f59e0b';dx.beginPath();dx.arc(c+Math.sin(q)*r,c-Math.cos(q)*r,11,0,7);dx.fill()}
-let dd=false;const dialSet=e=>{const b=dial.getBoundingClientRect();S.az=Math.round((Math.atan2(e.clientX-b.left-b.width/2,-(e.clientY-b.top-b.height/2))*180/Math.PI+360)%360);syncUI();requestRender();saveHashSoon()};
+let dd=false;const dialSet=e=>{const b=dial.getBoundingClientRect();S.az=Math.round((Math.atan2(e.clientX-b.left-b.width/2,-(e.clientY-b.top-b.height/2))*180/Math.PI+360)%360);bumpShade();syncUI();requestRender();saveHashSoon()};
 dial.addEventListener('pointerdown',e=>{dd=true;dial.setPointerCapture(e.pointerId);dialSet(e)});dial.addEventListener('pointermove',e=>{if(dd)dialSet(e)});dial.addEventListener('pointerup',()=>dd=false);
 // ---------- share hash ----------
 function hashStr(){const c=map.getCenter(),ll=map.containerPointToLatLng(lensC);const p=new URLSearchParams();
   p.set('c',c.lat.toFixed(5)+','+c.lng.toFixed(5)+','+map.getZoom());p.set('l',ll.lat.toFixed(5)+','+ll.lng.toFixed(5));
-  ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>p.set(k,S[k]));p.set('ramp',S.ramp);p.set('auto',S.auto?1:0);p.set('fs',S.fs?1:0);p.set('sm',S.sm?1:0);p.set('base',S.base);if(window.__lensHashExtra)window.__lensHashExtra(p);return p.toString()}
+  ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>p.set(k,S[k]));p.set('ramp',S.ramp);p.set('auto',S.auto?1:0);if(!S.auto&&manual[S.mode]){p.set('mlo',fmtN(manual[S.mode][0]));p.set('mhi',fmtN(manual[S.mode][1]))}p.set('fs',S.fs?1:0);p.set('sm',S.sm?1:0);p.set('base',S.base);if(window.__lensHashExtra)window.__lensHashExtra(p);return p.toString()}
 let suppressHash=false;function saveHash(){if(suppressHash)return;try{history.replaceState(null,'','#'+hashStr())}catch(e){}}
 let hT=null;function saveHashSoon(){clearTimeout(hT);hT=setTimeout(saveHash,300)}
 $('share').onclick=()=>{saveHash();const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>msg(LC.private===true?'Link copied (the site still needs the password)':'Link copied',2500),()=>{prompt('Copy this link:',u)})};
@@ -343,7 +449,7 @@ function updateToolButtons(){const pb=$('profile'),on=tool==='profile';pb.classL
 function clearProfile(hideChart){profPts=[];profMk.forEach(m=>map.removeLayer(m));profMk=[];if(profLine){map.removeLayer(profLine);profLine=null}if(hideChart)$('prof').style.display='none'}
 $('profile').onclick=()=>setTool('profile');
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&tool){if(tool==='profile'&&profPts.length===1){/* cancel the half-drawn line and switch off */}setTool(null)}});
-map.on('click',async e=>{if(tool==='whatis'){toolHooks.whatis.click(e.latlng);return}if(tool!=='profile')return;
+map.on('click',async e=>{if(window.__lensEatClick&&Date.now()<window.__lensEatClick)return;if(tool==='whatis'){toolHooks.whatis.click(e.latlng);return}if(tool!=='profile')return;
   if(profPts.length!==1){clearProfile(false);profPts=[e.latlng];profMk=[L.circleMarker(e.latlng,{radius:5,color:'#f59e0b',weight:3,interactive:false}).addTo(map)];updateToolButtons();return}
   profPts.push(e.latlng);const [a,b]=profPts;profMk.push(L.circleMarker(b,{radius:5,color:'#f59e0b',weight:3,interactive:false}).addTo(map));
   profLine=L.polyline([a,b],{color:'#f59e0b',weight:3,interactive:false}).addTo(map);updateToolButtons();const dist=map.distance(a,b),n=Math.max(2,Math.min(800,Math.round(dist/0.75)));
@@ -359,7 +465,7 @@ function drawProfile(hs,dist){const box=$('prof');box.style.display='block';cons
   g.fillText('Elevation (m OD), relief '+(Math.max(...v)-Math.min(...v)).toFixed(2)+' m over '+dist.toFixed(0)+' m (not exaggerated to scale)',m.l,12)}
 document.querySelector('#prof .x').onclick=()=>{clearProfile(true);if(tool==='profile')setTool(null)};
 // ---------- go ----------
-$('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus Gaussian blur (σ = radius); sky-view factor = 16 directions, horizon search out to the radius; red relief = LRM lightness with slope as red. Auto-stretch uses the 2-98% range inside the lens (symmetric for relief modes).<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
-Object.assign(window.__lens,{H0,saveHashSoon,RAMPS,syncUI,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},tileData,heightAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
+$('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
+Object.assign(window.__lens,{H0,saveHashSoon,RAMPS,syncUI,placeLens,requestRender,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},tileData,heightAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
 resizeCanvas();syncUI();if(S.sm)setSM(true);buildMosaic();
 })();

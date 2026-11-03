@@ -10,6 +10,7 @@
   "ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 1200, "period": 60 } },
                  // only if you enable HER_API (point lookups of HER IDs/links, see PROTOCOL 6b)
                  { "name": "HER_LIMITER", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } }]
+  // Nearby photos: npx wrangler secret put GEOGRAPH_KEY   (Geograph syndicator key; never put it in this file or in the page)
   // Private site:  npx wrangler secret put PASSWORD   (never put it in this file)
   // Public site:   leave PASSWORD unset; optional var PUBLIC_INDEX = "1" to allow search engines
 }

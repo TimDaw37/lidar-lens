@@ -45,7 +45,7 @@ LZ.osgb={ll2en,en2ll,gridRef,parseGridRef};
 // ===================== Go to =====================
 const gores=$('gores');let lastNom=0,gotoMk=null;const geoCache=new Map();
 function showRes(items){gores.innerHTML='';items.forEach(it=>{const d=document.createElement('div');if(it.err){d.className='err';d.textContent=it.err}else{d.textContent=it.label;d.onclick=()=>{goto(it.lat,it.lng,it.z,it.name||it.label);gores.innerHTML=''}}gores.appendChild(d)})}
-function goto(lat,lng,z,label){map.setView([lat,lng],Math.max(map.getZoom(),z||16));if(gotoMk)map.removeLayer(gotoMk);
+function goto(lat,lng,z,label){if(typeof closeCard==='function')closeCard();map.setView([lat,lng],Math.max(map.getZoom(),z||16));if(gotoMk)map.removeLayer(gotoMk);
   gotoMk=L.circleMarker([lat,lng],{radius:7,color:'#2563eb',weight:3,fill:false,interactive:false}).addTo(map);setTimeout(()=>{if(gotoMk){map.removeLayer(gotoMk);gotoMk=null}},8000);
   if(label)msg('Go to: '+label,2500)}
 function parseLatLng(q){const t=q.trim().toUpperCase().replace(/°/g,' ');const m=t.match(/^(-?\d+(?:\.\d+)?)\s*([NS])?\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*([EW])?$/);if(!m)return null;
@@ -66,15 +66,23 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
    const part=hit.length?hit:qq.length>=3?P.filter(f=>{const p=f.properties;return [p.cy,p.en,p.alt].some(v=>v&&nq(v).includes(qq))}):[];
    if(part.length){const items=part.slice(0,8).map(f=>({lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],label:f.properties.n+' · '+(f.properties.te||''),z:f.properties.te==='Settlement'?15:16}));
      if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items);return}}
-  const key=q.toLowerCase();if(geoCache.has(key)){showRes(geoCache.get(key));return}
-  const wait=lastNom+1100-Date.now();if(wait>0){showRes([{err:'Searching…'}]);await new Promise(r=>setTimeout(r,wait))}lastNom=Date.now();showRes([{err:'Searching…'}]);
+  await loadLocalPlaces();const hits=localHits(q);
+  if(hits.length)showRes(hits); // monuments and local names stay on screen while the geocoder answers, and rank above it
+  const key=q.toLowerCase();
+  const join=items=>{const seen=new Set(hits.map(h=>h.label.toLowerCase()));const extra=items.filter(it=>{const k=it.label.toLowerCase();if(seen.has(k))return false;seen.add(k);return true});return hits.concat(extra)};
+  if(geoCache.has(key)){const all=join(geoCache.get(key));if(all.length===1){goto(all[0].lat,all[0].lng,all[0].z,all[0].label);gores.innerHTML=''}else showRes(all);return}
+  const wait=lastNom+1100-Date.now();if(wait>0&&!hits.length){showRes([{err:'Searching…'}]);await new Promise(r=>setTimeout(r,wait))}else if(wait>0)await new Promise(r=>setTimeout(r,wait));
+  lastNom=Date.now();if(!hits.length)showRes([{err:'Searching…'}]);
   try{const u='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes='+((LZ.LC.geocoder||{}).countrycodes||'gb')+'&accept-language=en&viewbox='+encodeURIComponent((LZ.LC.geocoder||{}).viewbox||'')+'&bounded=0&q='+encodeURIComponent(q);
     const r=await fetch(u,{headers:{'Accept':'application/json'}});const j=await r.json();
-    const items=j.map(x=>({lat:+x.lat,lng:+x.lon,label:x.display_name,z:x.type==='house'?18:(x.place_rank>=20?16:13)}));
+    let items=j.map(x=>({lat:+x.lat,lng:+x.lon,label:x.display_name,z:x.type==='house'?18:(x.place_rank>=20?16:13),house:x.category==='building'||x.type==='house'}));
+    items.sort((a,b)=>(a.house===b.house?0:a.house?1:-1));
     // near misses: only when nothing but single buildings matched (e.g. 'Barnstable' finds two houses of that name), ask a fuzzy geocoder
-    if(!j.some(x=>x.category!=='building')){const dm=await nearMiss(q);if(dm.length){const all=dm.concat(items);geoCache.set(key,all);showRes(all);return}}
-    if(!items.length){showRes([{err:'No match (try a grid ref or postcode)'}]);return}geoCache.set(key,items);if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items)}
-  catch(e){showRes([{err:'Place search failed (Nominatim)'}])}}
+    if(!hits.length&&!j.some(x=>x.category!=='building')){const dm=await nearMiss(q);if(dm.length)items=dm.concat(items)}
+    const all=join(items);geoCache.set(key,items);
+    if(!all.length){showRes([{err:'No match (try a grid ref or postcode)'}]);return}
+    if(all.length===1){goto(all[0].lat,all[0].lng,all[0].z,all[0].label);gores.innerHTML=''}else showRes(all)}
+  catch(e){if(hits.length)showRes(hits);else showRes([{err:'Place search failed (Nominatim)'}])}}
 // 'Did you mean': Photon (OpenStreetMap, typo-tolerant) within Great Britain; keep the 1-2 names closest to what was typed
 function lev(a,b){const m=a.length,n=b.length,d=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){let p=d[0];d[0]=i;for(let j=1;j<=n;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[n]}
 async function nearMiss(q){try{const norm=t=>t.toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim(),nq=norm(q);
@@ -84,6 +92,18 @@ async function nearMiss(q){try{const norm=t=>t.toLowerCase().replace(/[^a-z0-9 ]
     .sort((a,b)=>a.d-b.d||a.i-b.i).forEach(x=>{const where=x.p.county||x.p.state||'',k=x.n+'|'+where;if(out.length<2&&!seen.has(k)){seen.add(k);
       out.push({lat:x.c[1],lng:x.c[0],z:['city','town','district','county'].includes(x.p.type)?13:16,name:x.n+(where?', '+where:''),label:'Did you mean '+x.n+(where?' ('+where+')':'')+'?'})}});
   return out}catch(e){return []}}
+let localPlaces=null,localP=null;
+function loadLocalPlaces(){const url=LZ.LC.localSearch;if(!url)return Promise.resolve([]);if(!localP)localP=fetch(url).then(r=>r.ok?r.json():[]).then(a=>{localPlaces=a||[];return localPlaces}).catch(()=>{localPlaces=[];return []});return localP}
+function localHits(q){if(!localPlaces||q.length<2)return [];const n=q.toLowerCase();const scored=[];
+  for(const p of localPlaces){const name=p[0],l=name.toLowerCase();let rank=3;
+    if(l.startsWith(n))rank=0;else if(l.split(/[^a-z0-9]+/).some(w=>w.startsWith(n)))rank=1;else if(l.includes(n))rank=2;else continue;
+    scored.push({p,rank,len:name.length})}
+  scored.sort((a,b)=>a.rank-b.rank||a.len-b.len);
+  return scored.slice(0,8).map(({p})=>({lat:p[1],lng:p[2],z:16,label:p[0]}))}
+let taT=null;
+$('gotoq').addEventListener('focus',()=>loadLocalPlaces());
+$('gotoq').addEventListener('input',()=>{clearTimeout(taT);const q=$('gotoq').value.trim();if(q.length<2){gores.innerHTML='';return}
+  taT=setTimeout(async()=>{await loadLocalPlaces();if($('gotoq').value.trim()!==q)return;const hits=localHits(q);if(hits.length)showRes(hits);else gores.innerHTML=''},120)});
 $('goto').addEventListener('submit',e=>{e.preventDefault();if(matchMedia('(pointer:coarse)').matches)$('gotoq').blur();doGoto($('gotoq').value)});   // touch: drop the on-screen keyboard so the map shows
 LZ.doGoto=doGoto;
 // ===================== Where am I =====================
@@ -158,7 +178,10 @@ async function dataNear(E,N,R){const liveP=nmrwNear(E,N,R);await loadIndex();if(
 function loadData(){return loadIndex()}
 function bboxOf(g){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;const add=p=>{if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1]};
   if(g[0]==='P')add(g[1]);else if(g[0]==='L')g[1].forEach(l=>l.forEach(add));else g[1].forEach(poly=>poly[0].forEach(add));return [x0,y0,x1,y1]}
-function prep(arr){arr.forEach(f=>{f.bb=bboxOf(f.g)});return arr}
+function expandGeom(g){if(!g)return g;const k=g[0];if(k==='P'||k==='L'||k==='A')return g;
+  const ring=(a,close)=>{const o=[];if(!a||a.length<2)return o;let x=a[0],y=a[1];o.push([x,y]);for(let i=2;i+1<a.length;i+=2){x+=a[i];y+=a[i+1];o.push([x,y])}if(close&&o.length>1)o.push([o[0][0],o[0][1]]);return o};
+  if(k==='p')return ['P',[g[1],g[2]]];if(k==='l')return ['L',g.slice(1).map(a=>ring(a,false))];if(k==='a')return ['A',g.slice(1).map(poly=>poly.map(a=>ring(a,true)))];return g}
+function prep(arr){arr.forEach(f=>{if(f.g)f.g=expandGeom(f.g);f.bb=bboxOf(f.g)});return arr}
 function segD(px,py,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy;let t=l?((px-a[0])*dx+(py-a[1])*dy)/l:0;t=Math.max(0,Math.min(1,t));return Math.hypot(px-a[0]-t*dx,py-a[1]-t*dy)}
 function inRing(px,py,r){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],b=r[j];if((a[1]>py)!==(b[1]>py)&&px<(b[0]-a[0])*(py-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
 function geomDist(g,px,py){if(g[0]==='P')return Math.hypot(px-g[1][0],py-g[1][1]);let d=1e9;
@@ -334,10 +357,72 @@ function describe(a){if(a.nodata)return 'No LiDAR data here (outside the tile co
   if(a.regSlope>=3)parts.push('on ground sloping '+a.regSlope.toFixed(0)+'° to the '+compass(a.regAspect));
   return parts.join('; ')+'.'}
 function closeCard(){card.style.display='none';if(wiMk){map.removeLayer(wiMk);wiMk=null}}
+// Look here up: one link to Google AI Mode. Short sentence only (place name and OS grid ref), so Google does not treat it as a suspicious query.
+function plainBit(s,max){s=String(s||'').replace(/[’]/g,"'").replace(/[^A-Za-z0-9 '’-]+/g,' ').replace(/\s+/g,' ').trim();if(s.length>max)s=s.slice(0,max).replace(/\s+\S*$/,'').trim();return s}
+function lookHref(name,gr){let n=plainBit(name,60);if(/^(this spot|this place|this site)$/i.test(n))n='';const g=plainBit(String(gr||'').replace(/\s+/g,' '),18);
+  const q=n&&g?'Archaeology and history of '+n+' near '+g:g?'Archaeology and history near '+g:n?'Archaeology and history of '+n:'Archaeology and history of this place';
+  return 'https://www.google.com/search?udm=50&q='+encodeURIComponent(q)}
+function lookLink(name,gr){return '<a class="lookup" href="'+esc(lookHref(name,gr))+'" target="_blank" rel="noopener noreferrer" title="Look here up">Look here up</a>'}
+// Desktop: card stays top-left, under the title bar, scrolling inside the viewport. It may cover a lens that sits on the left (the card is above the lens). Phone: keep the card in the gap outside the circle.
+function placeCard(){if(card.style.display==='none')return;const phone=matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches;
+  const st=LZ.lensState?LZ.lensState():null;const vw=document.documentElement.clientWidth,vh=document.documentElement.clientHeight,margin=8;
+  card.style.zIndex='2600';card.style.boxSizing='border-box';card.style.overflow='auto';card.style.right='auto';card.style.bottom='auto';
+  if(!phone){const w=Math.min(360,vw-margin*2);let y=margin;const title=document.getElementById('titlebox');
+    if(title){const cs=getComputedStyle(title);if(cs.display!=='none'&&cs.visibility!=='hidden'){const r=title.getBoundingClientRect();if(r.width>2&&r.height>2&&r.left<margin+w)y=Math.max(y,r.bottom+8)}}
+    card.style.width=w+'px';card.style.maxHeight=Math.max(140,vh-margin-y)+'px';card.style.left=margin+'px';card.style.top=y+'px';return}
+  const lc=st&&st.c?st.c:[vw/2,vh/2],rad=st&&!st.fs?st.ls/2+12:0;
+  const blocks=[];['panel','titlebox','toggle'].forEach(id=>{const el=document.getElementById(id);if(!el)return;const cs=getComputedStyle(el);if(cs.display==='none'||cs.visibility==='hidden')return;const r=el.getBoundingClientRect();if(r.width>2&&r.height>2)blocks.push(r)});
+  const leftW=rad?Math.max(0,lc[0]-rad-margin):vw-margin*2,rightW=rad?Math.max(0,vw-(lc[0]+rad)-margin):0;
+  let x,y,w,maxH;const want=Math.min(360,vw-margin*2);
+  if(leftW>=220||rightW>=220){const useLeft=leftW>=rightW;w=Math.min(want,Math.floor(useLeft?leftW:rightW));x=useLeft?margin:vw-margin-w;y=margin;
+    blocks.forEach(b=>{if(x<b.right&&x+w>b.left)y=Math.max(y,b.bottom+8)});maxH=Math.max(140,vh-margin-y)}
+  else{const above=rad?Math.max(0,lc[1]-rad-margin):vh,below=rad?Math.max(0,vh-(lc[1]+rad)-margin):0;w=want;x=Math.max(margin,Math.min(vw-margin-w,(vw-w)/2));
+    if(below>=above){y=rad?lc[1]+rad+8:margin;maxH=Math.max(140,vh-margin-y)}else{maxH=Math.max(140,above-8);y=Math.max(margin,lc[1]-rad-8-maxH)}}
+  card.style.width=w+'px';card.style.maxHeight=maxH+'px';card.style.left=x+'px';card.style.top=y+'px'}
+window.__placeInfoCard=placeCard;
+// Leaflet popups live inside the map, under the lens canvas. Move the popup pane above the lens and keep its map transform.
+(function liftPopups(){const pane=map.getPane('popupPane'),mapPane=map.getPane('mapPane');if(!pane||!mapPane)return;
+  document.body.appendChild(pane);pane.style.zIndex='2500';pane.style.pointerEvents='none';pane.style.position='fixed';pane.style.margin='0';pane.style.width='0';pane.style.height='0';pane.style.overflow='visible';
+  const sync=()=>{const r=map.getContainer().getBoundingClientRect();pane.style.left=r.left+'px';pane.style.top=r.top+'px';pane.style.transform=mapPane.style.transform||'none';pane.style.transformOrigin=mapPane.style.transformOrigin||'0 0'};
+  sync();map.on('move zoom resize moveend zoomend zoomanim',sync);map.on('move zoom',()=>requestAnimationFrame(sync));
+  map.on('popupopen',e=>{const pop=e.popup;if(pop._nudged)return;const pt=map.latLngToContainerPoint(pop.getLatLng()),st=LZ.lensState?LZ.lensState():null;if(!st||st.fs)return;
+    const r=st.ls/2+14,dx=pt.x-st.c[0],dy=pt.y-st.c[1],dist=Math.hypot(dx,dy);if(dist>=r)return;const vw=document.documentElement.clientWidth,vh=document.documentElement.clientHeight;
+    const dirs=[{x:0,y:-1,room:st.c[1]-r},{x:0,y:1,room:vh-(st.c[1]+r)},{x:-1,y:0,room:st.c[0]-r},{x:1,y:0,room:vw-(st.c[0]+r)}];dirs.sort((a,b)=>b.room-a.room);const d=dirs[0],push=r-dist+28;
+    pop._nudged=true;pop.options.offset=L.point(d.x*(160+push),d.y*(70+push));pop.update()})})();
+const photoCache=new Map();
+function loadPhotos(el,lat,lng){if(!el)return;el.replaceChildren();const wait=document.createElement('div');wait.className='m';wait.textContent='Nearby photos…';el.appendChild(wait);
+  const key=lat.toFixed(3)+','+lng.toFixed(3);
+  const show=data=>{if(!el.isConnected)return;el.replaceChildren();
+    if(!data||data.reason==='nokey'||data.reason==='off'){el.textContent='Nearby photos need a Geograph API key on the server (Worker secret GEOGRAPH_KEY).';return}
+    const list=(data.photos||[]).filter(p=>p&&/^https:\/\/www\.geograph\.org\.uk\/photo\/\d+/i.test(p.page||'')&&/^https:\/\/([a-z0-9-]+\.)?geograph\.org\.uk\//i.test(p.thumb||'')).slice(0,6);
+    if(data.reason==='fail'){el.textContent='Nearby photos could not be loaded.';return}
+    if(!list.length){el.textContent='No Geograph photos nearby.';return}
+    const row=document.createElement('div');row.className='geos';
+    list.forEach(p=>{const a=document.createElement('a');a.href=p.page;a.target='_blank';a.rel='noopener noreferrer';
+      const img=document.createElement('img');img.src=p.thumb;img.alt=p.title||'Geograph photo';img.width=84;img.height=84;
+      const who=document.createElement('span');who.className='who';who.textContent=(p.author||'photographer')+' · CC';
+      a.appendChild(img);a.appendChild(who);row.appendChild(a)});
+    el.appendChild(row);const cred=document.createElement('div');cred.className='m';cred.style.fontSize='11px';
+    cred.appendChild(document.createTextNode('Photos © the photographers, Creative Commons, via '));
+    const g=document.createElement('a');g.href='https://www.geograph.org.uk/';g.target='_blank';g.rel='noopener noreferrer';g.textContent='Geograph';
+    cred.appendChild(g);cred.appendChild(document.createTextNode('. Click a photo for the full credit.'));el.appendChild(cred)};
+  if(photoCache.has(key)){show(photoCache.get(key));return}
+  fetch('api/geograph?lat='+encodeURIComponent(lat)+'&lng='+encodeURIComponent(lng)).then(r=>{const ct=r.headers.get('content-type')||'';if(!r.ok||ct.indexOf('json')<0)return {photos:[],reason:r.status===404?'off':'fail'};return r.json()}).catch(()=>({photos:[],reason:'fail'}))
+    .then(data=>{photoCache.set(key,data);show(data)})}
+function openPlace(ll){window.__lensEatClick=Date.now()+700;const [E,N]=ll2en(ll.lat,ll.lng),gr=gridRef(E,N)||'';
+  const html='<b>'+esc(gr||'Outside the OS grid')+'</b><br><small>'+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small><br>'+lookLink('',gr)+'<div class="photostrip"></div>';
+  L.popup({maxWidth:320,className:'placepop'}).setLatLng(ll).setContent(html).openOn(map);
+  setTimeout(()=>{const el=document.querySelector('.leaflet-popup .photostrip');if(el)loadPhotos(el,ll.lat,ll.lng)},0)}
+(function longPress(){let timer=null,xy=null;const box=map.getContainer();
+  const ignore=e=>e.target.closest&&e.target.closest('#lens .g,#lens .h,#lens svg,.leaflet-control,.leaflet-popup,a,button,input,label');
+  box.addEventListener('pointerdown',e=>{if(e.button>0||!e.isPrimary||ignore(e))return;xy=[e.clientX,e.clientY];const ll=map.mouseEventToLatLng(e);clearTimeout(timer);timer=setTimeout(()=>{timer=null;xy=null;openPlace(ll)},560)},true);
+  box.addEventListener('pointermove',e=>{if(!xy)return;if(Math.hypot(e.clientX-xy[0],e.clientY-xy[1])>12){clearTimeout(timer);timer=null;xy=null}},true);
+  const up=()=>{clearTimeout(timer);timer=null;xy=null};box.addEventListener('pointerup',up,true);box.addEventListener('pointercancel',up,true);
+  box.addEventListener('contextmenu',e=>{if(ignore(e))return;e.preventDefault();openPlace(map.mouseEventToLatLng(e))})})();
 const CTX_NAMES={building:'a building',wood:'woodland',water:'mapped water',stream:'a stream/drain',road:'a road',track:'a track/path',fieldedge:'a field edge',settled:'a settlement/farmyard',rail:'railway',embankment:'a mapped embankment'};
 async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L.circleMarker(ll,{radius:6,color:'#facc15',weight:3,fill:false,interactive:false}).addTo(map);
-  const [E,N]=ll2en(ll.lat,ll.lng);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small></div><div class="bd">Looking at the LiDAR and records…</div>';
-  card.querySelector('.x').onclick=closeCard;
+  const [E,N]=ll2en(ll.lat,ll.lng);const gr0=gridRef(E,N);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gr0)+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small><br>'+lookLink('',gr0)+'</div><div class="bd"><div class="photostrip"></div>Looking at the LiDAR and records…</div>';
+  card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);
   const HA=LZ.LC.herApi;const herP=HA?fetch(HA.url+'?e='+Math.round(E)+'&n='+Math.round(N),{credentials:'same-origin'}).then(r=>r.ok?r.json():{r:[],err:r.status}).catch(()=>({r:[],err:1})):Promise.resolve(null);
   LZ.recErr=0;LZ.recMissing=null;const both=Promise.all([dataNear(E,N,180),herP]);const W=await dtmWindow(ll,100);if(seq!==wiSeq)return;
   // records can take seconds (live Historic England queries): show the LiDAR measurements at once, then fill the records in
@@ -358,7 +443,9 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   else recLine=recs.length?'Not recorded at this spot (nearest record '+Math.round(recs[0].d)+' m away)':'Not recorded (nothing within 100 m)';
   const ctxList=Object.entries(ctx).filter(([k,v])=>v.d<=100).sort((x,y)=>x[1].d-y[1].d).slice(0,4).map(([k,v])=>v.d<1?(k==='wood'||k==='settled'||k==='water'?'in '+CTX_NAMES[k]:'on '+CTX_NAMES[k]):Math.round(v.d)+' m from '+CTX_NAMES[k]);
   const confTxt={low:'low confidence',moderate:'moderate confidence',na:''}[cls.conf];
-  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':'')+'</small></div><div class="bd">';
+  const siteName=(atSpot.find(r=>r.f.s!=='OSM'&&r.f.s!=='HER'&&(r.f.n||r.f.t))||atSpot.find(r=>r.f.n||r.f.t)||{f:{}}).f;
+  const placeName=siteName.n||siteName.t||'this spot';
+  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':'')+'</small><br>'+lookLink(placeName,gridRef(E,N))+'</div><div class="bd"><div class="photostrip"></div>';
   // Heritage Gateway retired its Results_Single.aspx pages; go straight to the new search for that HE research record (saves a redirect)
   const hgLink=u=>{const m=/^https?:\/\/(?:www\.)?heritagegateway\.org\.uk\/Gateway\/Results_Single\.aspx\?uid=([^&#]+)&resourceID=19191\b/i.exec(u);return m?'https://historicengland.org.uk/listing/heritage-gateway/results?q='+encodeURIComponent(decodeURIComponent(m[1]))+'&filters%5B0%5D%5Bfield%5D=dataset&filters%5B0%5D%5Bvalues%5D%5B0%5D=Historic%20England%20research%20records&filters%5B1%5D%5Bfield%5D=layoutView&filters%5B1%5D%5Bvalues%5D%5B0%5D=list':u};
   const BADGE={CADW:'Cadw',CADWLB:'Cadw',NMRW:'Coflein'};
@@ -383,7 +470,7 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   h+='</div>';
   if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
   h+='<div class="ft">Measurements from the '+esc(LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC)+'.</div></div>';
-  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
+  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
   LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
 function compass(d){return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(d/45)%8]}
 // live mode: while What's here? is on, fetch what a click at the lens centre needs ahead of the click (5 km cells, kept in the browser)

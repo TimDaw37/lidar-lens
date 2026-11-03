@@ -9,6 +9,16 @@ const sw=$('swatches'),sel=$('ramp');
   b.style.background='linear-gradient(90deg,'+st.join(',')+')';b.onclick=()=>{if(sel.disabled)return;sel.value=o.value;sel.dispatchEvent(new Event('change'));mark()};sw.appendChild(b)});
 function mark(){[...sw.children].forEach(b=>{b.classList.toggle('sel',b.dataset.v===sel.value);b.disabled=sel.disabled;b.style.opacity=sel.disabled?.4:1})}
 sel.addEventListener('change',mark);const ms=$('mode');ms.addEventListener('change',()=>setTimeout(mark,0));$('reset').addEventListener('click',()=>setTimeout(mark,0));mark();
+const modeBar=$('modes');
+if(modeBar){const names=['Hillshade','Multi-direction','Slope','Local relief','Sky-view','Aspect','Red relief','Combined'];
+  for(let i=0;i<8;i++){const b=document.createElement('button');b.type='button';b.textContent=String(i+1);b.title=names[i];b.setAttribute('aria-label',names[i]+', key '+(i+1));
+    b.onclick=()=>{ms.value=String(i);ms.dispatchEvent(new Event('change'));paintModes();flashMode(names[i])};modeBar.appendChild(b)}
+  function paintModes(){[...modeBar.children].forEach((b,i)=>b.classList.toggle('on',ms.value===String(i)))}
+  function flashMode(name){if(!matchMedia('(pointer:coarse)').matches)return;const m=$('msg');
+    const up=matchMedia('(max-width:700px) and (pointer:coarse)').matches&&!$('panel').classList.contains('hide');
+    m.style.top='auto';m.style.bottom=up?'calc(50vh + 60px)':'72px';LZ.msg(name,1200);
+    setTimeout(()=>{if(m.textContent===name){m.style.top='';m.style.bottom=''}},1200)}
+  ms.addEventListener('change',paintModes);$('reset').addEventListener('click',()=>setTimeout(paintModes,0));paintModes()}
 // lens reset
 $('lensreset').onclick=()=>LZ.resetLens();
 // status: outside coverage / past useful zoom
@@ -25,11 +35,12 @@ map.on('moveend zoomend',upd);upd();LZ.coverageStatus=()=>st.hidden?'':st.textCo
 // keyboard shortcuts
 document.addEventListener('keydown',e=>{const t=e.target;if(e.ctrlKey||e.metaKey||e.altKey)return;if(t&&(t.tagName==='INPUT'&&t.type!=='checkbox'&&t.type!=='range'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable))return;
   const k=e.key;let done=true;
-  if(k>='1'&&k<='8'){ms.value=String(+k-1);ms.dispatchEvent(new Event('change'))}
+  if(k==='0'){ms.value='9';ms.dispatchEvent(new Event('change'))}
+  else if(k>='1'&&k<='9'){ms.value=String(+k-1);ms.dispatchEvent(new Event('change'))}
   else if(k==='w'||k==='W')$('whatis').click();else if(k==='p'||k==='P')$('profile').click();
   else if(k==='f'||k==='F')$('fs').click();else if(k==='s'||k==='S')$('sm').click();
   else if(k==='c'||k==='C')LZ.resetLens();else if(k==='/'){$('gotoq').focus()}
-  else if(k==='h'||k==='H'){const h=$('panel').classList.toggle('hide');document.body.classList.toggle('panelhidden',h)}
+  else if(k==='h'||k==='H'){const h=$('panel').classList.toggle('hide');document.body.classList.toggle('panelhidden',h);if(LZ.placeLens)LZ.placeLens();if(LZ.requestRender)LZ.requestRender()}
   else if(k==='?')showHelp(help.hidden);else if(k==='Escape'&&!help.hidden){showHelp(false)}else done=false;
   if(done&&k!=='Escape')e.preventDefault()});
 // ---- overlays: historic OS maps (NLS) + public rights of way (configurable per area) ----
@@ -69,7 +80,8 @@ const REPO=LC.repoUrl||'https://github.com/TimDaw37/lidar-lens';const rl='<a hre
 help.insertAdjacentHTML('beforeend','<p style="margin-top:10px">Open source: the code and a step-by-step protocol to build your own LiDAR Lens for another area are on '+rl+'.</p>');
 $('about').insertAdjacentHTML('beforeend','<br><br>Code and replication protocol: '+rl+'.');
 if(map.attributionControl)map.attributionControl.addAttribution('<a href="'+REPO+'" target="_blank" rel="noopener noreferrer">LiDAR Lens code</a>');
-if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches)document.querySelectorAll('#panel details.sec').forEach(d=>{d.open=/Tools/.test(d.querySelector('summary').textContent)});
+if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches){const sheet=matchMedia('(max-width:700px) and (pointer:coarse)').matches;document.querySelectorAll('#panel details.sec').forEach(d=>{const name=d.querySelector('summary').textContent;d.open=sheet?/Visualisation/.test(name):/Tools/.test(name)})}
+if(matchMedia('(pointer:coarse)').matches){const p=document.querySelector('#help p');if(p)p.innerHTML=p.innerHTML.replace('Drag its rim or top grip to move it; drag the white dot to resize.','Drag the grip to move the lens and the white dot to resize. Drag a finger around the rim to turn the sun.')}
 if(!LC.private){const t=$('privtag');if(t)t.remove()}
 {const n=LC.toolName||'What is it?';const a=$('helptn'),k=$('keytn');if(a)a.textContent=n;if(k)k.textContent=n+' on/off';LZ.updateToolButtons&&LZ.updateToolButtons()}
 // phone: collapse the credit line to a 'Credits' button
