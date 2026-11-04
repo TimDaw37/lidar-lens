@@ -11,6 +11,9 @@
    Everything fetched is kept in the browser's Cache Storage, so a place seen once comes back instantly.
    Be kind to the sources: blocks are shared between tiles, requests are de-duplicated and at most 4 run at once. */
 'use strict';
+// Idle prefetch: once the lens has been still for IDLE_MS, fetch the LiDAR blocks in a ring round it (RING lens-widths
+// beyond its edge), nearest first, one at a time, behind every real request. Off for Save-data and 2g connections.
+const PREFETCH = { IDLE_MS: 750, PER_MIN: 8, SESSION_BYTES: 24e6, RING: 0.5, MAX_ACTIVE: 1, PENALTY: 1e9 };
 const VER = 'v6';   // v2: drops v1 'What's here?' cells cached from a failed query; v3: 512 px blocks, size-capped caches; v4: blocks via the relay; v5: zeros are no data (drops black tiles made outside England); v6: Wales (drops LiDAR tiles and record cells made without it)
 const BLOCKS = 'lens-live-blocks-' + VER, TILES = 'lens-live-tiles-' + VER, RECS = 'lens-live-recs-' + VER;
 const MINZ = 13, MAXZ = 17;          // tiles below MINZ are not made (the EA hillshade map shows instead)
@@ -59,8 +62,10 @@ async function asset(req) {
 // The page tells the worker where the lens is ({focus: [lat, lng, radius m]}) whenever it moves. LiDAR blocks nearest the lens
 // centre are fetched first, and queued blocks the lens has left behind are dropped (the page is told, so it asks again later).
 let FOCUS = null, focusSeq = 0;
-self.addEventListener('message', e => { const d = e.data || {}, f = d.focus;   // focus: [lat, lng, radius in metres]
-  if (Array.isArray(f) && f.length === 3 && f.every(Number.isFinite)) { const [E, N] = ll2en(f[0], f[1]); FOCUS = [E, N, f[2]]; focusSeq++; dropFar() } });
+self.addEventListener('message', e => { const d = e.data || {}, f = d.focus;   // focus: [lat, lng, radius in metres]; z, lw (lens width m), net
+  if (Array.isArray(f) && f.length === 3 && f.every(Number.isFinite)) { const [E, N] = ll2en(f[0], f[1]); FOCUS = [E, N, f[2]]; focusSeq++; dropFar();
+    const n = d.net || {}; PF.slow = !!n.saveData || /(^|-)2g$/.test(String(n.effectiveType || ''));
+    PF.view = Number.isFinite(d.z) && Number.isFinite(d.lw) ? { lat: f[0], z: d.z, lw: d.lw } : null; idleSoon() } });
 async function tell(msg) { for (const c of await self.clients.matchAll({ type: 'window' })) c.postMessage(msg) }
 const json = o => new Response(JSON.stringify(o), { headers: { 'Content-Type': 'application/json' } });
 const none = () => new Response(null, { status: 404 });
@@ -97,16 +102,19 @@ const tile2lng = (x, n) => x / n * 360 - 180, tile2lat = (y, n) => Math.atan(Mat
 const LANES = { lidar: { active: 0, pauseUntil: 0, queue: [] }, rec: { active: 0, pauseUntil: 0, queue: [] } };
 let jobSeq = 0;
 const DROP = new Error('dropped: the lens moved away');
-function limited(fn, lane = 'lidar', at = null) { return new Promise((res, rej) => { const job = [fn, res, rej, 0]; job.at = at; job.seq = ++jobSeq; job.fseq = focusSeq; LANES[lane].queue.push(job); pump(lane) }) }
+function limited(fn, lane = 'lidar', at = null, pf = false) { return new Promise((res, rej) => { const job = [fn, res, rej, 0]; job.at = at; job.seq = ++jobSeq; job.fseq = focusSeq; job.pf = pf;
+  const Q = LANES[lane]; Q.queue.push(job);
+  if (!pf && lane === 'lidar' && Q.active >= 4 && PF.ctl) PF.ctl.abort();   // a real request waiting for a slot: the prefetch gives its slot up
+  pump(lane) }) }
 const far = j => !j.at || !FOCUS ? 0 : Math.max(0, Math.hypot(j.at[0] - FOCUS[0], j.at[1] - FOCUS[1]) - j.at[2]);
 function next(queue) {
   let bi = 0, bs = Infinity;
-  for (let i = 0; i < queue.length; i++) { const j = queue[i], sc = far(j) - (j.at ? j.at[3] || 0 : 0) - j.seq * 1e-6; if (sc < bs) { bs = sc; bi = i } }
+  for (let i = 0; i < queue.length; i++) { const j = queue[i], sc = far(j) - (j.at ? j.at[3] || 0 : 0) - j.seq * 1e-6 + (j.pf ? PREFETCH.PENALTY : 0); if (sc < bs) { bs = sc; bi = i } }
   return queue.splice(bi, 1)[0];
 }
 function dropFar() {
   if (!FOCUS) return; const q = LANES.lidar.queue;
-  for (let i = q.length - 1; i >= 0; i--) { const j = q[i]; if (j.at && j.fseq < focusSeq && far(j) > FOCUS[2] + 2 * j.at[2]) { q.splice(i, 1); j[2](DROP) } }
+  for (let i = q.length - 1; i >= 0; i--) { const j = q[i]; if (j.pf) continue; if (j.at && j.fseq < focusSeq && far(j) > FOCUS[2] + 2 * j.at[2]) { q.splice(i, 1); j[2](DROP) } }
 }
 function pump(lane) {
   const Q = LANES[lane], queue = Q.queue;
@@ -118,6 +126,49 @@ function pump(lane) {
         Q.pauseUntil = Math.max(Q.pauseUntil, Date.now() + ms); job[3] = tries + 1; queue.unshift(job);
       } else res(r);
     }, rej).finally(() => { Q.active--; pump(lane) }) }
+}
+
+// ---------------------------------------------------------------- idle prefetch (budgets in PREFETCH at the top)
+const PF = { slow: false, view: null, timer: 0, gen: 0, bytes: 0, times: [], ctl: null, running: false };
+function idleSoon() { clearTimeout(PF.timer); PF.gen++; if (PF.slow) { if (PF.ctl) PF.ctl.abort(); return } PF.timer = setTimeout(() => prefetchRun(PF.gen), PREFETCH.IDLE_MS) }
+const realWaiting = () => LANES.lidar.queue.some(j => !j.pf);
+// the blocks a tile at this zoom would use (same r as tile()), in a disc reaching RING lens-widths beyond the lens, nearest first
+function prefetchPlan() {
+  const v = PF.view; if (!FOCUS || !v || v.z < MINZ - 0.25) return [];
+  const zt = Math.max(MINZ, Math.min(MAXZ, Math.round(v.z))), mpp = 156543.03392 * Math.cos(v.lat * D2R) / 2 ** zt;
+  const r = Math.max(1, Math.min(64, 2 ** Math.round(Math.log2(mpp)))), S = BLOCK_PX * r, [E, N, R] = FOCUS, out = R + PREFETCH.RING * v.lw, list = [];
+  for (let bx = Math.floor((E - out) / S); bx <= Math.floor((E + out) / S); bx++) for (let by = Math.floor((N - out) / S); by <= Math.floor((N + out) / S); by++) {
+    const x0 = bx * S, y0 = by * S, d = Math.hypot(Math.max(x0 - E, 0, E - x0 - S), Math.max(y0 - N, 0, N - y0 - S));
+    if (d > out || x0 + S < ENG.e0 || x0 > ENG.e1 || y0 + S < ENG.n0 || y0 > ENG.n1) continue; list.push({ r, bx, by, d, at: [x0 + S / 2, y0 + S / 2, S / 2, 0] }) }
+  return list.sort((a, b) => a.d - b.d);
+}
+async function prefetchRun(gen) {
+  if (PF.running) return; PF.running = true;
+  try {
+    const plan = prefetchPlan(), c = await caches.open(BLOCKS);
+    for (const b of plan) {
+      if (gen !== PF.gen || PF.slow || PF.bytes >= PREFETCH.SESSION_BYTES) return;
+      if (mem.has(b.r + '/' + b.bx + '/' + b.by)) continue;
+      const S = BLOCK_PX * b.r, inWales = (b.bx + 1) * S > WALES.e0 && b.bx * S < WALES.e1 && (b.by + 1) * S > WALES.n0 && b.by * S < WALES.n1;
+      const urls = [`${RELAY}?r=${b.r}&bx=${b.bx}&by=${b.by}&f=cm`].concat(inWales ? [`${RELAY_WALES}?r=${b.r}&bx=${b.bx}&by=${b.by}&f=cm`] : []);
+      for (const url of urls) {
+        if ((await c.match(url)) || (!/wales/.test(url) && (await c.match(url.replace('&f=cm', ''))))) continue;
+        // budgets: real requests first; at most PER_MIN blocks in any 60 s
+        while (true) {
+          if (gen !== PF.gen || PF.slow) return;
+          const now = Date.now(); PF.times = PF.times.filter(t => now - t < 60000);
+          const wait = realWaiting() || LANES.lidar.active >= 4 ? 300 : PF.times.length >= PREFETCH.PER_MIN ? PF.times[0] + 60000 - now : 0;
+          if (wait <= 0) break; await new Promise(r => setTimeout(r, Math.min(wait, 5000)));
+        }
+        PF.times.push(Date.now()); const ctl = PF.ctl = new AbortController();
+        try {
+          const r = await limited(() => fetch(url, { signal: ctl.signal }), 'lidar', b.at, true);
+          if (r.ok) { const buf = await r.clone().arrayBuffer(); PF.bytes += buf.byteLength; await putSized(BLOCKS, c, url, r) }
+        } catch (e) { if (ctl.signal.aborted) { PF.times.pop(); if (gen === PF.gen) idleSoon(); return } }
+        finally { if (PF.ctl === ctl) PF.ctl = null }
+      }
+    }
+  } finally { PF.running = false }
 }
 async function cached(cacheName, url, at) {
   const c = await caches.open(cacheName), hit = await c.match(url);

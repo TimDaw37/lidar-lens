@@ -346,6 +346,7 @@ function thumb(cv,W,a){const n=W.n,mpp=W.mpp,span=Math.min(n,Math.round(120/mpp)
   g.fillStyle='rgba(255,255,255,.85)';g.fillRect(4,S-20,92,16);g.fillStyle='#111';g.font='12px system-ui';g.fillText('LRM, 120 m wide',8,S-8);if(a&&!a.nodata&&a.foot){g.fillStyle='rgba(255,255,255,.85)';g.fillRect(S-112,S-20,108,16);g.fillStyle='#111';g.fillText('yellow = outline',S-108,S-8)}}
 let wiMk=null,wiSeq=0;const card=$('card');const TN=LZ.LC.toolName||'What is it?',SHOWG=LZ.LC.showGuess!==false;
 const SRC=LZ.LC.recordSources||'NHLE (Historic England, scheduled + listed), HE Aerial Investigation & Mapping, OSM (community map)';
+{const ab=$('about');if(ab)ab.insertAdjacentHTML('beforeend','<br><br><b>'+esc(TN)+' card.</b> Measurements from the '+esc(LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC)+'.')}
 function compass8(b){return ['N–S','NNE–SSW','NE–SW','ENE–WSW','E–W','ESE–WNW','SE–NW','SSE–NNW'][Math.round(((b%180)+180)%180/22.5)%8]}
 function q05(v){return Math.max(0.05,Math.round(v*20)/20)}
 function describe(a){if(a.nodata)return 'No LiDAR data here (outside the tile coverage or a data gap).';
@@ -472,8 +473,11 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
     h+='<table>'+rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')+'</table>'}
   h+='</div>';
   if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
-  h+='<div class="ft">Measurements from the '+esc(LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC)+'.</div></div>';
+  if(!a.nodata){const fs=LZ.flipState(),tip=fs.on?'Put the sun back where it was':fs.usesSun?'Turn the lens sun round 180°':'This view has no sun: switches to hillshade first, then turns the sun round 180°';
+    h+='<div class="opp"><button type="button" class="oppbtn'+(fs.on?' on':'')+'" aria-pressed="'+fs.on+'" title="'+esc(tip)+'">Light from the other side</button><ul><li>Does it still show with the light from the other side?</li><li>Does an old map show a boundary, track or pit here?</li><li>Does it follow the slope or the geology?</li></ul></div>'}
+  h+='<div class="ft">Measurements, not an identification. Sources: About / data.</div></div>';
   const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
+  {const ob=card.querySelector('.oppbtn');if(ob)ob.onclick=()=>{const on=LZ.flipSun(),fs=LZ.flipState();ob.classList.toggle('on',on);ob.setAttribute('aria-pressed',on);ob.title=on?'Put the sun back where it was':fs.usesSun?'Turn the lens sun round 180°':'This view has no sun: switches to hillshade first, then turns the sun round 180°'}}
   LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
 function compass(d){return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(d/45)%8]}
 // live mode: while What's here? is on, fetch what a click at the lens centre needs ahead of the click (5 km cells, kept in the browser)

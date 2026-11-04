@@ -23,7 +23,16 @@ if(LC.live){if(!('serviceWorker' in navigator)){document.addEventListener('DOMCo
   else navigator.serviceWorker.register('live-sw.js').catch(()=>{})}
 const CFG={tiles:LC.tiles.url,minz:LC.tiles.minzoom,maxz:LC.tiles.maxzoom,xo:LC.tiles.crossOrigin||null,bounds:LC.bounds,start:{lat:LC.start.lat,lng:LC.start.lng,z:LC.start.zoom}};
 const $=id=>document.getElementById(id);
-const DEF={mode:0,az:315,el:35,ve:2,rad:10,ramp:'grey',auto:true,ct:1,gm:1,op:1,ls:340,fs:false,sm:false,base:'sat'};
+// Presets: four named looks, one table (a county config can replace it with LC.presets). Overview is the default.
+const PRESETS=LC.presets||{
+  overview:{name:'Overview',tip:'The general lie of the land',mode:1,az:315,el:35,ve:2,rad:10,ct:1,ramp:'grey'},
+  earthworks:{name:'Earthworks',tip:'Banks, ditches, barrows, enclosures',mode:6,az:315,el:35,ve:2,rad:10,ct:1.2,ramp:'rdbu'},
+  lowsun:{name:'Low sun',tip:'Faint banks and lynchets',mode:0,az:315,el:20,ve:3,rad:10,ct:1,ramp:'grey'},
+  banks:{name:'Banks and hollows',short:'Banks / hollows',tip:'What is raised (red) and what is sunk (blue)',mode:3,az:315,el:35,ve:2,rad:20,ct:1.2,ramp:'rdbu'}};
+const PKEYS=['mode','az','el','ve','rad','ct','ramp'];
+const P0=PRESETS.overview||PRESETS[Object.keys(PRESETS)[0]];
+const DEF={mode:P0.mode,az:P0.az,el:P0.el,ve:P0.ve,rad:P0.rad,ramp:P0.ramp,auto:true,ct:P0.ct,gm:1,op:1,ls:340,fs:false,sm:false,base:'sat'};
+function presetKey(){for(const k in PRESETS){const p=PRESETS[k];if(PKEYS.every(q=>p[q]===S[q]||(typeof p[q]==='number'&&Math.abs(p[q]-S[q])<1e-9)))return k}return null}
 const MODE_RAMP={0:'grey',1:'grey',2:'greyinv',3:'rdbu',4:'grey',5:'grey',6:'rdbu',7:'rdbu',8:'grey',9:'grey'};
 const MODE_RANGE={0:[0,1],1:[0.2,1],2:[0,35],3:[-0.5,0.5],4:[0.8,1],5:[0,30],6:[-0.5,0.5],7:[-0.5,0.5],8:[65,90],9:[65,90]};
 const DIVERGING=m=>m===3||m===6||m===7;
@@ -352,7 +361,7 @@ function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=fal
   let missing=0;const imgs=use.map(([x,y])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||!t.failed)missing++}return im});
   if(defer)rest.forEach(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||(!t.ok&&!t.failed))missing++});
   if(LC.live&&!S.fs&&lensC&&want.key!==lastFocus){lastFocus=want.key;const sw=navigator.serviceWorker&&navigator.serviceWorker.controller;   // tell the live worker where the lens is: it fetches nearest first, drops what the lens left
-    if(sw){const c=map.containerPointToLatLng(lensC),mpp=156543.03392*Math.cos(c.lat*Math.PI/180)/Math.pow(2,map.getZoom());sw.postMessage({focus:[c.lat,c.lng,(S.ls/2+96)*mpp]})}}
+    if(sw){const c=map.containerPointToLatLng(lensC),mpp=156543.03392*Math.cos(c.lat*Math.PI/180)/Math.pow(2,map.getZoom());const cn=navigator.connection||{};sw.postMessage({focus:[c.lat,c.lng,(S.ls/2+96)*mpp],z:map.getZoom(),lw:S.ls*mpp,net:{saveData:!!cn.saveData,effectiveType:String(cn.effectiveType||'')}})}}
   MZ=want;R.newMosaic(want);use.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});
   if(defer)rest.forEach(([x,y,px,py])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(t&&t.ok)R.putTile(t.img,px,py)});
   R.decode(want);mosaicReady=true;
@@ -406,19 +415,21 @@ map.on('zoomstart',()=>{cv.style.visibility='hidden'});map.on('zoomend',()=>{cv.
 map.on('resize',()=>{resizeCanvas();placeLens();scheduleMosaic()});
 // ---------- controls ----------
 const ctl=[['mode','',v=>+v],['el','°',v=>+v],['ve','x',v=>+v],['rad',' m',v=>+v],['ct','x',v=>+v],['gm','',v=>+v],['op','',v=>+v],['ls',' px',v=>+v]];
-function syncUI(){ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$(k+'v');if(o)o.textContent=(k==='op'?Math.round(S[k]*100)+'%':S[k]+u)});
+function paintPresets(){const k=presetKey();document.querySelectorAll('[data-preset]').forEach(b=>{const on=b.dataset.preset===k;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)})}
+function applyPreset(k){const p=PRESETS[k];if(!p)return;flip=null;PKEYS.forEach(q=>{if(p[q]!==undefined)S[q]=p[q]});S.auto=true;bumpShade();syncUI();requestRender();saveHashSoon()}
+function syncUI(){paintPresets();ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$(k+'v');if(o)o.textContent=(k==='op'?Math.round(S[k]*100)+'%':S[k]+u)});
   $('ramp').value=S.ramp;$('auto').checked=S.auto;$('fs').checked=S.fs;$('sm').checked=S.sm;$('azv').textContent=Math.round(S.az)+'°';drawDial();
   $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))?'':'none';
   $('ramp').disabled=S.mode===5||S.mode===6;if($('ct'))$('ct').disabled=!S.auto;const man=$('manrange');if(man)man.hidden=!!S.auto;
   if(!S.auto&&$('rlo')&&document.activeElement!==$('rlo')&&document.activeElement!==$('rhi')){const b=manual[S.mode]||MODE_RANGE[S.mode]||[0,1];$('rlo').value=b[0];$('rhi').value=b[1]}}
 ctl.forEach(([k,u,f])=>{const e=$(k);const on=()=>{S[k]=f(e.value);if(k==='mode'){S.ramp=MODE_RAMP[S.mode]}if(k==='ls')placeLens();syncUI();requestRender();saveHashSoon()};e.addEventListener('input',on);e.addEventListener('change',on)});
-$('ramp').onchange=e=>{S.ramp=e.target.value;requestRender();saveHashSoon()};
+$('ramp').onchange=e=>{S.ramp=e.target.value;paintPresets();requestRender();saveHashSoon()};
 $('auto').onchange=e=>{S.auto=e.target.checked;if(!S.auto){const b=lastStretch||MODE_RANGE[S.mode]||[0,1];manual[S.mode]=[b[0],b[1]]}syncUI();requestRender();saveHashSoon()};
 function readManual(){const lo=parseFloat($('rlo').value),hi=parseFloat($('rhi').value);if(!isFinite(lo)||!isFinite(hi)||!(hi>lo))return;manual[S.mode]=[lo,hi];requestRender();saveHashSoon()}
 if($('rlo')){$('rlo').addEventListener('change',readManual);$('rhi').addEventListener('change',readManual)}
 $('fs').onchange=e=>{S.fs=e.target.checked;placeLens();requestRender();saveHashSoon()};
 $('sm').onchange=e=>{S.sm=e.target.checked;setSM(S.sm);saveHashSoon()};
-function resetDefaults(){clearTimeout(hT);const keep={base:S.base,sm:S.sm};Object.assign(S,DEF,keep);S.ramp=MODE_RAMP[S.mode];for(const k of Object.keys(manual))delete manual[k];
+function resetDefaults(){clearTimeout(hT);flip=null;const keep={base:S.base,sm:S.sm};Object.assign(S,DEF,keep);S.ramp=MODE_RAMP[S.mode];for(const k of Object.keys(manual))delete manual[k];
   const [w,h]=mapSize();S.ls=Math.min(DEF.ls,Math.max(150,Math.min(w,h)-40));lensC=defaultLensC();placeLens();syncUI();requestRender();
   try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}suppressHash=true;setTimeout(()=>{suppressHash=false},400);msg('Settings reset to defaults',1800)}
 $('reset').onclick=resetDefaults;window.__lens.reset=resetDefaults;
@@ -431,10 +442,19 @@ function drawDial(){const w=dial.width,c=w/2,r=c-14;dx.clearRect(0,0,w,w);dx.lin
   dx.fillStyle='#f59e0b';dx.beginPath();dx.arc(c+Math.sin(q)*r,c-Math.cos(q)*r,11,0,7);dx.fill()}
 let dd=false;const dialSet=e=>{const b=dial.getBoundingClientRect();S.az=Math.round((Math.atan2(e.clientX-b.left-b.width/2,-(e.clientY-b.top-b.height/2))*180/Math.PI+360)%360);bumpShade();syncUI();requestRender();saveHashSoon()};
 dial.addEventListener('pointerdown',e=>{dd=true;dial.setPointerCapture(e.pointerId);dialSet(e)});dial.addEventListener('pointermove',e=>{if(dd)dialSet(e)});dial.addEventListener('pointerup',()=>dd=false);
+// preset buttons (desktop panel); ui.js builds the phone strip from the same table
+{const host=$('presets');if(host)for(const k in PRESETS){const p=PRESETS[k],b=document.createElement('button');b.type='button';b.dataset.preset=k;b.textContent=p.name;b.title=p.tip||p.name;b.onclick=()=>applyPreset(k);host.appendChild(b)}}
+// 'Light from the other side' (What's here? card): turn the sun 180 degrees, and back on a second tap.
+// A mode without a sun (relief, slope, sky-view...) switches to hillshade first, and back again on the second tap.
+const usesSun=m=>m===0||m===1||m===5||m===7;let flip=null;
+function flipSun(){if(flip){S.az=(S.az+180)%360;if(flip.mode!=null){S.mode=flip.mode;S.ramp=flip.ramp}flip=null}
+  else{flip={mode:null};if(!usesSun(S.mode)){flip={mode:S.mode,ramp:S.ramp};S.mode=0;S.ramp=MODE_RAMP[0]}S.az=(S.az+180)%360}
+  bumpShade();syncUI();requestRender();saveHashSoon();return !!flip}
+window.__lens.flipState=()=>({on:!!flip,usesSun:usesSun(S.mode)});
 // ---------- share hash ----------
 function hashStr(){const c=map.getCenter(),ll=map.containerPointToLatLng(lensC);const p=new URLSearchParams();
   p.set('c',c.lat.toFixed(5)+','+c.lng.toFixed(5)+','+map.getZoom());p.set('l',ll.lat.toFixed(5)+','+ll.lng.toFixed(5));
-  ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>p.set(k,S[k]));p.set('ramp',S.ramp);p.set('auto',S.auto?1:0);if(!S.auto&&manual[S.mode]){p.set('mlo',fmtN(manual[S.mode][0]));p.set('mhi',fmtN(manual[S.mode][1]))}p.set('fs',S.fs?1:0);p.set('sm',S.sm?1:0);p.set('base',S.base);if(window.__lensHashExtra)window.__lensHashExtra(p);return p.toString()}
+  ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>p.set(k,S[k]));p.set('ramp',S.ramp);p.set('auto',S.auto?1:0);if(!S.auto&&manual[S.mode]){p.set('mlo',fmtN(manual[S.mode][0]));p.set('mhi',fmtN(manual[S.mode][1]))}p.set('fs',S.fs?1:0);p.set('sm',S.sm?1:0);p.set('base',S.base);{const pk=presetKey();if(pk)p.set('p',pk)}if(window.__lensHashExtra)window.__lensHashExtra(p);return p.toString()}
 let suppressHash=false;function saveHash(){if(suppressHash)return;try{history.replaceState(null,'','#'+hashStr())}catch(e){}}
 let hT=null;function saveHashSoon(){clearTimeout(hT);hT=setTimeout(saveHash,300)}
 $('share').onclick=()=>{saveHash();const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>msg(LC.private===true?'Link copied (the site still needs the password)':'Link copied',2500),()=>{prompt('Copy this link:',u)})};
@@ -475,6 +495,6 @@ function drawProfile(hs,dist){const box=$('prof');box.style.display='block';cons
 document.querySelector('#prof .x').onclick=()=>{clearProfile(true);if(tool==='profile')setTool(null)};
 // ---------- go ----------
 $('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
-Object.assign(window.__lens,{H0,saveHashSoon,RAMPS,syncUI,placeLens,requestRender,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},tileData,heightAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
+Object.assign(window.__lens,{PRESETS,presetKey,applyPreset,paintPresets,flipSun,H0,saveHashSoon,RAMPS,syncUI,placeLens,requestRender,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},tileData,heightAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
 resizeCanvas();syncUI();if(S.sm)setSM(true);buildMosaic();
 })();

@@ -10,15 +10,14 @@ const sw=$('swatches'),sel=$('ramp');
 function mark(){[...sw.children].forEach(b=>{b.classList.toggle('sel',b.dataset.v===sel.value);b.disabled=sel.disabled;b.style.opacity=sel.disabled?.4:1})}
 sel.addEventListener('change',mark);const ms=$('mode');ms.addEventListener('change',()=>setTimeout(mark,0));$('reset').addEventListener('click',()=>setTimeout(mark,0));mark();
 const modeBar=$('modes');
-if(modeBar){const names=['Hillshade','Multi-direction','Slope','Local relief','Sky-view','Aspect','Red relief','Combined'];
-  for(let i=0;i<8;i++){const b=document.createElement('button');b.type='button';b.textContent=String(i+1);b.title=names[i];b.setAttribute('aria-label',names[i]+', key '+(i+1));
-    b.onclick=()=>{ms.value=String(i);ms.dispatchEvent(new Event('change'));paintModes();flashMode(names[i])};modeBar.appendChild(b)}
-  function paintModes(){[...modeBar.children].forEach((b,i)=>b.classList.toggle('on',ms.value===String(i)))}
+if(modeBar){   // phone: the four presets, labelled (the full mode list is under Advanced)
+  for(const k in LZ.PRESETS){const p=LZ.PRESETS[k],b=document.createElement('button');b.type='button';b.dataset.preset=k;b.textContent=p.short||p.name;b.title=p.tip||p.name;b.setAttribute('aria-label',p.name);
+    b.onclick=()=>{LZ.applyPreset(k);flashMode(p.name)};modeBar.appendChild(b)}
   function flashMode(name){if(!matchMedia('(pointer:coarse)').matches)return;const m=$('msg');
     const up=matchMedia('(max-width:700px) and (pointer:coarse)').matches&&!$('panel').classList.contains('hide');
     m.style.top='auto';m.style.bottom=up?'calc(50vh + 60px)':'72px';LZ.msg(name,1200);
     setTimeout(()=>{if(m.textContent===name){m.style.top='';m.style.bottom=''}},1200)}
-  ms.addEventListener('change',paintModes);$('reset').addEventListener('click',()=>setTimeout(paintModes,0));paintModes()}
+  LZ.paintPresets()}
 // lens reset
 $('lensreset').onclick=()=>LZ.resetLens();
 // status: outside coverage / past useful zoom
