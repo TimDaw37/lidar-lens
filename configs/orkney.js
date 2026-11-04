@@ -21,6 +21,7 @@ window.LENS_CONFIG={
   recordsLine:'Records (information only): HES scheduled monuments, listed buildings and World Heritage Site',
   recordsNone:'HES designated sites',
   dtmName:'Orkney 2023 50 cm LiDAR DTM',
+  layerCountry:'scotland',
   scheduledOverlay:'hes_sm.geojson',
   smLinkLabel:'HES designation record',
   bounds:[[58.72,-3.45],[59.41,-2.36]],

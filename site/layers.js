@@ -15,6 +15,13 @@ const NHLE=HE+'National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/';
 const NE='https://services.arcgis.com/JJzESW51TqeY9uat/arcgis/rest/services/';
 const OGL='Open Government Licence';
 const NHLE_C='© Historic England (National Heritage List). Contains OS data © Crown copyright and database right. '+OGL+'.';
+const HES='https://inspire.hes.scot/arcgis/rest/services/HES/HES_Designations/MapServer/';
+const HES_C='© Historic Environment Scotland. Contains OS data © Crown copyright and database right. '+OGL+'.';
+const NS='https://services1.arcgis.com/LM9GyVFsughzHdbO/arcgis/rest/services/';
+const NS_C=n=>n+' © NatureScot. Contains OS data © Crown copyright and database right. '+OGL+'.';
+function hesPopup(kind){return p=>{let h='<b>'+esc(p.DES_TITLE||kind)+'</b><br>'+esc(kind);const sub=[];if(p.CATEGORY&&String(p.CATEGORY).trim())sub.push('Category '+String(p.CATEGORY).trim());if(p.DES_REF)sub.push(p.DES_REF);
+  if(sub.length)h+='<br>'+esc(sub.join(' · '));if(p.LINK&&/^https?:\/\//i.test(p.LINK))h+='<br>'+alink(p.LINK,'HES designation record');return h}}
+function nsPopup(kind){return p=>{let h='<b>'+esc(p.NAME||kind)+'</b><br>'+esc(kind);if(p.PA_CODE)h+='<br>'+alink('https://sitelink.nature.scot/site/'+encodeURIComponent(p.PA_CODE),'NatureScot SiteLink');return h}}
 const canvasR=L.canvas({padding:0.5});
 let ate=false;
 function nhlePopup(kind){return p=>{
@@ -45,58 +52,75 @@ function bgs625Names(){if(!bgs625P)bgs625P=fetch('https://map.bgs.ac.uk/arcgis/s
     while((m=re.exec(xml))){if(/Bedrock/i.test(m[2])&&!/Dyke/i.test(m[2])&&!bgs625.BedrockDone){bgs625.Bedrock=m[1];bgs625.BedrockDone=1}if(/Superficial/i.test(m[2])&&!bgs625.SuperficialDone){bgs625.Superficial=m[1];bgs625.SuperficialDone=1}}
     return bgs625}).catch(()=>bgs625);return bgs625P}
 const CATALOG=[
- {id:'nhle-sm',group:'Historic England',name:'Scheduled monuments',kind:'fs',url:NHLE+'6',minZoom:12,cap:[400,200],
+ {id:'nhle-sm',group:'Historic England',c:'E',name:'Scheduled monuments',kind:'fs',url:NHLE+'6',minZoom:12,cap:[400,200],
   fields:'ListEntry,Name,hyperlink',credit:NHLE_C,popup:nhlePopup('Scheduled monument'),
   style:()=>({color:'#dc2626',weight:2,fill:false})},
- {id:'nhle-lb',group:'Historic England',name:'Listed buildings',kind:'fs',url:NHLE+'0',minZoom:15,cap:[300,150],points:true,color:'#b45309',
+ {id:'nhle-lb',group:'Historic England',c:'E',name:'Listed buildings',kind:'fs',url:NHLE+'0',minZoom:15,cap:[300,150],points:true,color:'#b45309',
   fields:'ListEntry,Name,Grade,hyperlink',credit:NHLE_C,popup:nhlePopup('Listed building')},
- {id:'nhle-pg',group:'Historic England',name:'Parks and gardens',kind:'fs',url:NHLE+'7',minZoom:11,cap:[200,100],
+ {id:'nhle-pg',group:'Historic England',c:'E',name:'Parks and gardens',kind:'fs',url:NHLE+'7',minZoom:11,cap:[200,100],
   fields:'ListEntry,Name,Grade,hyperlink',credit:NHLE_C,popup:nhlePopup('Registered park or garden'),
   style:()=>({color:'#15803d',weight:2,fillColor:'#15803d',fillOpacity:.08})},
- {id:'nhle-bf',group:'Historic England',name:'Battlefields',kind:'fs',url:NHLE+'8',minZoom:10,cap:[40,40],
+ {id:'nhle-bf',group:'Historic England',c:'E',name:'Battlefields',kind:'fs',url:NHLE+'8',minZoom:10,cap:[40,40],
   fields:'ListEntry,Name,hyperlink',credit:NHLE_C,popup:nhlePopup('Registered battlefield'),
   style:()=>({color:'#7c3aed',weight:2,fillColor:'#7c3aed',fillOpacity:.1})},
- {id:'nhle-whs',group:'Historic England',name:'World Heritage Sites',kind:'fs',url:NHLE+'10',minZoom:9,cap:[20,20],
+ {id:'nhle-whs',group:'Historic England',c:'E',name:'World Heritage Sites',kind:'fs',url:NHLE+'10',minZoom:9,cap:[20,20],
   fields:'ListEntry,Name,hyperlink',credit:NHLE_C,popup:nhlePopup('World Heritage Site'),
   style:()=>({color:'#1d4ed8',weight:3,fillColor:'#1d4ed8',fillOpacity:.05})},
- {id:'aim',group:'Historic England',name:'Aerial mapping (cropmarks and earthworks)',kind:'fs',
+ {id:'aim',group:'Historic England',c:'E',name:'Aerial mapping (cropmarks and earthworks)',kind:'fs',
   url:HE+'HE_AIM_data/FeatureServer/0',minZoom:15,cap:[320,160],
   fields:'MONUMENT_TYPE,PERIOD,LAYER,EVIDENCE_1,project,HE_UID,HE_URL1',
   credit:'Aerial Archaeology Mapping © Historic England 2026. '+OGL+'.',
   popup:aimPopup,style:aimStyle},
- {id:'sssi',group:'Natural England',name:'SSSI',kind:'fs',url:NE+'SSSI_England/FeatureServer/0',minZoom:12,cap:[200,100],
+ {id:'sssi',group:'Natural England',c:'E',name:'SSSI',kind:'fs',url:NE+'SSSI_England/FeatureServer/0',minZoom:12,cap:[200,100],
   fields:'NAME,REF_CODE',credit:'Sites of Special Scientific Interest © Natural England. Contains OS data © Crown copyright and database right. '+OGL+'.',
   popup:p=>'<b>'+esc(p.NAME||'SSSI')+'</b>'+(p.REF_CODE?'<br>Ref '+esc(p.REF_CODE):''),
   style:()=>({color:'#0f766e',weight:2,fillColor:'#0f766e',fillOpacity:.12})},
- {id:'wood',group:'Natural England',name:'Ancient woodland',kind:'fs',url:NE+'Ancient_Woodland_England/FeatureServer/0',minZoom:13,cap:[300,150],
+ {id:'wood',group:'Natural England',c:'E',name:'Ancient woodland',kind:'fs',url:NE+'Ancient_Woodland_England/FeatureServer/0',minZoom:13,cap:[300,150],
   fields:'NAME,THEME,THEMNAME',credit:'Ancient Woodland © Natural England. Contains OS data © Crown copyright and database right. © Woodland Trust. © Forestry Commission. © Getmapping plc and Bluesky International Ltd. '+OGL+'.',
   popup:p=>{const n=(p.NAME||'').trim();return '<b>'+esc(p.THEMNAME||'Ancient woodland')+'</b>'+(n?'<br>'+esc(n):'')},
   style:()=>({color:'#166534',weight:1,fillColor:'#166534',fillOpacity:.28})},
- {id:'crow',group:'Natural England',name:'CRoW access land',kind:'fs',url:NE+'CRoW_Act_2000_Access_Layer/FeatureServer/0',minZoom:12,cap:[200,100],
+ {id:'crow',group:'Natural England',c:'E',name:'CRoW access land',kind:'fs',url:NE+'CRoW_Act_2000_Access_Layer/FeatureServer/0',minZoom:12,cap:[200,100],
   fields:'Descrip,OC,RCL,S16',credit:'CRoW access land © Natural England. Contains OS data © Crown copyright and database right. '+OGL+'.',
   popup:p=>{const bits=[];if(p.OC==='Yes')bits.push('open country');if(p.RCL==='Yes')bits.push('registered common');if(p.S16==='Yes')bits.push('section 16 dedication');return '<b>CRoW access land</b>'+(bits.length?'<br>'+esc(bits.join(', ')):'')},
   style:()=>({color:'#a16207',weight:1,fillColor:'#ca8a04',fillOpacity:.18})},
- {id:'nl',group:'Natural England',name:'National Landscapes (AONB)',kind:'fs',url:NE+'Areas_of_Outstanding_Natural_Beauty_England/FeatureServer/0',minZoom:8,cap:[30,30],
+ {id:'nl',group:'Natural England',c:'E',name:'National Landscapes (AONB)',kind:'fs',url:NE+'Areas_of_Outstanding_Natural_Beauty_England/FeatureServer/0',minZoom:8,cap:[30,30],
   fields:'NAME,CODE,HOTLINK,DESIG_DATE',credit:'National Landscapes (Areas of Outstanding Natural Beauty) © Natural England. Contains OS data © Crown copyright and database right. '+OGL+'.',
   popup:p=>{let h='<b>'+esc(p.NAME||'National Landscape')+'</b><br>National Landscape (AONB)';if(p.DESIG_DATE)h+='<br>Designated '+esc(p.DESIG_DATE);if(p.HOTLINK&&/^https?:\/\//i.test(p.HOTLINK))h+='<br>'+alink(p.HOTLINK,'Landscape partnership');return h},
   style:()=>({color:'#0369a1',weight:2,dashArray:'6 4',fillColor:'#0369a1',fillOpacity:.05})},
- {id:'fz3',group:'Environment Agency',name:'Flood Zone 3 (rivers and sea)',kind:'wms',minZoom:11,
+ {id:'fz3',group:'Environment Agency',c:'E',name:'Flood Zone 3 (rivers and sea)',kind:'wms',minZoom:11,
   wms:'https://environment.data.gov.uk/spatialdata/flood-map-for-planning-flood-zones/wms',
   wmsLayers:'Flood_Zones_2_3_Rivers_and_Sea',styles:'Flood_Zones_2_3_Rivers_and_Sea_21_10_2026',cql:"flood_zone='FZ3'",opacity:.55,z:3,
   credit:'Flood Zone 3 (rivers and sea) © Environment Agency. '+OGL+'. The current WMS draws Zones 2 and 3 together; this tick asks only for Zone 3.'},
- {id:'bgs50b',group:'British Geological Survey',name:'Bedrock, 1:50 000',kind:'wms',minZoom:12,wmsKind:'50k',which:'Bedrock',
+ {id:'bgs50b',group:'British Geological Survey',c:'GB',name:'Bedrock, 1:50 000',kind:'wms',minZoom:12,wmsKind:'50k',which:'Bedrock',
   wms:'https://map.bgs.ac.uk/arcgis/services/BGS_Detailed_Geology/MapServer/WMSServer',wmsLayers:'BGS.50k.Bedrock',opacity:.62,z:6,
   credit:'Contains British Geological Survey materials © UKRI. 1:50 000 bedrock. '+OGL+'. Tap the map for the unit name.'},
- {id:'bgs50s',group:'British Geological Survey',name:'Superficial deposits, 1:50 000',kind:'wms',minZoom:12,wmsKind:'50k',which:'Superficial',
+ {id:'bgs50s',group:'British Geological Survey',c:'GB',name:'Superficial deposits, 1:50 000',kind:'wms',minZoom:12,wmsKind:'50k',which:'Superficial',
   wms:'https://map.bgs.ac.uk/arcgis/services/BGS_Detailed_Geology/MapServer/WMSServer',wmsLayers:'BGS.50k.Superficial.deposits',opacity:.62,z:5,
   credit:'Contains British Geological Survey materials © UKRI. 1:50 000 superficial deposits. '+OGL+'. Tap the map for the unit name.'},
- {id:'bgs625b',group:'British Geological Survey',name:'Bedrock, 1:625 000 (overview)',kind:'wms',maxZoom:12,wmsKind:'625k',which:'Bedrock',
+ {id:'bgs625b',group:'British Geological Survey',c:'GB',name:'Bedrock, 1:625 000 (overview)',kind:'wms',maxZoom:12,wmsKind:'625k',which:'Bedrock',
   wms:'https://map.bgs.ac.uk/arcgis/services/SDDS/Geology_625k/MapServer/WMSServer',wmsLayers:bgs625.Bedrock,opacity:.5,z:4,
   credit:'Contains NERC materials © NERC. BGS Geology 625k bedrock, for when you are zoomed out. '+OGL+'. Tap the map for the unit name.'},
- {id:'bgs625s',group:'British Geological Survey',name:'Superficial, 1:625 000 (overview)',kind:'wms',maxZoom:12,wmsKind:'625k',which:'Superficial',
+ {id:'bgs625s',group:'British Geological Survey',c:'GB',name:'Superficial, 1:625 000 (overview)',kind:'wms',maxZoom:12,wmsKind:'625k',which:'Superficial',
   wms:'https://map.bgs.ac.uk/arcgis/services/SDDS/Geology_625k/MapServer/WMSServer',wmsLayers:bgs625.Superficial,opacity:.5,z:4,
-  credit:'Contains NERC materials © NERC. BGS Geology 625k superficial deposits, for when you are zoomed out. '+OGL+'.'}
+  credit:'Contains NERC materials © NERC. BGS Geology 625k superficial deposits, for when you are zoomed out. '+OGL+'.'},
+ {id:'hes-lb',group:'Historic Environment Scotland',c:'S',noPage:true,name:'Listed buildings',kind:'fs',url:HES+'0',minZoom:15,cap:[300,150],points:true,color:'#b45309',
+  fields:'DES_REF,DES_TITLE,CATEGORY,LINK',credit:HES_C,popup:hesPopup('Listed building')},
+ {id:'hes-gdl',group:'Historic Environment Scotland',c:'S',noPage:true,name:'Gardens and designed landscapes',kind:'fs',url:HES+'4',minZoom:11,cap:[100,60],
+  fields:'DES_REF,DES_TITLE,LINK',credit:HES_C,popup:hesPopup('Garden and designed landscape'),style:()=>({color:'#15803d',weight:2,fillColor:'#15803d',fillOpacity:.08})},
+ {id:'hes-whs',group:'Historic Environment Scotland',c:'S',noPage:true,name:'World Heritage Sites',kind:'fs',url:HES+'6',minZoom:9,cap:[20,20],
+  fields:'DES_REF,DES_TITLE,LINK',credit:HES_C,popup:hesPopup('World Heritage Site'),style:()=>({color:'#1d4ed8',weight:3,fillColor:'#1d4ed8',fillOpacity:.05})},
+ {id:'hes-hmpa',group:'Historic Environment Scotland',c:'S',noPage:true,name:'Historic Marine Protected Areas',kind:'fs',url:HES+'1',minZoom:9,cap:[40,40],
+  fields:'DES_REF,DES_TITLE,LINK',credit:HES_C,popup:hesPopup('Historic Marine Protected Area'),style:()=>({color:'#0e7490',weight:2,dashArray:'5 4',fillColor:'#0e7490',fillOpacity:.06})},
+ {id:'ns-sssi',group:'NatureScot',c:'S',name:'SSSI',kind:'fs',url:NS+'Sites_of_Special_Scientific_Interest/FeatureServer/0',minZoom:11,cap:[200,100],
+  fields:'NAME,PA_CODE',credit:NS_C('Sites of Special Scientific Interest'),popup:nsPopup('Site of Special Scientific Interest'),style:()=>({color:'#16a34a',weight:2,fillColor:'#16a34a',fillOpacity:.08})},
+ {id:'ns-sac',group:'NatureScot',c:'S',name:'Special Areas of Conservation (SAC)',kind:'fs',url:NS+'Special_Areas_of_Conservation/FeatureServer/0',minZoom:10,cap:[100,60],
+  fields:'NAME,PA_CODE',credit:NS_C('Special Areas of Conservation'),popup:nsPopup('Special Area of Conservation'),style:()=>({color:'#ca8a04',weight:2,dashArray:'6 4',fillColor:'#ca8a04',fillOpacity:.05})},
+ {id:'ns-spa',group:'NatureScot',c:'S',name:'Special Protection Areas (SPA, birds)',kind:'fs',url:NS+'Special_Protection_Areas/FeatureServer/0',minZoom:10,cap:[100,60],
+  fields:'NAME,PA_CODE',credit:NS_C('Special Protection Areas'),popup:nsPopup('Special Protection Area'),style:()=>({color:'#9333ea',weight:2,dashArray:'2 4',fillColor:'#9333ea',fillOpacity:.04})}
 ];
+const LCC=(LZ.LC&&LZ.LC.layerCountry)||'england';   // per-country layer list: 'england' (default, unchanged) or 'scotland'
+for(let i=CATALOG.length-1;i>=0;i--){const c=CATALOG[i].c||'E';if(!(c==='GB'||(LCC==='scotland'?c==='S':c==='E')))CATALOG.splice(i,1)}
+if(LCC==='scotland')CATALOG.sort((a,b)=>(a.c==='GB')-(b.c==='GB'));
 const byId={};CATALOG.forEach(d=>{byId[d.id]=d;d.on=false});
 function setStatus(d,t){if(!d.meta)return;d.meta.textContent=d.credit+(t?(' '+t):'')}
 function explode(feats){const out=[];for(const f of feats){const g=f&&f.geometry;if(!g)continue;
@@ -116,6 +140,7 @@ async function loadFs(d){if(!d.on)return;const z=map.getZoom();
   const q=new URLSearchParams({where:'1=1',geometry:[pad.getWest(),pad.getSouth(),pad.getEast(),pad.getNorth()].join(','),
     geometryType:'esriGeometryEnvelope',inSR:'4326',outSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:d.fields,
     returnGeometry:'true',f:'geojson',resultRecordCount:String(cap),maxAllowableOffset:String(Math.max(1e-5,(mpp*2)/mdeg))});
+  if(d.noPage)q.delete('resultRecordCount');   // HES MapServer rejects pagination params
   try{const r=await fetch(d.url+'/query?'+q,{signal:ac.signal});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();
     if(ac.signal.aborted||!d.on)return;if(j.error)throw new Error(j.error.message||'query failed');
     const feats=j.features||[];drawFeats(d,feats);d.have=pad;d.z=z;
@@ -140,7 +165,7 @@ CATALOG.forEach(d=>{if(d.group!==group){group=d.group;const h=document.createEle
   const lab=document.createElement('label'),cb=document.createElement('input');cb.type='checkbox';cb.id='ly_'+d.id;
   cb.addEventListener('change',()=>setOn(d,cb.checked));const span=document.createElement('span');span.textContent=d.name;lab.appendChild(cb);lab.appendChild(span);host.appendChild(lab);
   const meta=document.createElement('div');meta.className='laymeta';meta.textContent=d.credit;host.appendChild(meta);d.meta=meta;d.cb=cb});
-const sug=$('laysuggest');if(sug)sug.textContent='Not added: Environment Agency historic landfill is Open Government Licence and can explain modern mounds. National soil maps (NATMAP and Soilscapes, Cranfield) are not published under the Open Government Licence, so they are left out.';
+const sug=$('laysuggest');if(sug)sug.textContent=LCC==='scotland'?'Scottish layers: Historic Environment Scotland designations and NatureScot protected areas, all Open Government Licence. Canmore and local HER/SMR records are not shown.':'Not added: Environment Agency historic landfill is Open Government Licence and can explain modern mounds. National soil maps (NATMAP and Soilscapes, Cranfield) are not published under the Open Government Licence, so they are left out.';
 let mvT=null;map.on('moveend',()=>{clearTimeout(mvT);mvT=setTimeout(()=>{CATALOG.forEach(d=>{if(!d.on)return;if(d.kind==='fs')loadFs(d);else setStatus(d,wmsNote(d))})},350)});
 function parseFields(xml){const m=String(xml).match(/<FIELDS\b([^>]*)\/?>/i);if(!m)return null;const o={},re=/([\w:.-]+)="([^"]*)"/g;let a;
   const dec=s=>s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&');
