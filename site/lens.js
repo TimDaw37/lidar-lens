@@ -79,7 +79,17 @@ if(LC.tries&&LC.tries.length){const tb=$('titlebox'),host=tb&&(tb.querySelector(
 document.title=LC.pageTitle||LC.title;{const h=document.querySelector('#titlebox h1'),a=document.querySelector('#titlebox .sub a');if(h)h.textContent=LC.title;if(a&&LC.link){a.textContent=LC.link.text;a.href=LC.link.href}else if(a)a.parentNode.style.display='none'}
 L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
 const whereCtl=L.control({position:'bottomleft'});whereCtl.onAdd=()=>{const d=$('where');L.DomEvent.disableClickPropagation(d);return d};whereCtl.addTo(map);
-function setSM(on){if(on&&!smLayer){fetch(LC.scheduledOverlay||'scheduled_monuments.geojson').then(r=>r.json()).then(g=>{smLayer=L.geoJSON(g,{style:{color:'#ef4444',weight:2,fill:false},onEachFeature:(f,l)=>l.bindPopup('<b>'+(f.properties.Name||'')+'</b><br>List entry '+(f.properties.ListEntry||'')+(f.properties.hyperlink?'<br><a href="'+f.properties.hyperlink+'" target="_blank" rel="noopener noreferrer">'+(LC.smLinkLabel||'NHLE entry')+'</a>':''))});if(S.sm)smLayer.addTo(map)})}
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// LC.smLive {url,minZoom,fields}: scheduled monuments read live per view from an ArcGIS layer (e.g. HES, all of Scotland) instead of a static file
+let smAb=null,smHave=null;function smLoad(){if(!S.sm||!smLayer)return;const z=map.getZoom(),mz=LC.smLive.minZoom||11;if(z<mz){smLayer.clearLayers();smHave=null;return}
+  const v=map.getBounds();if(smHave&&smHave.contains(v))return;const p=v.pad(0.3);if(smAb)smAb.abort();smAb=new AbortController();const ac=smAb;
+  const q=new URLSearchParams({where:'1=1',geometry:[p.getWest(),p.getSouth(),p.getEast(),p.getNorth()].join(','),geometryType:'esriGeometryEnvelope',inSR:'4326',outSR:'4326',
+    spatialRel:'esriSpatialRelIntersects',outFields:LC.smLive.fields||'DES_REF,DES_TITLE,LINK',returnGeometry:'true',f:'geojson',maxAllowableOffset:String(Math.max(1e-5,40/Math.pow(2,z)))});
+  fetch(LC.smLive.url+'/query?'+q,{signal:ac.signal}).then(r=>r.json()).then(g=>{if(ac.signal.aborted)return;smLayer.clearLayers();
+    (g.features||[]).forEach(f=>{const pr=f.properties||{};f.properties={Name:pr.DES_TITLE||'',ListEntry:pr.DES_REF||'',hyperlink:/^https?:\/\//.test(pr.LINK||'')?pr.LINK:''}});smLayer.addData(g);smHave=p}).catch(()=>{})}
+function setSM(on){if(LC.smLive){if(!smLayer){smLayer=L.geoJSON(null,{style:{color:'#ef4444',weight:2,fill:false},onEachFeature:(f,l)=>l.bindPopup('<b>'+esc(f.properties.Name)+'</b><br>'+esc(f.properties.ListEntry)+(f.properties.hyperlink?'<br><a href="'+f.properties.hyperlink+'" target="_blank" rel="noopener noreferrer">'+(LC.smLinkLabel||'Record')+'</a>':''))});map.on('moveend',smLoad)}
+  if(on){smLayer.addTo(map);smLoad()}else map.removeLayer(smLayer);return}
+  if(on&&!smLayer){fetch(LC.scheduledOverlay||'scheduled_monuments.geojson').then(r=>r.json()).then(g=>{smLayer=L.geoJSON(g,{style:{color:'#ef4444',weight:2,fill:false},onEachFeature:(f,l)=>l.bindPopup('<b>'+(f.properties.Name||'')+'</b><br>List entry '+(f.properties.ListEntry||'')+(f.properties.hyperlink?'<br><a href="'+f.properties.hyperlink+'" target="_blank" rel="noopener noreferrer">'+(LC.smLinkLabel||'NHLE entry')+'</a>':''))});if(S.sm)smLayer.addTo(map)})}
   else if(smLayer){on?smLayer.addTo(map):map.removeLayer(smLayer)}}
 // optional place-name labels (LC.placeNames: GeoJSON points with properties.n = label, te = type); settlements from z12, other names from z14
 if(LC.placeNames){const pnG=L.layerGroup().addTo(map);let pnF=[];

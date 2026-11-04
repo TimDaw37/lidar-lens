@@ -118,9 +118,15 @@ const CATALOG=[
  {id:'ns-spa',group:'NatureScot',c:'S',name:'Special Protection Areas (SPA, birds)',kind:'fs',url:NS+'Special_Protection_Areas/FeatureServer/0',minZoom:10,cap:[100,60],
   fields:'NAME,PA_CODE',credit:NS_C('Special Protection Areas'),popup:nsPopup('Special Protection Area'),style:()=>({color:'#9333ea',weight:2,dashArray:'2 4',fillColor:'#9333ea',fillOpacity:.04})}
 ];
-const LCC=(LZ.LC&&LZ.LC.layerCountry)||'england';   // per-country layer list: 'england' (default, unchanged) or 'scotland'
-for(let i=CATALOG.length-1;i>=0;i--){const c=CATALOG[i].c||'E';if(!(c==='GB'||(LCC==='scotland'?c==='S':c==='E')))CATALOG.splice(i,1)}
-if(LCC==='scotland')CATALOG.sort((a,b)=>(a.c==='GB')-(b.c==='GB'));
+// Per-country layer list. layerCountry: 'england' (default, unchanged) | 'scotland' | 'auto'.
+// 'auto' (multi-country lens): the list shows the layers of the country under the map centre (+ GB-wide ones) and switches as you pan.
+// Country = first LC.countryRegions entry ({c:'scotland',poly:[[lat,lng],...]}) containing the centre, else LC.defaultCountry||'england'.
+const LCC=(LZ.LC&&LZ.LC.layerCountry)||'england', AUTO=LCC==='auto', CCODE={england:'E',scotland:'S',wales:'E'};
+function inPoly(lat,lng,P){let ins=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const a=P[i],b=P[j];
+  if(((a[0]>lat)!==(b[0]>lat))&&(lng<(b[1]-a[1])*(lat-a[0])/(b[0]-a[0])+a[1]))ins=!ins}return ins}
+function countryAt(ll){for(const r of (LZ.LC.countryRegions||[]))if(inPoly(ll.lat,ll.lng,r.poly))return r.c;return LZ.LC.defaultCountry||'england'}
+if(!AUTO)for(let i=CATALOG.length-1;i>=0;i--){const c=CATALOG[i].c||'E';if(!(c==='GB'||(LCC==='scotland'?c==='S':c==='E')))CATALOG.splice(i,1)}
+if(LCC!=='england')CATALOG.sort((a,b)=>(a.c==='GB')-(b.c==='GB'));
 const byId={};CATALOG.forEach(d=>{byId[d.id]=d;d.on=false});
 function setStatus(d,t){if(!d.meta)return;d.meta.textContent=d.credit+(t?(' '+t):'')}
 function explode(feats){const out=[];for(const f of feats){const g=f&&f.geometry;if(!g)continue;
@@ -160,12 +166,16 @@ async function setOn(d,on){d.on=on;if(!on){if(d.abort)d.abort.abort();if(d.layer
     ensureWms(d);if(d.on)d.layer.addTo(map);setStatus(d,wmsNote(d))}
   else loadFs(d);save()}
 function save(){LZ.saveHashSoon&&LZ.saveHashSoon()}
-const host=$('laylist');let group='';
-CATALOG.forEach(d=>{if(d.group!==group){group=d.group;const h=document.createElement('div');h.className='lg';h.textContent=group;host.appendChild(h)}
+const host=$('laylist');let group='',curH=null;
+CATALOG.forEach(d=>{if(d.group!==group){group=d.group;const h=document.createElement('div');h.className='lg';h.textContent=group;host.appendChild(h);curH=h}
   const lab=document.createElement('label'),cb=document.createElement('input');cb.type='checkbox';cb.id='ly_'+d.id;
   cb.addEventListener('change',()=>setOn(d,cb.checked));const span=document.createElement('span');span.textContent=d.name;lab.appendChild(cb);lab.appendChild(span);host.appendChild(lab);
-  const meta=document.createElement('div');meta.className='laymeta';meta.textContent=d.credit;host.appendChild(meta);d.meta=meta;d.cb=cb});
-const sug=$('laysuggest');if(sug)sug.textContent=LCC==='scotland'?'Scottish layers: Historic Environment Scotland designations and NatureScot protected areas, all Open Government Licence. Canmore and local HER/SMR records are not shown.':'Not added: Environment Agency historic landfill is Open Government Licence and can explain modern mounds. National soil maps (NATMAP and Soilscapes, Cranfield) are not published under the Open Government Licence, so they are left out.';
+  const meta=document.createElement('div');meta.className='laymeta';meta.textContent=d.credit;host.appendChild(meta);d.meta=meta;d.cb=cb;d.els=[lab,meta];;d.gh=curH});
+const sug=$('laysuggest');function sugText(cc){if(sug)sug.textContent=cc==='scotland'?'Scottish layers: Historic Environment Scotland designations and NatureScot protected areas, all Open Government Licence. Canmore and local HER/SMR records are not shown.':'Not added: Environment Agency historic landfill is Open Government Licence and can explain modern mounds. National soil maps (NATMAP and Soilscapes, Cranfield) are not published under the Open Government Licence, so they are left out.';}
+let CUR=null;function applyCountry(){const cc=AUTO?countryAt(map.getCenter()):LCC;if(cc===CUR)return;CUR=cc;sugText(cc);if(!AUTO)return;const k=CCODE[cc]||'E';
+  host.querySelectorAll('.lg').forEach(h=>h.style.display='none');
+  CATALOG.forEach(d=>{const show=d.on||(d.c||'E')==='GB'||(d.c||'E')===k;d.els.forEach(e=>e.style.display=show?'':'none');if(show&&d.gh)d.gh.style.display=''})}
+applyCountry();if(AUTO)map.on('moveend',applyCountry);
 let mvT=null;map.on('moveend',()=>{clearTimeout(mvT);mvT=setTimeout(()=>{CATALOG.forEach(d=>{if(!d.on)return;if(d.kind==='fs')loadFs(d);else setStatus(d,wmsNote(d))})},350)});
 function parseFields(xml){const m=String(xml).match(/<FIELDS\b([^>]*)\/?>/i);if(!m)return null;const o={},re=/([\w:.-]+)="([^"]*)"/g;let a;
   const dec=s=>s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&');
