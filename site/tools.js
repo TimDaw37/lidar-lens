@@ -345,6 +345,8 @@ function thumb(cv,W,a){const n=W.n,mpp=W.mpp,span=Math.min(n,Math.round(120/mpp)
   g.putImageData(im,0,0);g.strokeStyle='#111';g.lineWidth=2;const c=S/2;g.beginPath();g.moveTo(c-9,c);g.lineTo(c-3,c);g.moveTo(c+3,c);g.lineTo(c+9,c);g.moveTo(c,c-9);g.lineTo(c,c-3);g.moveTo(c,c+3);g.lineTo(c,c+9);g.stroke();
   g.fillStyle='rgba(255,255,255,.85)';g.fillRect(4,S-20,92,16);g.fillStyle='#111';g.font='12px system-ui';g.fillText('LRM, 120 m wide',8,S-8);if(a&&!a.nodata&&a.foot){g.fillStyle='rgba(255,255,255,.85)';g.fillRect(S-112,S-20,108,16);g.fillStyle='#111';g.fillText('yellow = outline',S-108,S-8)}}
 let wiMk=null,wiSeq=0;const card=$('card');const TN=LZ.LC.toolName||'What is it?',SHOWG=LZ.LC.showGuess!==false;
+const srcHost=u=>{try{return new URL(u,location.href).hostname.replace(/^www\./,'')}catch(e){return 'Source record'}};   // unknown sources: show the site's name, not 'OSM'
+const hesLabel=u=>{const h=srcHost(u);return h==='portal.historicenvironment.scot'?'HES portal':h==='historicenvironment.scot'?'HES website':h};
 const SRC=LZ.LC.recordSources||'NHLE (Historic England, scheduled + listed), HE Aerial Investigation & Mapping, OSM (community map)';
 function compass8(b){return ['N–S','NNE–SSW','NE–SW','ENE–WSW','E–W','ESE–WNW','SE–NW','SSE–NNW'][Math.round(((b%180)+180)%180/22.5)%8]}
 function q05(v){return Math.max(0.05,Math.round(v*20)/20)}
@@ -453,7 +455,7 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   const hgLink=u=>{const m=/^https?:\/\/(?:www\.)?heritagegateway\.org\.uk\/Gateway\/Results_Single\.aspx\?uid=([^&#]+)&resourceID=19191\b/i.exec(u);return m?'https://historicengland.org.uk/listing/heritage-gateway/results?q='+encodeURIComponent(decodeURIComponent(m[1]))+'&filters%5B0%5D%5Bfield%5D=dataset&filters%5B0%5D%5Bvalues%5D%5B0%5D=Historic%20England%20research%20records&filters%5B1%5D%5Bfield%5D=layoutView&filters%5B1%5D%5Bvalues%5D%5B0%5D=list':u};
   const BADGE={CADW:'Cadw',CADWLB:'Cadw',NMRW:'Coflein'};
   const recRow=({f,d})=>{let h='';h+='<div class="rec"><span class="b '+f.s+'">'+(BADGE[f.s]||f.s)+'</span><b>'+esc(f.n||f.t||'(unnamed)')+'</b> <span class="m">&middot; '+(d<0.5?'here':Math.round(d)+' m')+'</span><div class="m">'+esc([f.t&&f.t!==f.n?f.t:'',f.p,f.s==='OSM'?'OSM '+f.id:f.s==='NHLE'||f.s==='LB'?'List entry '+f.id:f.s==='AIM'?(f.id&&!/none/i.test(f.id)?'HE UID '+f.id:''):f.s==='GAZ'?(/^\d+$/.test(f.id||'')?'NHLE '+f.id:''):f.s==='CADW'?'Cadw '+f.id:f.s==='CADWLB'?'Cadw listed building '+f.id:f.s==='NMRW'?'NPRN '+f.id:f.id].filter(Boolean).join(' · '))+
-    (f.u?' &middot; <a href="'+esc(hgLink(f.u))+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':f.s==='CADW'||f.s==='CADWLB'?'Cadw report':f.s==='NMRW'?'Coflein':'OSM')+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
+    (f.u?' &middot; <a href="'+esc(hgLink(f.u))+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':f.s==='CADW'||f.s==='CADWLB'?'Cadw report':f.s==='NMRW'?'Coflein':f.s==='OSM'?'OSM':f.s==='HES'?hesLabel(f.u):srcHost(f.u))+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
   h+='<h3>Recorded within 30 m</h3><div class="m snap" style="font-size:11px;margin:-2px 0 4px">'+esc(LZ.LC.recordsLine||('Records from the '+HLL+', NHLE, HE aerial mapping and OSM'))+'</div>';
   if(pending)h+='<div class="m wiwait">Fetching records…</div>';
   if(!pending&&LZ.recMissing&&LZ.recMissing.length)h+='<div class="m" style="font-size:12px;color:#b45309">'+esc(LZ.recMissing.join(' and '))+' records could not be fetched just now, so they are not listed. Click again in a minute.</div>';
@@ -465,6 +467,7 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   if(LZ.LC.herLinks&&LZ.LC.herLinks.length){const gr=gridRef(E,N).replace(/\s+/g,''),dl=0.0027,dg=0.0043,v={e:Math.round(E),n:Math.round(N),gr,lat:ll.lat.toFixed(5),lng:ll.lng.toFixed(5),lat1:(ll.lat+dl).toFixed(5),lng1:(ll.lng-dg).toFixed(5),lat2:(ll.lat-dl).toFixed(5),lng2:(ll.lng+dg).toFixed(5)};
     const fill=t=>t.replace(/\{(\w+)\}/g,(m,k)=>k in v?encodeURIComponent(v[k]):m);
     h+='<div class="herlinks" style="margin-top:6px;font-size:13px">'+LZ.LC.herLinks.map(L=>'<a href="'+esc(fill(L.url))+'" target="_blank" rel="noopener noreferrer">'+esc(L.label)+' &#x2197;</a>'+(L.note?' <span class="m" style="font-size:11px">('+esc(fill(L.note).replace(/%20/g,' '))+')</span>':'')).join(' &middot; ')+'</div>'}
+  if(LZ.LC.canmore)h+='<div class="canmore" style="margin-top:6px;font-size:13px"><span class="m">Canmore records within '+(LZ.LC.canmore.radius||150)+' m: loading…</span></div>';
   h+='<h3>Measured from the DTM</h3><div class="desc">'+esc(describe(a))+'</div><div class="meas">'+(a.nodata?'':'<canvas></canvas>');
   if(!a.nodata&&cls.kind!=='flat'){const rows=[['Form',(a.sign>0?'Mound / bank':'Hollow / ditch')+(a.touches?' (extends beyond 60 m)':'')],['Size',a.elong<1.5&&!a.touches?'~'+a.eqD.toFixed(0)+' m across (area '+Math.round(a.area)+' m²)':a.len.toFixed(0)+' x '+a.wid.toFixed(0)+' m, long axis '+Math.round(a.axisDeg)+'°'],
       [a.sign>0?'Height':'Depth',a.H.toFixed(2)+' m (vs. ground just outside)'],['Roundness','length/width '+a.elong.toFixed(2)+(a.rectness>0.86?', squarish':'')],['Profile',cls.prof+(a.sign<0&&a.rim>0.05?'; rim '+a.rim.toFixed(2)+' m on '+Math.round(a.rimFrac*100)+'% of sides':'')],
@@ -472,9 +475,22 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
     h+='<table>'+rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')+'</table>'}
   h+='</div>';
   if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
-  h+='<div class="ft">Measurements from the '+esc(LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC)+'.</div></div>';
-  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
+  h+='<div class="ft">Measurements from the '+esc(LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC.replace(/\.\s*$/,''))+'.</div></div>';
+  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);loadCanmore(card.querySelector('.canmore'),E,N);{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
   LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
+// Canmore (National Record of the Historic Environment, HES, OGL) points near the click, live from HES's open ArcGIS service; links open trove.scot
+async function loadCanmore(el,E,N){if(!el||!LZ.LC.canmore)return;const C=LZ.LC.canmore,r=C.radius||150;
+  const q=new URLSearchParams({geometry:Math.round(E)+','+Math.round(N),geometryType:'esriGeometryPoint',inSR:'27700',distance:String(r),units:'esriSRUnit_Meter',
+    outFields:'CANMOREID,NMRSNAME,SITETYPE,URL,XCOORD,YCOORD',returnGeometry:'false',f:'json'});
+  try{const res=await fetch(C.url+'/query?'+q);if(!res.ok)throw 0;const j=await res.json();if(j.error)throw 0;
+    const fs=(j.features||[]).map(f=>f.attributes).map(a=>({a,d:Math.hypot(a.XCOORD-E,a.YCOORD-N)})).sort((x,y)=>x.d-y.d);
+    const tc=t=>String(t||'').toLowerCase().replace(/\b([a-z])/g,m=>m.toUpperCase());
+    let h='<b>Canmore records within '+r+' m</b> <span class="m" style="font-size:11px">(HES, OGL)</span>';
+    if(!fs.length)h+='<div class="m">None recorded here.</div>';
+    fs.slice(0,C.max||8).forEach(({a,d})=>{const u=/^https:\/\/(www\.)?trove\.scot\//.test(a.URL||'')?a.URL:'https://www.trove.scot/place/'+encodeURIComponent(a.CANMOREID);
+      h+='<div><a href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">'+esc(tc(a.NMRSNAME)||'Canmore '+a.CANMOREID)+' &#x2197;</a> <span class="m">&middot; '+(d<10?'here':Math.round(d)+' m')+(a.SITETYPE?' &middot; '+esc(tc(String(a.SITETYPE).split(',')[0])):'')+'</span></div>'});
+    if(fs.length>(C.max||8))h+='<div class="m">and '+(fs.length-(C.max||8))+' more on trove.scot.</div>';
+    el.innerHTML=h}catch(e){el.innerHTML='<span class="m">Canmore records could not be loaded; try trove.scot.</span>'}}
 function compass(d){return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(d/45)%8]}
 // live mode: while What's here? is on, fetch what a click at the lens centre needs ahead of the click (5 km cells, kept in the browser)
 let preT=null;function prefetchRecs(){clearTimeout(preT);if(!LZ.LC.live||!(LZ.tool&&LZ.tool()==='whatis'))return;preT=setTimeout(()=>{if(map.getZoom()<(LZ.LC.live.minzoom||13))return;const lp=document.getElementById('lens').getBoundingClientRect(),mp=map.getContainer().getBoundingClientRect(),c=map.containerPointToLatLng([lp.left+lp.width/2-mp.left,lp.top+lp.height/2-mp.top]),[E,N]=ll2en(c.lat,c.lng);
