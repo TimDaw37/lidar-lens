@@ -162,8 +162,10 @@ async function prefetchRun(gen) {
         }
         PF.times.push(Date.now()); const ctl = PF.ctl = new AbortController();
         try {
-          const r = await limited(() => fetch(url, { signal: ctl.signal }), 'lidar', b.at, true);
-          if (r.ok) { const buf = await r.clone().arrayBuffer(); PF.bytes += buf.byteLength; await putSized(BLOCKS, c, url, r) }
+          let u = url, r = await limited(() => fetch(u, { signal: ctl.signal }), 'lidar', b.at, true);
+          // no centimetre block from the relay: take its GeoTIFF, as block() does (counts as another request)
+          if (!r.ok && !/wales/.test(url)) { u = url.replace('&f=cm', ''); PF.times.push(Date.now()); r = await limited(() => fetch(u, { signal: ctl.signal }), 'lidar', b.at, true) }
+          if (r.ok) { const buf = await r.clone().arrayBuffer(); PF.bytes += buf.byteLength; await putSized(BLOCKS, c, u, r) }
         } catch (e) { if (ctl.signal.aborted) { PF.times.pop(); if (gen === PF.gen) idleSoon(); return } }
         finally { if (PF.ctl === ctl) PF.ctl = null }
       }
