@@ -1,10 +1,10 @@
-# Brief: presets, an opposite-light check, a report link, and idle prefetch
+# Brief: presets, an opposite-light check, and idle prefetch
 
 Tim Daw, 4 November 2026. For whoever builds it (Grok or Claude).
 
-Four changes, drawn from a review of NTRIGUE Terrain Lab (https://ntrigue-terrain-lab.vercel.app/). The rule for all four: **nothing new on screen unless something old goes**. The Lens is already busy; these should leave it simpler than they found it.
+Four changes were drawn from a review of NTRIGUE Terrain Lab (https://ntrigue-terrain-lab.vercel.app/). Item 3 was dropped by Tim on 4 Nov 2026 (see *Not doing*). The rule for the rest: **nothing new on screen unless something old goes**. The Lens is already busy; these should leave it simpler than they found it.
 
-Order of work: 1, 2 and 3 together (about a day), then 4 separately. Build and check on the test Lens (https://lidar-lens-test.tim-daw.workers.dev/) before any public Lens.
+Order of work: 1 and 2 together (about a day), then 4 separately. Build and check on the test Lens (https://lidar-lens-test.tim-daw.workers.dev/) before any public Lens.
 
 ---
 
@@ -51,18 +51,9 @@ Sky-view (mode 4) was tried for hollows and dropped: at radius 15 m it is speckl
 
 ---
 
-## 3. *Report to the HER* link
+## 3. *Report to the HER* link: DROPPED
 
-**What.** One link in the *What's here?* card, next to the HER links: **Report something here**. It opens the visitor's email with:
-- To: the county HER address from the config (new optional key `herEmail`; Wiltshire: archaeology@wiltshire.gov.uk). No `herEmail`, no link.
-- Subject: `Possible feature at <grid ref>`
-- Body: grid reference, lat/long, the share link for this exact view (`hashStr()`), the Lens name, and a blank line for the visitor's description.
-
-Nothing is stored or sent by the Lens itself. Use the same `mailto:` approach as *Report a fault* in `site/compat.js`.
-
-This supports the responsible-use line: report, don't publish, don't dig. **No saved-places list or notebook**, which would pull the other way.
-
-**Done when.** The link appears only where `herEmail` is set, and the drafted email opens the same view when its link is clicked.
+Dropped by Tim on 4 Nov 2026. See *Not doing*.
 
 ---
 
@@ -86,3 +77,4 @@ This supports the responsible-use line: report, don't publish, don't dig. **No s
 - **Swipe mode** (a divider instead of a lens): possibly later. It would replace the *LiDAR full screen* checkbox with a Lens / Swipe / Full switch.
 - **Survey-year picker / provenance panel:** the England Lens uses the single EA composite; year-by-year surveys are different sources. Belongs in the separate barrow-height work, not the Lens.
 - **Saved discoveries:** conflicts with not publishing lists of possible sites.
+- **Report to the HER link** (was item 3): DROPPED by Tim on 4 Nov 2026. We don't want to have to find each county HER's email address. The *Report a fault* link stays as it is.
