@@ -38,11 +38,23 @@ document.addEventListener('keydown',e=>{const t=e.target;if(e.ctrlKey||e.metaKey
   if(k==='0'){ms.value='9';ms.dispatchEvent(new Event('change'))}
   else if(k>='1'&&k<='9'){ms.value=String(+k-1);ms.dispatchEvent(new Event('change'))}
   else if(k==='w'||k==='W')$('whatis').click();else if(k==='p'||k==='P')$('profile').click();
-  else if(k==='f'||k==='F')$('fs').click();else if(k==='s'||k==='S')$('sm').click();
+  else if(k==='f'||k==='F')$('fs').click();else if((k==='s'||k==='S')&&!LC.tidyUI)$('sm').click();
   else if(k==='c'||k==='C')LZ.resetLens();else if(k==='/'){$('gotoq').focus()}
   else if(k==='h'||k==='H'){const h=$('panel').classList.toggle('hide');document.body.classList.toggle('panelhidden',h);if(LZ.placeLens)LZ.placeLens();if(LZ.requestRender)LZ.requestRender()}
   else if(k==='?')showHelp(help.hidden);else if(k==='Escape'&&!help.hidden){showHelp(false)}else done=false;
   if(done&&k!=='Escape')e.preventDefault()});
+// ---- tidyUI (GB test): one place per item. 'Background map' section = base map + old OS map (translucent, with opacity);
+// 'Data layers' = everything fetched as data (country-switched list, plus rights of way where an area has them). No duplicate
+// scheduled-monument tick (it is in Data layers per country) and no map layers button (its choices are all in the panel).
+if(LC.tidyUI){const sm=$('sm');if(sm){sm.checked=false;const r=sm.closest('.row');if(r)r.remove()}
+  const ov=$('histbox')&&$('histbox').closest('details');if(ov){ov.querySelector('summary').textContent='Background map';ov.open=true}
+  const B=LZ.bases,bx=document.createElement('div');bx.innerHTML='<label for="bgsel">Background (outside the lens)</label><select id="bgsel" title="Map or aerial photo shown outside the lens"></select>';
+  $('histbox').parentNode.insertBefore(bx,$('histbox'));const bs=$('bgsel');
+  B.BASES.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=b.name;bs.appendChild(o)});bs.value=LZ.S.base;
+  bs.onchange=()=>{B.set(bs.value);LZ.saveHashSoon&&LZ.saveHashSoon()};map.on('baselayerchange',()=>{bs.value=LZ.S.base});
+  const hl=document.querySelector('label[for="hist"]');if(hl)hl.textContent='Old OS map on top (translucent; None = off)';
+  const n=$('ovlnote');if(n)n.textContent='The background and the old OS map show outside the lens; the lens always shows LiDAR. Data layers (designations, records, rights of way) are in Data layers below.';
+  const ls=$('laysec');if(ls){ls.querySelector('summary').textContent='Data layers';const pb=$('prowbox'),pk=$('prowkey'),ll=$('laylist');if(pb&&ll){ll.parentNode.insertBefore(pb,ll);ll.parentNode.insertBefore(pk,ll)}}}
 // ---- overlays: historic OS maps (NLS) + public rights of way (configurable per area) ----
 // Defaults cover all of Great Britain; the NLS 25-inch tiles are per county, so add them in the area config (see configs/wiltshire.js).
 const HIST=LC.historicMaps!==undefined?LC.historicMaps:[
@@ -66,7 +78,7 @@ map.on('overlayremove',e=>{if(e.layer._histId&&e.layer===histL){histL=null;hs.va
 hs.onchange=()=>{setHist(hs.value);LZ.saveHashSoon()};hop.oninput=()=>{$('histopv').textContent=Math.round(hop.value*100)+'%';if(histL)histL.setOpacity(+hop.value);LZ.saveHashSoon()};
 const PROW=LC.prow||null;   // {url, attribution}: per-area rights of way GeoJSON (property t: 1 byway, 2 restricted byway, 3 bridleway, 4 footpath)
 const PCOL={1:'#1971c2',2:'#e8590c',3:'#2f9e44',4:'#d6336c'},PNAME={1:'Byway open to all traffic',2:'Restricted byway',3:'Bridleway',4:'Footpath'};let prowL=null,prowP=null;
-if(!PROW)$('prowbox').hidden=true;
+if(!PROW){$('prowbox').hidden=true;$('prowbox').style.display='none'}   // .row is display:flex, which overrides [hidden]
 function setProw(on){$('prowkey').hidden=!on;if(!on){if(prowL)map.removeLayer(prowL);return}
   if(prowL){prowL.addTo(map);return}LZ.msg('Loading rights of way…');
   prowP=prowP||fetch(PROW.url).then(r=>r.json());prowP.then(g=>{prowL=L.geoJSON(g,{renderer:L.canvas({tolerance:6}),attribution:PROW.attribution,style:f=>({color:PCOL[f.properties.t]||'#d6336c',weight:3,opacity:.9,dashArray:f.properties.t===4?'6 4':null}),
