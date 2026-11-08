@@ -70,6 +70,14 @@ try {
   for (const name of ['assets/compat.912d81c4.js', 'assets/config.93c04c53.js', 'assets/app.2cac7a32.js', 'assets/app.6c9e6941.css']) {
     if (!html.includes(name)) fail('built index.html does not reference ' + name);
   }
+  // 3D view: must stay a separate, additive script (the main bundle above must not change because of it)
+  if (fs.existsSync(path.join(root, 'site', 'view3d.js'))) {
+    const v = (html.match(/assets\/view3d\.[0-9a-f]{8}\.js/) || [])[0];
+    if (!v) fail('built index.html does not load the 3D view (assets/view3d.*.js)');
+    const vjs = fs.readFileSync(path.join(tmp, 'dist', v), 'utf8'), t = (vjs.match(/assets\/three3d\.[0-9a-f]{8}\.js/) || [])[0];
+    if (!t || !fs.existsSync(path.join(tmp, 'dist', t))) fail('3D view does not point at a built assets/three3d.*.js');
+    console.log('3D view is additive: ' + v + ' -> ' + t);
+  }
   if (html.includes('config.198ea3a0.js')) fail('build renamed the config to the live MD5 filename; that step is not in this source');
   console.log('gb viewer source reproduces live app.2cac7a32.js, app.6c9e6941.css and compat.912d81c4.js');
   console.log('config bytes match gb/config.js; build filename is config.93c04c53.js (SHA-256), live HTML uses config.198ea3a0.js (MD5 of the same bytes)');
