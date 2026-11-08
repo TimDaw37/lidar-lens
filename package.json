@@ -4,7 +4,8 @@
   "description": "LiDAR Lens viewer build tooling",
   "scripts": {
     "build": "node scripts/build_site.mjs",
-    "check:gb-viewer": "node tests/gb-viewer-sync.mjs"
+    "check:gb-viewer": "node tests/gb-viewer-sync.mjs",
+    "build:three3d": "node scripts/build_three3d.mjs"
   },
   "repository": {
     "type": "git",
@@ -16,7 +17,8 @@
   },
   "homepage": "https://github.com/TimDaw37/lidar-lens#readme",
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "three": "^0.180.0"
   },
   "private": true,
   "type": "module"

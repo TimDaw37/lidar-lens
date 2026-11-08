@@ -25,6 +25,15 @@ const jsName='app.'+hash(js)+'.js';fs.writeFileSync(OUT+'/assets/'+jsName,js);
 const compat=(await esbuild.transform(fs.readFileSync(SITE+'/compat.js','utf8'),{loader:'js',minify:true,target:'es5'})).code;
 const compatName='compat.'+hash(compat)+'.js';fs.writeFileSync(OUT+'/assets/'+compatName,compat);
 html=html.replace('<link rel="stylesheet" href="vendor/leaflet.css">','<link rel="stylesheet" href="assets/'+cssName+'">');
+// 3D view (site/view3d.js + vendor/three3d.js): kept out of the main bundle, so adding it leaves app.*.js, app.*.css and
+// compat.*.js byte-identical. view3d.js gets its own hashed, deferred script after the bundle; three3d.js is only fetched
+// when someone opens the 3D view, so view3d.js is pointed at its hashed name here.
+if(fs.existsSync(SITE+'/view3d.js')){let v=fs.readFileSync(SITE+'/view3d.js','utf8');
+  if(fs.existsSync(SITE+'/vendor/three3d.js')){const t3=fs.readFileSync(SITE+'/vendor/three3d.js');const t3Name='three3d.'+hash(t3)+'.js';fs.writeFileSync(OUT+'/assets/'+t3Name,t3);
+    if(!v.includes("'vendor/three3d.js'"))throw new Error('view3d.js: three3d path not found');v=v.split("'vendor/three3d.js'").join("'assets/"+t3Name+"'")}
+  v=(await esbuild.transform(v,{loader:'js',minify:true,target:TARGET,supported:{destructuring:true},legalComments:'inline'})).code;
+  const vName='view3d.'+hash(v)+'.js';fs.writeFileSync(OUT+'/assets/'+vName,v);html=html.replace('<script src="view3d.js"></script>','<script defer src="assets/'+vName+'"></script>')}
+else html=html.replace(/\n?<script src="view3d\.js"><\/script>/,'');
 html=html.replace(/<script src="compat\.js"><\/script>\s*<script src="config\.js"><\/script>[\s\S]*?<script src="models\.js"><\/script>/,
   '<script src="assets/'+compatName+'"></script>\n<script defer src="config.js"></script>\n<script defer src="assets/'+jsName+'"></script>');
 let pre='';if(cfg){const c=fs.readFileSync(cfg,'utf8');const m=c.match(/url:\s*'(https:\/\/[^/'{]+)/);if(m)pre='<link rel="preconnect" href="'+m[1]+'">\n';
