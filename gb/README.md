@@ -28,3 +28,5 @@ Recovered Worker and relay sources matched `gb/worker` and `gb/relay` already on
 ## 3D view (added 8 Nov 2026)
 
 `site/view3d.js` lifts the ground in the lens out as a block that can be turned, lit and saved (GLB, STL). It is built as a separate deferred script (`assets/view3d.<hash>.js`) and loads three.js (`site/vendor/three3d.js`, rebuilt with `npm run build:three3d`) only when the view opens. It stays out of the main bundle, so `app.2cac7a32.js`, `app.6c9e6941.css` and `compat.912d81c4.js` are unchanged and `npm run check:gb-viewer` still passes; the only page change is one extra script line. To deploy, upload `assets/view3d.*.js`, `assets/three3d.*.js` and the new `index.html` (index last).
+
+Sun: the 3D sun sliders start from the lens's sun. With the single-sun hillshade they also move the lens's sun and the draped image relights; with a lit surface the sun lights the block and casts shadows (on by default on desktops, off on phones). Browser checks: `node tests/view3d.test.mjs <site URL>` (opening three times in a row, sun start and relighting, a watertight block, the no-WebGL 2 message).

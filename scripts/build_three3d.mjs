@@ -4,7 +4,7 @@
 // Usage: npm i && node scripts/build_three3d.mjs
 import * as esbuild from 'esbuild';import fs from 'node:fs';
 const entry=`export {WebGLRenderer,Scene,PerspectiveCamera,BufferGeometry,BufferAttribute,Mesh,MeshBasicMaterial,MeshLambertMaterial,
-  DirectionalLight,AmbientLight,HemisphereLight,CanvasTexture,SRGBColorSpace,LinearFilter,LinearMipmapLinearFilter,Group,Color,Vector3,DoubleSide,FrontSide,REVISION} from 'three';
+  DirectionalLight,AmbientLight,HemisphereLight,CanvasTexture,SRGBColorSpace,PCFSoftShadowMap,LinearFilter,LinearMipmapLinearFilter,Group,Color,Vector3,DoubleSide,FrontSide,REVISION} from 'three';
 export {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 export {GLTFExporter} from 'three/examples/jsm/exporters/GLTFExporter.js';`;
 const r=await esbuild.build({stdin:{contents:entry,resolveDir:process.cwd(),loader:'js'},bundle:true,format:'iife',globalName:'LL3D',minify:true,
