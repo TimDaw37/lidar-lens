@@ -14,13 +14,16 @@ const css=(await esbuild.transform(fs.readFileSync(SITE+'/vendor/leaflet.css','u
 for(const f of fs.readdirSync(SITE+'/vendor/images'))fs.copyFileSync(SITE+'/vendor/images/'+f,OUT+'/assets/images/'+f);
 const cssName='app.'+hash(css)+'.css';fs.writeFileSync(OUT+'/assets/'+cssName,css);
 // JS: Leaflet + app scripts in page order, transpiled for older browsers and minified (no eval, no modules)
-const order=['vendor/leaflet.js','lens.js','tools.js','ui.js','layers.js','models.js'];
+const order=['vendor/leaflet.js','lens.js','tools.js','ui.js','layers.js','models.js','view3d.js'];
 let js='';for(const f of order)js+=(await esbuild.transform(fs.readFileSync(SITE+'/'+f,'utf8'),{loader:'js',minify:true,target:TARGET,supported:{destructuring:true},legalComments:'inline'})).code+';\n';
+// three.js for the 3D view is loaded only when the view is opened: give it a hashed name and point view3d.js at it
+if(fs.existsSync(SITE+'/vendor/three3d.js')){const t3=fs.readFileSync(SITE+'/vendor/three3d.js');const t3Name='three3d.'+hash(t3)+'.js';fs.writeFileSync(OUT+'/assets/'+t3Name,t3);
+  if(!js.includes('vendor/three3d.js'))throw new Error('view3d.js: three3d path not found in bundle');js=js.split('vendor/three3d.js').join('assets/'+t3Name)}
 const jsName='app.'+hash(js)+'.js';fs.writeFileSync(OUT+'/assets/'+jsName,js);
 const compat=(await esbuild.transform(fs.readFileSync(SITE+'/compat.js','utf8'),{loader:'js',minify:true,target:'es5'})).code;
 const compatName='compat.'+hash(compat)+'.js';fs.writeFileSync(OUT+'/assets/'+compatName,compat);
 html=html.replace('<link rel="stylesheet" href="vendor/leaflet.css">','<link rel="stylesheet" href="assets/'+cssName+'">');
-html=html.replace(/<script src="compat\.js"><\/script>\s*<script src="config\.js"><\/script>[\s\S]*?<script src="models\.js"><\/script>/,
+html=html.replace(/<script src="compat\.js"><\/script>\s*<script src="config\.js"><\/script>[\s\S]*?<script src="(?:view3d|models)\.js"><\/script>(?:\s*<script src="view3d\.js"><\/script>)?/,
   '<script src="assets/'+compatName+'"></script>\n<script defer src="config.js"></script>\n<script defer src="assets/'+jsName+'"></script>');
 let pre='';if(cfg){const c=fs.readFileSync(cfg,'utf8');const m=c.match(/url:\s*'(https:\/\/[^/'{]+)/);if(m)pre='<link rel="preconnect" href="'+m[1]+'">\n';
   const h=c.match(/link:\{[^}]*href:'(https:[^']+)'/);if(h)pre+='<link rel="canonical" href="'+h[1]+'">\n<meta property="og:url" content="'+h[1]+'">\n';

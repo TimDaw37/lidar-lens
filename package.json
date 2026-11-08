@@ -15,7 +15,8 @@
   },
   "homepage": "https://github.com/TimDaw37/lidar-lens#readme",
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "three": "^0.180.0"
   },
   "private": true,
   "type": "module"

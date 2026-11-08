@@ -230,7 +230,7 @@ body:has(#card[style*="block"]) #modes{display:none}
 </div>
 <div id="help" role="dialog" aria-modal="false" aria-labelledby="helph" hidden><button class="x" id="helpx" aria-label="Close help">&times;</button><h2 id="helph">How to use the LiDAR Lens</h2>
 <p>The circle is a <b>lens</b> showing the 1 m LiDAR ground model over the aerial photo. Drag its rim or top grip to move it; drag the white dot to resize. Use <b>Go to</b> for a grid ref, postcode or place, or <b>Use my location</b>.</p>
-<p><b id="helptn">What is it?</b> shows the shape of the ground (measured from the LiDAR) and nearby records for the spot you click. <b>Elevation profile</b>: click two points.</p>
+<p><b id="helptn">What is it?</b> shows the shape of the ground (measured from the LiDAR) and nearby records for the spot you click. <b>Elevation profile</b>: click two points. <b>3D view</b> lifts the ground in the lens out as a block: drag to turn it, right-drag or two fingers to move it, scroll or pinch to zoom, and save it as GLB (Blender, 3D viewers) or STL (3D printing).</p>
 <h3>Keyboard shortcuts</h3><table class="keys">
 <tr><td>1–9, 0</td><td>Visualisation (0 is negative openness)</td></tr><tr><td>W</td><td id="keytn">What is it? on/off</td></tr><tr><td>P</td><td>Elevation profile on/off</td></tr>
 <tr><td>F</td><td>LiDAR full screen</td></tr><tr><td>S</td><td>Scheduled monuments</td></tr><tr><td>C</td><td>Recentre lens</td></tr><tr><td>/</td><td>Go to box</td></tr>
@@ -245,4 +245,5 @@ body:has(#card[style*="block"]) #modes{display:none}
 <script src="ui.js"></script>
 <script src="layers.js"></script>
 <script src="models.js"></script>
+<script src="view3d.js"></script>
 </body></html>
