@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "LiDAR Lens viewer build tooling",
   "scripts": {
-    "build": "node scripts/build_site.mjs"
+    "build": "node scripts/build_site.mjs",
+    "check:gb-viewer": "node tests/gb-viewer-sync.mjs"
   },
   "repository": {
     "type": "git",

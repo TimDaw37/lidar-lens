@@ -34,8 +34,12 @@ function horizonN(){const p=phoneLike();if(R&&String(R.kind).indexOf('Canvas')==
 const S=Object.assign({},DEF);
 let lensC=null; // lens centre in container px
 // ---------- hash ----------
-function readHash(){const h=new URLSearchParams(location.hash.slice(1));const out={};
-  for(const [k,v] of h){out[k]=v} return out}
+function readHash(){const raw=location.hash.slice(1);const out={};
+  const m=raw.match(/^(?:map=)?(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)/);   // also accept #zoom/lat/lng (OSM/Leaflet-hash style links)
+  if(m){out.c=m[2]+','+m[3]+','+m[1];return out}
+  const h=new URLSearchParams(raw);for(const [k,v] of h){out[k]=v}
+  if(!out.c&&out.lat&&(out.lng||out.lon))out.c=out.lat+','+(out.lng||out.lon)+','+(out.z||out.zoom||15);   // #lat=..&lng=..&z=..
+  return out}
 const H0=readHash();
 window.addEventListener('hashchange',()=>location.reload());   // a link pasted into an open tab: apply its view (the app's own saveHash uses replaceState, which doesn't fire this)
 ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>{if(H0[k]!==undefined&&!isNaN(+H0[k]))S[k]=+H0[k]});
@@ -53,7 +57,17 @@ const BASES=(LC.basemaps||[
 const baseLayers={},baseById={};BASES.forEach(b=>{const l=b.wms?L.tileLayer.wms(b.url,{layers:b.wms,format:'image/png',version:'1.3.0',maxZoom:20,attribution:b.attribution}):L.tileLayer(b.url,{maxZoom:20,maxNativeZoom:b.maxNativeZoom||19,attribution:b.attribution,subdomains:b.subdomains||'abc'});baseLayers[b.name]=l;baseById[b.id]=l;l._lensId=b.id});
 if(!baseById[S.base])S.base=BASES[0].id;baseById[S.base].addTo(map);
 map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer" title="A JavaScript library for interactive maps">Leaflet</a>');
-map.attributionControl.addAttribution(LC.lidarAttribution||'LiDAR: EA LiDAR Composite DTM 1 m &copy; Environment Agency (OGL)');if(LC.extraAttribution)map.attributionControl.addAttribution(LC.extraAttribution);
+let CUR_ATT=LC.lidarAttribution||'LiDAR: EA LiDAR Composite DTM 1 m &copy; Environment Agency (OGL)';map.attributionControl.addAttribution(CUR_ATT);
+// Multi-country lens (LC.countryText {england|wales|scotland: {lidarAttribution, noLidarText, minzoom, zoomHint}}): the LiDAR credit, the
+// 'no LiDAR' text and the live zoom follow the country under the map centre (LC.countryRegions, as the Layers list does)
+const CT=LC.countryText||null;
+function ctryPip(lat,lng,P){let ins=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const a=P[i],b=P[j];if(((a[0]>lat)!==(b[0]>lat))&&(lng<(b[1]-a[1])*(lat-a[0])/(b[0]-a[0])+a[1]))ins=!ins}return ins}
+function ctryName(){const ll=map.getCenter();for(const r of (LC.countryRegions||[]))if(ctryPip(ll.lat,ll.lng,r.poly))return r.c;return LC.defaultCountry||'england'}
+function ctry(){return CT?(CT[ctryName()]||{}):{}}
+function liveMz(){const c=ctry();return c.minzoom||(LC.live&&LC.live.minzoom)||13}
+function applyCtryText(){if(!CT)return;const c=ctry(),a=c.lidarAttribution||LC.lidarAttribution;if(a&&a!==CUR_ATT){map.attributionControl.removeAttribution(CUR_ATT);map.attributionControl.addAttribution(a);CUR_ATT=a}
+  const was=NO_LIDAR;NO_LIDAR=c.noLidarText||LC.noLidarText||NO_LIDAR;if(was!==NO_LIDAR&&$('msg')&&$('msg').textContent===was)msg(NO_LIDAR);document.documentElement.dataset.country=ctryName()}
+if(CT){map.on('moveend',applyCtryText);setTimeout(applyCtryText,0)}if(LC.extraAttribution)map.attributionControl.addAttribution(LC.extraAttribution);
 let smLayer=null;
 const titleCtl=L.control({position:'topleft'});titleCtl.onAdd=()=>{const d=$('titlebox');
   // like disableClickPropagation, except a two-finger touchstart reaches the map, so a pinch on the title box zooms the map (it sits inside the map, whose touch-action:none rules out page zoom)
@@ -61,7 +75,7 @@ const titleCtl=L.control({position:'topleft'});titleCtl.onAdd=()=>{const d=$('ti
   d.addEventListener('touchstart',e=>{if(!e.touches||e.touches.length<2)e.stopPropagation()});
   L.DomEvent.disableScrollPropagation(d);return d};titleCtl.addTo(map);
 L.control.zoom({position:'topleft'}).addTo(map);
-const layersCtl=L.control.layers(baseLayers,{},{position:'topleft'}).addTo(map);   // ui.js adds the historic OS maps to it
+const layersCtl=LC.tidyUI?null:L.control.layers(baseLayers,{},{position:'topleft'}).addTo(map);   // tidyUI: the background choice lives in the panel only (ui.js)   // ui.js adds the historic OS maps to it
 map.on('baselayerchange',e=>{S.base=e.layer._lensId;saveHash()});
 window.__outlineP=LC.outline?fetch(LC.outline).then(r=>r.json()):null;if(LC.outline){window.__outlineP.then(g=>L.geoJSON(g,{style:{color:'#fff',weight:1.5,dashArray:'4 4',fill:false},interactive:false}).addTo(map)).catch(()=>{})}else L.rectangle(CFG.bounds,{color:'#fff',weight:1,dashArray:'4 4',fill:false,interactive:false}).addTo(map);
 // Links to sibling Lenses (config: links:[{text,href}], linksNote), under the title
@@ -75,7 +89,17 @@ if(LC.tries&&LC.tries.length){const tb=$('titlebox'),host=tb&&(tb.querySelector(
 document.title=LC.pageTitle||LC.title;{const h=document.querySelector('#titlebox h1'),a=document.querySelector('#titlebox .sub a');if(h)h.textContent=LC.title;if(a&&LC.link){a.textContent=LC.link.text;a.href=LC.link.href}else if(a)a.parentNode.style.display='none'}
 L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
 const whereCtl=L.control({position:'bottomleft'});whereCtl.onAdd=()=>{const d=$('where');L.DomEvent.disableClickPropagation(d);return d};whereCtl.addTo(map);
-function setSM(on){if(on&&!smLayer){fetch(LC.scheduledOverlay||'scheduled_monuments.geojson').then(r=>r.json()).then(g=>{smLayer=L.geoJSON(g,{style:{color:'#ef4444',weight:2,fill:false},onEachFeature:(f,l)=>l.bindPopup('<b>'+(f.properties.Name||'')+'</b><br>List entry '+(f.properties.ListEntry||'')+(f.properties.hyperlink?'<br><a href="'+f.properties.hyperlink+'" target="_blank" rel="noopener noreferrer">'+(LC.smLinkLabel||'NHLE entry')+'</a>':''))});if(S.sm)smLayer.addTo(map)})}
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// LC.smLive {url,minZoom,fields}: scheduled monuments read live per view from an ArcGIS layer (e.g. HES, all of Scotland) instead of a static file
+let smAb=null,smHave=null;function smLoad(){if(!S.sm||!smLayer)return;const z=map.getZoom(),mz=LC.smLive.minZoom||11;if(z<mz){smLayer.clearLayers();smHave=null;return}
+  const v=map.getBounds();if(smHave&&smHave.contains(v))return;const p=v.pad(0.3);if(smAb)smAb.abort();smAb=new AbortController();const ac=smAb;
+  const q=new URLSearchParams({where:'1=1',geometry:[p.getWest(),p.getSouth(),p.getEast(),p.getNorth()].join(','),geometryType:'esriGeometryEnvelope',inSR:'4326',outSR:'4326',
+    spatialRel:'esriSpatialRelIntersects',outFields:LC.smLive.fields||'DES_REF,DES_TITLE,LINK',returnGeometry:'true',f:'geojson',maxAllowableOffset:String(Math.max(1e-5,40/Math.pow(2,z)))});
+  fetch(LC.smLive.url+'/query?'+q,{signal:ac.signal}).then(r=>r.json()).then(g=>{if(ac.signal.aborted)return;smLayer.clearLayers();
+    (g.features||[]).forEach(f=>{const pr=f.properties||{};f.properties={Name:pr.DES_TITLE||'',ListEntry:pr.DES_REF||'',hyperlink:/^https?:\/\//.test(pr.LINK||'')?pr.LINK:''}});smLayer.addData(g);smHave=p}).catch(()=>{})}
+function setSM(on){if(LC.smLive){if(!smLayer){smLayer=L.geoJSON(null,{style:{color:'#ef4444',weight:2,fill:false},onEachFeature:(f,l)=>l.bindPopup('<b>'+esc(f.properties.Name)+'</b><br>'+esc(f.properties.ListEntry)+(f.properties.hyperlink?'<br><a href="'+f.properties.hyperlink+'" target="_blank" rel="noopener noreferrer">'+(LC.smLinkLabel||'Record')+'</a>':''))});map.on('moveend',smLoad)}
+  if(on){smLayer.addTo(map);smLoad()}else map.removeLayer(smLayer);return}
+  if(on&&!smLayer){fetch(LC.scheduledOverlay||'scheduled_monuments.geojson').then(r=>r.json()).then(g=>{smLayer=L.geoJSON(g,{style:{color:'#ef4444',weight:2,fill:false},onEachFeature:(f,l)=>l.bindPopup('<b>'+(f.properties.Name||'')+'</b><br>List entry '+(f.properties.ListEntry||'')+(f.properties.hyperlink?'<br><a href="'+f.properties.hyperlink+'" target="_blank" rel="noopener noreferrer">'+(LC.smLinkLabel||'NHLE entry')+'</a>':''))});if(S.sm)smLayer.addTo(map)})}
   else if(smLayer){on?smLayer.addTo(map):map.removeLayer(smLayer)}}
 // optional place-name labels (LC.placeNames: GeoJSON points with properties.n = label, te = type); settlements from z12, other names from z14
 if(LC.placeNames){const pnG=L.layerGroup().addTo(map);let pnF=[];
@@ -112,6 +136,8 @@ if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').match
 (function initLens(){const [w,h]=mapSize();
   if(H0.l){const p=H0.l.split(',').map(Number);if(p.length>=2&&p.every(isFinite)){const cp=map.latLngToContainerPoint([p[0],p[1]]);lensC=[cp.x,cp.y]}}
   S.ls=Math.min(S.ls,Math.max(150,Math.min(w,h)-40));if(!lensC||lensC[0]<0||lensC[1]<0||lensC[0]>w||lensC[1]>h)lensC=defaultLensC();placeLens()})();
+// config startInLens: on first load (no #c in the link) pan so the start point sits at the lens centre, not the map centre
+if(LC.startInLens&&!H0.c&&!H0.l&&lensC){const cp=map.latLngToContainerPoint([start.lat,start.lng]);map.panBy([cp.x-lensC[0],cp.y-lensC[1]],{animate:false})}
 let drag=null,justDragged=0;
 function startDrag(e,resize){if(S.fs)return false;e.preventDefault();e.stopPropagation();try{e.target.setPointerCapture(e.pointerId)}catch(_){}
   drag={resize,x:e.clientX,y:e.clientY,c:lensC.slice(),id:e.pointerId};lensEl.classList.add('dragging');return true}
@@ -328,7 +354,7 @@ if(!R){try{R=makeCPU();if(!cv.getContext('2d'))throw new Error('no 2d')}catch(e)
   if(R)msg('This browser has no WebGL2 float support: using the basic (slower) renderer. All modes still work.',6000);
   else{const nop=()=>{};R={kind:'none',newMosaic:nop,putTile:nop,decode:nop,compute:nop,readBox:()=>null,sample:()=>null,draw:nop,clear:nop};
     msg('This browser cannot draw the LiDAR (no WebGL or canvas). The background map, Go to and records still work; try an up-to-date Chrome, Firefox, Safari or Samsung Internet.',0)}}
-window.__lens={layersCtl,renderer:()=>R.kind,stretch:()=>lastStretch,S,map,CFG,LC,msg,lensState:()=>({c:lensC.slice(),ls:S.ls,fs:S.fs})};
+window.__lens={layersCtl,bases:{BASES,baseById,set:id=>{if(!baseById[id]||id===S.base)return;map.removeLayer(baseById[S.base]);S.base=id;baseById[id].addTo(map);map.fire('baselayerchange',{layer:baseById[id]})}},country:()=>CT?ctryName():(LC.layerCountry||'england'),renderer:()=>R.kind,stretch:()=>lastStretch,S,map,CFG,LC,msg,lensState:()=>({c:lensC.slice(),ls:S.ls,fs:S.fs})};
 // ---------- render loop ----------
 let cvDpr=1,mosaicReady=false,pending=false,lastStretch=null;
 function resizeCanvas(){cvDpr=Math.min(2,window.devicePixelRatio||1);const [w,h]=mapSize();cv.style.width=w+'px';cv.style.height=h+'px';cv.width=Math.round(w*cvDpr);cv.height=Math.round(h*cvDpr)}
@@ -357,7 +383,7 @@ function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=fal
   if(defer)rest.forEach(([x,y,px,py])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(t&&t.ok)R.putTile(t.img,px,py)});
   R.decode(want);mosaicReady=true;
   if(defer){lensWait={key:want.key,zt:want.zt,tiles:lens.map(([x,y])=>[want.zt,x,y]),rest};pokeLens()}else lensWait=null;
-  if(LC.live&&!SW_WAIT&&map.getZoom()>=(LC.live.minzoom||13)-0.25){const failed=all.filter(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);return t&&t.failed}).length;   // (nearly) every tile empty: say why, not a blank lens
+  if(LC.live&&!SW_WAIT&&map.getZoom()>=liveMz()-0.25){const failed=all.filter(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);return t&&t.failed}).length;   // (nearly) every tile empty: say why, not a blank lens
     if(failed&&failed>=all.length*0.75)msg(NO_LIDAR);else if($('msg').textContent===NO_LIDAR)msg('',1)}
   {const ld=document.getElementById('loading');if(SW_WAIT)missing=all.length;if(ld){ld.hidden=!missing;if(missing)document.getElementById('loadt').textContent='Loading LiDAR… ('+missing+' tiles)'}}requestRender(true)}
 // tiles arrive in bursts: coalesce rebuilds (each one re-decodes the whole mosaic)
@@ -399,15 +425,15 @@ map.on('movestart',()=>{viewBusy=true});
 map.on('move',requestRender);map.on('moveend',()=>{scheduleMosaic();saveHash();liveHint();clearTimeout(busyT);busyT=setTimeout(()=>{viewBusy=false;requestRender()},220)});
 // live mode: below the worker's first zoom the lens is empty, so say why
 map.whenReady(()=>setTimeout(()=>liveHint(),300));
-const NO_LIDAR=LC.noLidarText||'Little or no LiDAR here: the Environment Agency survey covers England only, and stops at the coast.';
+let NO_LIDAR=LC.noLidarText||(CT?'No open LiDAR covers this spot yet.':'Little or no LiDAR here: the Environment Agency survey covers England only, and stops at the coast.');
 map.on('baselayerchange',()=>liveHint());
-function liveHint(){if(!LC.live)return;const mz=LC.live.minzoom||13;if(map.getZoom()<mz-0.25)msg('Zoom in to see live LiDAR in the lens (zoom '+mz+'+).'+(S.base==='eahs'?' The background is the EA LiDAR hillshade.':' Zoomed out, choose the EA LiDAR hillshade background on the layers button.'));else if($('msg').textContent.startsWith('Zoom in to see live'))msg('',1)}
+function liveHint(){if(!LC.live)return;const mz=liveMz(),zh=CT&&ctry().zoomHint!=null?ctry().zoomHint:LC.live.zoomHint;if(map.getZoom()<mz-0.25)msg('Zoom in to see live LiDAR in the lens (zoom '+mz+'+).'+(zh!=null?zh:S.base==='eahs'?' The background is the EA LiDAR hillshade.':' Zoomed out, choose the EA LiDAR hillshade background on the layers button.'));else if($('msg').textContent.startsWith('Zoom in to see live'))msg('',1)}
 map.on('zoomstart',()=>{cv.style.visibility='hidden'});map.on('zoomend',()=>{cv.style.visibility='visible';scheduleMosaic()});
 map.on('resize',()=>{resizeCanvas();placeLens();scheduleMosaic()});
 // ---------- controls ----------
 const ctl=[['mode','',v=>+v],['el','°',v=>+v],['ve','x',v=>+v],['rad',' m',v=>+v],['ct','x',v=>+v],['gm','',v=>+v],['op','',v=>+v],['ls',' px',v=>+v]];
 function syncUI(){ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$(k+'v');if(o)o.textContent=(k==='op'?Math.round(S[k]*100)+'%':S[k]+u)});
-  $('ramp').value=S.ramp;$('auto').checked=S.auto;$('fs').checked=S.fs;$('sm').checked=S.sm;$('azv').textContent=Math.round(S.az)+'°';drawDial();
+  const sv=(id,p,v)=>{const e=$(id);if(e)e[p]=v};sv('ramp','value',S.ramp);sv('auto','checked',S.auto);sv('fs','checked',S.fs);sv('sm','checked',S.sm);sv('azv','textContent',Math.round(S.az)+'°');drawDial();
   $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))?'':'none';
   $('ramp').disabled=S.mode===5||S.mode===6;if($('ct'))$('ct').disabled=!S.auto;const man=$('manrange');if(man)man.hidden=!!S.auto;
   if(!S.auto&&$('rlo')&&document.activeElement!==$('rlo')&&document.activeElement!==$('rhi')){const b=manual[S.mode]||MODE_RANGE[S.mode]||[0,1];$('rlo').value=b[0];$('rhi').value=b[1]}}
@@ -475,6 +501,9 @@ function drawProfile(hs,dist){const box=$('prof');box.style.display='block';cons
 document.querySelector('#prof .x').onclick=()=>{clearProfile(true);if(tool==='profile')setTool(null)};
 // ---------- go ----------
 $('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
+// config creditsFull: the full credit text lives in About / data; a .credlink in the short attribution opens it
+if(LC.creditsFull){const c=document.createElement('div');c.className='credits';c.style.marginTop='6px';c.innerHTML='<b>Credits.</b> '+LC.creditsFull;$('about').appendChild(c)}
+document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a.credlink');if(!a)return;e.preventDefault();$('panel').classList.remove('hide');const d=$('about').closest('details');if(d)d.open=true;placeLens();requestRender();setTimeout(()=>$('about').scrollIntoView({block:'nearest',behavior:'smooth'}),50)});
 Object.assign(window.__lens,{H0,saveHashSoon,RAMPS,syncUI,placeLens,requestRender,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},tileData,heightAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
 resizeCanvas();syncUI();if(S.sm)setSM(true);buildMosaic();
 })();
