@@ -23,16 +23,23 @@ if(LC.live){if(!('serviceWorker' in navigator)){document.addEventListener('DOMCo
   else navigator.serviceWorker.register('live-sw.js').catch(()=>{})}
 const CFG={tiles:LC.tiles.url,minz:LC.tiles.minzoom,maxz:LC.tiles.maxzoom,xo:LC.tiles.crossOrigin||null,bounds:LC.bounds,start:{lat:LC.start.lat,lng:LC.start.lng,z:LC.start.zoom}};
 const $=id=>document.getElementById(id);
-const DEF={va:false,mode:0,az:315,el:35,ve:2,rad:10,ramp:'grey',auto:true,ct:1,gm:1,op:1,ls:340,fs:false,sm:false,base:'sat'};
-const MODE_RAMP={0:'grey',1:'grey',2:'greyinv',3:'rdbu',4:'grey',5:'grey',6:'rdbu',7:'rdbu',8:'grey',9:'grey',10:'grey',11:'grey'};
-const MODE_RANGE={0:[0,1],1:[0.2,1],2:[0,35],3:[-0.5,0.5],4:[0.8,1],5:[0,30],6:[-0.5,0.5],7:[-0.5,0.5],8:[65,90],9:[65,90],10:[0,1],11:[-15,15]};
+const DEF={va:false,ld0:10,ld1:20,ldh:1.7,mode:0,az:315,el:35,ve:2,rad:10,ramp:'grey',auto:true,ct:1,gm:1,op:1,ls:340,fs:false,sm:false,base:'sat'};
+const MODE_RAMP={0:'grey',1:'grey',2:'greyinv',3:'rdbu',4:'grey',5:'grey',6:'rdbu',7:'rdbu',8:'grey',9:'grey',10:'grey',11:'grey',12:'grey'};
+const MODE_RANGE={0:[0,1],1:[0.2,1],2:[0,35],3:[-0.5,0.5],4:[0.8,1],5:[0,30],6:[-0.5,0.5],7:[-0.5,0.5],8:[65,90],9:[65,90],10:[0,1],11:[-15,15],12:[2,14]};
 const DIVERGING=m=>m===3||m===6||m===7||m===11;   // centred on zero, symmetric auto-contrast
 const isLRM=m=>m===3||m===6||m===7;          // local relief, red relief, LRM×hillshade
-const isHeavy=m=>m===4||m===8||m===9||m===10||m===11;   // sky-view, the openness modes, openness difference and CVAT share the horizon search
+const isHeavy=m=>m===4||m===8||m===9||m===10||m===11||m===12;   // sky-view, the openness modes, openness difference and CVAT share the horizon search
 // Openness difference (mode 11): (positive − negative openness)/2, after Yokoyama, Shirasawa and Pike (2002) for openness and Chiba, Kaneta
 // and Suzuki (2008) for the difference (the ridge–valley index of red relief image maps). Both come from the one horizon search used by
 // modes 8 and 9 (same radius, directions and steps). Degrees; positive = ridges, banks and rims, negative = ditches and hollows.
 const isOD=m=>m===11;
+// Local dominance (mode 12), after Hesse (2016): an observer ldh metres above each point; LD = mean angle down to every sample on rings
+// from ld0 to ld1 metres (1 m apart, or one data pixel when pixels are larger), 24 directions (12 on phones). Degrees; true heights.
+const isLD=m=>m===12;
+// Per-mode settings: [key, unit, mode]. Saved in share links under the same key; shown only for their mode (#modeparams .mp[data-m]).
+const MP=[['ld0',' m',12],['ld1',' m',12],['ldh',' m',12]];
+const trueHeights=m=>isCVAT(m)||isLD(m);   // modes computed without the vertical exaggeration
+function ldDirs(){return phoneLike()?12:24}
 const redRel=()=>isOD(S.mode)&&S.ramp==='redrel';   // optional: openness difference drawn with the red relief colour rule (slope as red, mode 6)
 // Combined VAT (visualisation for archaeological topography; Kokalj and Somrak 2019): written here from the paper's recipe and RVT's
 // published blend settings (Relief Visualization Toolbox, Apache 2.0); no RVT code is copied. VAT = hillshade, then slope (luminosity 50%), positive openness (overlay 50%),
@@ -41,7 +48,8 @@ const isCVAT=m=>m===10;
 // Per-mode starting look: Combined VAT opens a touch more contrasty and darker in the mid-tones than RVT's plain 0–1 scale.
 // Applied when a mode is chosen while Contrast and Gamma are still at the previous mode's starting values, so a user's own setting is kept.
 const MODE_LEGEND={10:'Lighter: level or raised, open ground. Darker: steep slopes, ditches and hollows.',
-  11:'Lighter: ridges, banks and rims. Darker: ditches, hollows and valleys. Mid grey: level ground or even slopes.'};
+  11:'Lighter: ridges, banks and rims. Darker: ditches, hollows and valleys. Mid grey: level ground or even slopes.',
+  12:'Lighter: points that look down on their surroundings (mounds, banks, rises). Darker: hollows, ditches and ground below higher ground.'};
 const MODE_LOOK={10:{ct:1.15,gm:1.15}};const lookOf=m=>MODE_LOOK[m]||{ct:1,gm:1};
 const CVAT_R1=10,CVAT_R2=20;   // horizon radii in metres: RVT general 10 px, flat 20 px on a 1 m DTM
 function phoneLike(){return matchMedia('(pointer:coarse)').matches||matchMedia('(max-width:700px)').matches}
@@ -57,7 +65,7 @@ function readHash(){const raw=location.hash.slice(1);const out={};
   return out}
 const H0=readHash();
 window.addEventListener('hashchange',()=>location.reload());   // a link pasted into an open tab: apply its view (the app's own saveHash uses replaceState, which doesn't fire this)
-['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>{if(H0[k]!==undefined&&!isNaN(+H0[k]))S[k]=+H0[k]});
+['mode','az','el','ve','rad','ct','gm','op','ls'].concat(MP.map(q=>q[0])).forEach(k=>{if(H0[k]!==undefined&&!isNaN(+H0[k]))S[k]=+H0[k]});
 if(H0.ct===undefined&&H0.gm===undefined){const L0=lookOf(S.mode);S.ct=L0.ct;S.gm=L0.gm}
 if(H0.ramp)S.ramp=H0.ramp; else S.ramp=MODE_RAMP[S.mode];
 if(H0.auto!==undefined)S.auto=H0.auto==='1'; if(H0.va!==undefined)S.va=H0.va==='1'; if(H0.fs!==undefined)S.fs=H0.fs==='1'; if(H0.sm!==undefined)S.sm=H0.sm==='1'; if(H0.base)S.base=H0.base;
@@ -191,7 +199,7 @@ function getTile(z,x,y,cb){if(SW_WAIT)return null;const k=z+'/'+x+'/'+y;let t=ti
 // ---------- mosaic state ----------
 let MZ=null; // {zt,x0,y0,nx,ny,w,h,key}
 // Extra data px a mode looks beyond the lens (the 96 px margin already covers it unless the radius is large). Capped so a phone does not fetch many more tiles.
-function needPx(zt){if(!isOD(S.mode))return 0;const c=map.getCenter(),mpp=156543.03392*Math.cos(c.lat*Math.PI/180)/Math.pow(2,zt);return Math.min(phoneLike()?64:120,Math.max(2,S.rad/mpp))}
+function needPx(zt){const r=isOD(S.mode)?S.rad:isLD(S.mode)?Math.max(S.ld0,S.ld1):0;if(!r)return 0;const c=map.getCenter(),mpp=156543.03392*Math.cos(c.lat*Math.PI/180)/Math.pow(2,zt);return Math.min(phoneLike()?64:120,Math.max(2,r/mpp))}
 function wantMosaic(){const z=map.getZoom();const zt=Math.max(CFG.minz,Math.min(CFG.maxz,Math.round(z)));
   const sc=Math.pow(2,z-zt),tl=map.containerPointToLayerPoint([0,0]).add(map.getPixelOrigin());const [w,h]=mapSize();
   let ax0=tl.x/sc-128,ay0=tl.y/sc-128,ax1=(tl.x+w)/sc+128,ay1=(tl.y+h)/sc+128;const R=tileRange(zt);
@@ -238,7 +246,7 @@ float h=c.a<0.5?-9999.0:(round(c.r*255.0)*256.0+round(c.g*255.0)+round(c.b*255.0
   const BLUR=HEAD+`uniform sampler2D H;uniform ivec2 dir;uniform float sig;uniform int rad;void main(){ivec2 p=ivec2(gl_FragCoord.xy);ivec2 sz=textureSize(H,0);
 float s=0.0,w=0.0;for(int k=-rad;k<=rad;k++){ivec2 q=clamp(p+dir*k,ivec2(0),sz-1);float h=texelFetch(H,q,0).r;if(h>-9000.0){float g=exp(-float(k*k)/(2.0*sig*sig));s+=g*h;w+=g;}}
 o=vec4(w>0.0?s/w:-9999.0,0.0,0.0,1.0);}`;
-  const VAL=HEAD+`uniform sampler2D H;uniform sampler2D B;uniform int mode,hnd,hns;uniform float mpp,ve,az,el,radpx,cr1,cr2;
+  const VAL=HEAD+`uniform sampler2D H;uniform sampler2D B;uniform int mode,hnd,hns;uniform float mpp,ve,az,el,radpx,cr1,cr2,ld0,ld1,ldh;uniform int ldn;
 ivec2 SZ;float hh(ivec2 q){return texelFetch(H,clamp(q,ivec2(0),SZ-1),0).r;}
 float shade(vec3 n,float a,float e){return max(0.0,dot(n,vec3(sin(a)*cos(e),cos(a)*cos(e),sin(e))));}
 // One horizon search (Zaksek, Ostir, Kokalj 2011; Yokoyama, Shirasawa, Pike 2002). hnd/hns are smaller on a phone.
@@ -266,6 +274,13 @@ vec4 horizon2(ivec2 p,float h0){float nd=float(max(hnd,1));float ns=float(max(hn
   if(!h1)m1=0.0;if(!h2)m2=0.0;
   acc+=vec4(sin(max(m1,0.0)),1.5707963-m1,sin(max(m2,0.0)),1.5707963-m2);}
  acc/=nd;return vec4(1.0-acc.x,degrees(acc.y),1.0-acc.z,degrees(acc.w));}
+// Local dominance (Hesse 2016): mean angle from an observer ldh m above the point down to each ring sample, ld0..ld1 m, 1 m apart
+// (or one data pixel apart when pixels are coarser), ldn directions. True heights.
+float ldom(ivec2 p,float h0){float nd=float(max(ldn,1));float st=max(1.0,mpp);float r1=max(ld1,ld0+st);float acc=0.0,cnt=0.0;
+ for(int k=0;k<24;k++){if(k>=ldn) break;float t=float(k)*6.2831853/nd;vec2 dv=vec2(cos(t),sin(t));
+  for(int s=0;s<64;s++){float rm=ld0+float(s)*st;if(rm>r1+1e-3) break;ivec2 o=ivec2(round(dv*(rm/mpp)));if(o==ivec2(0)) continue;
+   float hq=hh(p+o);if(hq<-9000.0) continue;acc+=atan(h0+ldh-hq,length(vec2(o))*mpp);cnt+=1.0;}}
+ return cnt>0.0?degrees(acc/cnt):0.0;}
 // One VAT (RVT blend: layers rendered bottom up, each 'top' mixed over the result by its opacity)
 float vat(float hs,float slp,float op,float svf,float smax,float omin,float omax,float vmin){
  float b=clamp(hs,0.0,1.0);
@@ -284,6 +299,7 @@ if(mode==0)r=hs;else if(mode==1){r=mh;Bc=mh;}else if(mode==2)r=slope;
 else if(mode==3||mode==6||mode==7){float bl=texelFetch(B,p,0).r;r=bl>-9000.0?h0-bl:0.0;Bc=mh;}
 else if(mode==4||mode==8||mode==9||mode==11) r=horizon(p,h0);
 else if(mode==5){r=mod(degrees(atan(-gx,-gn))+360.0,360.0);Bc=mh;}
+else if(mode==12){r=ldom(p,h0);G=degrees(atan(length(vec2(gx,gn))));}
 else if(mode==10){vec3 n1=normalize(vec3(-gx,-gn,1.0));float s1=degrees(atan(length(vec2(gx,gn))));float A1=radians(315.0);vec4 hz=horizon2(p,h0);
  float vg=vat(shade(n1,A1,radians(35.0)),s1,hz.y,hz.x,50.0,68.0,93.0,0.7);float vf=vat(shade(n1,A1,radians(15.0)),s1,hz.w,hz.z,15.0,85.0,93.0,0.9);
  r=0.5*vg+0.5*vf;G=s1;}
@@ -338,7 +354,7 @@ o=vec4(col,op*ea);}`;
       const p=P.val;gl.useProgram(p.p);bindT(0,T.H.tex,p,'H');bindT(1,T.B2.tex,p,'B');gl.uniform1i(p.u.mode,S.mode);gl.uniform1f(p.u.mpp,vw.mpp);gl.uniform1f(p.u.ve,S.ve);
       gl.uniform1f(p.u.az,S.az);gl.uniform1f(p.u.el,S.el);gl.uniform1f(p.u.radpx,Math.max(2,Math.min(120,S.rad/vw.mpp)));
       gl.uniform1f(p.u.cr1,Math.max(1.5,Math.min(120,CVAT_R1/vw.mpp)));gl.uniform1f(p.u.cr2,Math.max(2,Math.min(120,CVAT_R2/vw.mpp)));
-      const hn=horizonN();gl.uniform1i(p.u.hnd,hn.nd);gl.uniform1i(p.u.hns,hn.ns);
+      const hn=horizonN();gl.uniform1i(p.u.hnd,hn.nd);gl.uniform1i(p.u.hns,hn.ns);gl.uniform1f(p.u.ld0,S.ld0);gl.uniform1f(p.u.ld1,S.ld1);gl.uniform1f(p.u.ldh,S.ldh);gl.uniform1i(p.u.ldn,ldDirs());
       gl.bindFramebuffer(gl.FRAMEBUFFER,T.V.fb);gl.disable(gl.SCISSOR_TEST);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
       quad(p,T.V.fb,mz.w,mz.h,[box.x,box.y,box.w,box.h])},
     readBox(box){gl.bindFramebuffer(gl.FRAMEBUFFER,T.V.fb);const a=new Float32Array(box.w*box.h*4);gl.readPixels(box.x,box.y,box.w,box.h,gl.RGBA,gl.FLOAT,a);return a},
@@ -378,6 +394,9 @@ function makeCPU(){const ctx=cv.getContext('2d');const mc=document.createElement
         if(m===0)r=hs;else if(m===1){r=mh;B=mh}else if(m===2)r=slope;else if(isLRM(m)){const bl=BL(x,y);r=bl>-9000?h0-bl:0;B=mh}
         else if(m===4||m===8||m===9||m===11){let acc=0;for(let k=0;k<ND;k++){const t=k*2*Math.PI/ND,dx=Math.cos(t),dy=Math.sin(t);let mx=-Math.PI/2,mn=Math.PI/2,hit=false;for(let s=1;s<=NS;s++){const dist=Math.max(1,radpx*Math.pow(s/NS,1.6));const hq=hh(Math.round(x+dx*dist),Math.round(y+dy*dist));if(hq<-9000)continue;const ang=Math.atan2((hq-h0)*ve,dist*mpp);if(ang>mx)mx=ang;if(ang<mn)mn=ang;hit=true}if(!hit){mx=0;mn=0}if(m===4)acc+=Math.sin(Math.max(mx,0));else if(m===8)acc+=Math.PI/2-mx;else if(m===11)acc+=-0.5*(mx+mn);else acc+=Math.PI/2+mn}r=m===4?1-acc/ND:acc/ND*180/Math.PI}
         else if(m===5){r=(Math.atan2(-gx,-gn)*180/Math.PI+360)%360;B=mh}
+        else if(m===12){const nd=ldDirs(),st=Math.max(1,mpp),r1=Math.max(S.ld1,S.ld0+st);let acc=0,cnt=0;
+          for(let k=0;k<nd;k++){const t=k*2*Math.PI/nd,dx=Math.cos(t),dy=Math.sin(t);for(let s=0;s<64;s++){const rm=S.ld0+s*st;if(rm>r1+1e-3)break;const ox=Math.round(dx*rm/mpp),oy=Math.round(dy*rm/mpp);if(!ox&&!oy)continue;
+            const hq=hh(x+ox,y+oy);if(hq<-9000)continue;acc+=Math.atan2(h0+S.ldh-hq,Math.hypot(ox,oy)*mpp);cnt++}}r=cnt?acc/cnt*180/Math.PI:0;G=Math.atan(Math.hypot(gx,gn))*180/Math.PI}
         else if(m===10){const c1=Math.max(1.5,Math.min(120,CVAT_R1/mpp)),c2=Math.max(2,Math.min(120,CVAT_R2/mpp));let a1=0,o1=0,a2=0,o2=0;
           for(let k=0;k<ND;k++){const t=k*2*Math.PI/ND,dx=Math.cos(t),dy=Math.sin(t);let m1=-Math.PI/2,m2=-Math.PI/2,h1=false,h2=false;
             for(let s=1;s<=NS;s++){const dist=Math.max(1,c2*Math.pow(s/NS,1.6));const hq=hh(Math.round(x+dx*dist),Math.round(y+dy*dist));if(hq<-9000)continue;const ang=Math.atan2(hq-h0,dist*mpp);if(ang>m2)m2=ang;h2=true;if(dist<=c1+0.5){if(ang>m1)m1=ang;h1=true}}
@@ -480,14 +499,14 @@ function liveHint(){if(!LC.live)return;const mz=liveMz(),zh=CT&&ctry().zoomHint!
 map.on('zoomstart',()=>{cv.style.visibility='hidden'});map.on('zoomend',()=>{cv.style.visibility='visible';scheduleMosaic()});
 map.on('resize',()=>{resizeCanvas();placeLens();scheduleMosaic()});
 // ---------- controls ----------
-const ctl=[['mode','',v=>+v],['el','°',v=>+v],['ve','x',v=>+v],['rad',' m',v=>+v],['ct','x',v=>+v],['gm','',v=>+v],['op','',v=>+v],['ls',' px',v=>+v]];
+const ctl=[['mode','',v=>+v],['el','°',v=>+v],['ve','x',v=>+v],['rad',' m',v=>+v],['ct','x',v=>+v],['gm','',v=>+v],['op','',v=>+v],['ls',' px',v=>+v]].concat(MP.map(([k,u])=>[k,u,v=>+v]));
 function syncUI(){ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$(k+'v');if(o)o.textContent=(k==='op'?Math.round(S[k]*100)+'%':S[k]+u)});
   const sv=(id,p,v)=>{const e=$(id);if(e)e[p]=v};sv('ramp','value',S.ramp);sv('auto','checked',isCVAT(S.mode)?S.va:S.auto);sv('fs','checked',S.fs);sv('sm','checked',S.sm);sv('azv','textContent',Math.round(S.az)+'°');drawDial();
-  $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))&&!isCVAT(S.mode)?'':'none';if($('ve'))$('ve').disabled=isCVAT(S.mode);
+  $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))&&!isCVAT(S.mode)?'':'none';if($('ve'))$('ve').disabled=trueHeights(S.mode);document.querySelectorAll('#modeparams .mp').forEach(b=>{b.hidden=+b.dataset.m!==S.mode});
   $('ramp').disabled=S.mode===5||S.mode===6;{const ro=document.querySelector('#ramp option[value="redrel"]');if(ro){ro.hidden=ro.disabled=!isOD(S.mode)}}if($('ct'))$('ct').disabled=!S.auto&&!isCVAT(S.mode);const man=$('manrange');if(man)man.hidden=!!S.auto||isCVAT(S.mode);
   const lg=$('modelegend');if(lg){const t=MODE_LEGEND[S.mode];lg.textContent=t||'';lg.hidden=!t}
   if(!S.auto&&!isCVAT(S.mode)&&$('rlo')&&document.activeElement!==$('rlo')&&document.activeElement!==$('rhi')){const b=manual[S.mode]||MODE_RANGE[S.mode]||[0,1];$('rlo').value=b[0];$('rhi').value=b[1]}}
-ctl.forEach(([k,u,f])=>{const e=$(k);const on=()=>{const pm=S.mode;S[k]=f(e.value);if(k==='mode'){S.ramp=MODE_RAMP[S.mode];const a=lookOf(pm),b=lookOf(S.mode);if(S.mode!==pm&&Math.abs(S.ct-a.ct)<1e-6&&Math.abs(S.gm-a.gm)<1e-6){S.ct=b.ct;S.gm=b.gm}}if(k==='ls')placeLens();syncUI();requestRender();saveHashSoon()};e.addEventListener('input',on);e.addEventListener('change',on)});
+ctl.forEach(([k,u,f])=>{const e=$(k);const on=()=>{const pm=S.mode;S[k]=f(e.value);if(k==='mode'){S.ramp=MODE_RAMP[S.mode];const a=lookOf(pm),b=lookOf(S.mode);if(S.mode!==pm&&Math.abs(S.ct-a.ct)<1e-6&&Math.abs(S.gm-a.gm)<1e-6){S.ct=b.ct;S.gm=b.gm}}if(k==='ls')placeLens();if(MP.some(q=>q[0]===k))scheduleMosaic();syncUI();requestRender();saveHashSoon()};e.addEventListener('input',on);e.addEventListener('change',on)});
 $('ramp').onchange=e=>{S.ramp=e.target.value;requestRender();saveHashSoon()};
 $('auto').onchange=e=>{if(isCVAT(S.mode)){S.va=e.target.checked;syncUI();requestRender();saveHashSoon();return}S.auto=e.target.checked;if(!S.auto){const b=lastStretch||MODE_RANGE[S.mode]||[0,1];manual[S.mode]=[b[0],b[1]]}syncUI();requestRender();saveHashSoon()};
 function readManual(){const lo=parseFloat($('rlo').value),hi=parseFloat($('rhi').value);if(!isFinite(lo)||!isFinite(hi)||!(hi>lo))return;manual[S.mode]=[lo,hi];requestRender();saveHashSoon()}
@@ -510,7 +529,7 @@ dial.addEventListener('pointerdown',e=>{dd=true;dial.setPointerCapture(e.pointer
 // ---------- share hash ----------
 function hashStr(){const c=map.getCenter(),ll=map.containerPointToLatLng(lensC);const p=new URLSearchParams();
   p.set('c',c.lat.toFixed(5)+','+c.lng.toFixed(5)+','+map.getZoom());p.set('l',ll.lat.toFixed(5)+','+ll.lng.toFixed(5));
-  ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>p.set(k,S[k]));p.set('ramp',S.ramp);p.set('auto',S.auto?1:0);if(S.va)p.set('va',1);if(!S.auto&&manual[S.mode]){p.set('mlo',fmtN(manual[S.mode][0]));p.set('mhi',fmtN(manual[S.mode][1]))}p.set('fs',S.fs?1:0);p.set('sm',S.sm?1:0);p.set('base',S.base);if(window.__lensHashExtra)window.__lensHashExtra(p);return p.toString()}
+  ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>p.set(k,S[k]));MP.forEach(([k,,m])=>{if(S.mode===m)p.set(k,S[k])});p.set('ramp',S.ramp);p.set('auto',S.auto?1:0);if(S.va)p.set('va',1);if(!S.auto&&manual[S.mode]){p.set('mlo',fmtN(manual[S.mode][0]));p.set('mhi',fmtN(manual[S.mode][1]))}p.set('fs',S.fs?1:0);p.set('sm',S.sm?1:0);p.set('base',S.base);if(window.__lensHashExtra)window.__lensHashExtra(p);return p.toString()}
 let suppressHash=false;function saveHash(){if(suppressHash)return;try{history.replaceState(null,'','#'+hashStr())}catch(e){}}
 let hT=null;function saveHashSoon(){clearTimeout(hT);hT=setTimeout(saveHash,300)}
 $('share').onclick=()=>{saveHash();const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>msg(LC.private===true?'Link copied (the site still needs the password)':'Link copied',2500),()=>{prompt('Copy this link:',u)})};
@@ -550,7 +569,7 @@ function drawProfile(hs,dist){const box=$('prof');box.style.display='block';cons
   g.fillText('Elevation (m OD), relief '+(Math.max(...v)-Math.min(...v)).toFixed(2)+' m over '+dist.toFixed(0)+' m (not exaggerated to scale)',m.l,12)}
 document.querySelector('#prof .x').onclick=()=>{clearProfile(true);if(tool==='profile')setTool(null)};
 // ---------- go ----------
-$('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Combined VAT visualisation after Kokalj, Ž. &amp; Somrak, M. (2019) Why Not a Single Image? Combining Visualizations to Facilitate Fieldwork and On-Screen Mapping. Remote Sensing 11(7), 747. doi:<a href="https://doi.org/10.3390/rs11070747" target="_blank" rel="noopener noreferrer">10.3390/rs11070747</a>. Relief Visualization Toolbox (RVT), Apache 2.0. Here: general- and flat-terrain settings (horizon radii 10 m and 20 m, sun 315°), computed in the browser from the same DTM tiles, without vertical exaggeration. Openness difference = (positive − negative openness) / 2 from the same horizon search and radius: openness after Yokoyama, R., Shirasawa, M. &amp; Pike, R.J. (2002) Visualizing topography by openness. Photogrammetric Engineering &amp; Remote Sensing 68(3), 257–265; difference after Chiba, T., Kaneta, S. &amp; Suzuki, Y. (2008) Red relief image map: new visualization method for three dimensional data. ISPRS Archives 37(B2), 1071–1076. Centred on zero (ridges light, hollows dark); it can also use the red relief colours (slope in red). Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
+$('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Combined VAT visualisation after Kokalj, Ž. &amp; Somrak, M. (2019) Why Not a Single Image? Combining Visualizations to Facilitate Fieldwork and On-Screen Mapping. Remote Sensing 11(7), 747. doi:<a href="https://doi.org/10.3390/rs11070747" target="_blank" rel="noopener noreferrer">10.3390/rs11070747</a>. Relief Visualization Toolbox (RVT), Apache 2.0. Here: general- and flat-terrain settings (horizon radii 10 m and 20 m, sun 315°), computed in the browser from the same DTM tiles, without vertical exaggeration. Openness difference = (positive − negative openness) / 2 from the same horizon search and radius: openness after Yokoyama, R., Shirasawa, M. &amp; Pike, R.J. (2002) Visualizing topography by openness. Photogrammetric Engineering &amp; Remote Sensing 68(3), 257–265; difference after Chiba, T., Kaneta, S. &amp; Suzuki, Y. (2008) Red relief image map: new visualization method for three dimensional data. ISPRS Archives 37(B2), 1071–1076. Centred on zero (ridges light, hollows dark); it can also use the red relief colours (slope in red). Local dominance (trial) after Hesse, R. (2016) Visualisierung hochauflösender Digitaler Geländemodelle mit LiVT. In 3D-Anwendungen in der Archäologie, Berlin Studies of the Ancient World 34, 109–128. doi:10.18452/5368: the mean angle down from an observer 1.7 m above each point to the ground 10–20 m around it (24 directions, 12 on a phone; settings below the menu), true heights; default settings as in the Relief Visualization Toolbox. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
 // config creditsFull: the full credit text lives in About / data; a .credlink in the short attribution opens it
 if(LC.creditsFull){const c=document.createElement('div');c.className='credits';c.style.marginTop='6px';c.innerHTML='<b>Credits.</b> '+LC.creditsFull;$('about').appendChild(c)}
 document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a.credlink');if(!a)return;e.preventDefault();$('panel').classList.remove('hide');const d=$('about').closest('details');if(d)d.open=true;placeLens();requestRender();setTimeout(()=>$('about').scrollIntoView({block:'nearest',behavior:'smooth'}),50)});

@@ -59,6 +59,12 @@ Visualisation 11, "Openness difference" (key O). (positive openness − negative
 - Checks: `node tests/modes.test.mjs <site URL> 11` (renders at Stonehenge, Pentre Ifan and Clava, differs from hillshade, share-link round trip, phone size, CPU fallback, timings, no errors). Test site: Clava, NH 757 445, cairn rims light and inner hollows dark.
 - `npm run check:gb-viewer` pins the new `app.73ba7c7a.js`: this is an intended release (live-test now, production once Tim approves), so the hashes changed in the same commit.
 
+## Local dominance (mode 12, trial, 9 Nov 2026; not yet on production)
+
+Visualisation 12, "Local dominance (trial)" (key L), after Hesse (2016). An observer stands `h` m above each point; the value is the mean angle (degrees) down to every sample on rings from the inner to the outer radius, 1 m apart (one data pixel apart when pixels are larger than 1 m), in 24 directions (12 on phones; the tooltip says so). True heights: the vertical exaggeration slider is disabled for this mode, as for Combined VAT. Settings under the menu, saved in share links (`ld0`, `ld1`, `ldh`): inner radius 10 m (2–30), outer 20 m (5–60), observer 1.7 m (0.5–5); RVT's defaults, converted from pixels on 1 m data to metres. Grey, auto-contrast 2–98%. `needPx` widens the live margin to the outer radius. CPU fallback: same method.
+
+Test (Tim): open live-test at Normanton Down (SU 115 413), mode 12. Each barrow, including the low ploughed ones, should be a bright spot. Automated: `node tests/modes.test.mjs <url> 12`. Promotion: remove "(trial)" from the menu label in `site/index.html` and the About text, rebuild, then deploy as for mode 11.
+
 ## What is live (9 Nov 2026, after the Openness difference promotion)
 
 Every live viewer is now an exact build of this tree, with no hand-edited pages:
