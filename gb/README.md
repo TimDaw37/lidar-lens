@@ -103,3 +103,11 @@ After Lindsay, Cockburn & Russell (2015), Geomorphology 245, 51–61, with the c
 This adds a "Red–cyan 3D (trial)" tick box in the 3D view. It uses three.js AnaglyphEffect with Dubois (2001) colour matrices. `scripts/build_three3d.mjs` exposes its StereoCamera so the eye gap can be set to 1/30 of the viewing distance, with the eyes converging on the orbit target. The tick box is screen only: GLB and STL saves are unchanged. `site/vendor/three3d.js` has been rebuilt, which gives a new three3d hash.
 
 **Test method.** Silbury Hill at z16 in hillshade, and Normanton Down at z17 in local dominance. Open 3D, tick the box and view with red–cyan glasses (red over the left eye). The mound and barrows should stand forward of the screen, and turning or zooming should stay comfortable. Automated: `node tests/view3d.test.mjs <url>` checks that colour fringes appear when ticked and go when unticked, with no errors. Renders are in /workspace/lidar-cvat/anaglyph/.
+
+### 3D view extras: soft shading and water level (trial, 9 Nov 2026; not yet on production)
+
+**Soft shading (tick box).** This is a sky-view factor per top vertex (Zakšek et al. 2011), using 16 directions within 10 m (8 on phones) at true heights. It is mapped to a vertex-colour darkening of 0.55 + 0.45·clamp((SVF − 0.7)/0.3) on the lit and plain surfaces. The "Lens view, as shown" surface is left as drawn. It is computed once per block: about 170 ms on desktop in software GL, and about 20 ms on a phone-sized block.
+
+**Water (tick box and slider).** A translucent sheet runs from the lowest to the highest point of the block, scaled with the height exaggeration. The label gives m OD and the share under water. It is saved in GLB as the object "water level N m OD" only when shown, and it is never in STL.
+
+**Test method.** Old Sarum (51.09345, −1.80575, z16) and Durrington Walls / River Avon (51.19233, −1.78673, z16). For soft shading, use the plain surface: ditches should darken and banks stay light. For water, raise the slider until the Avon floodplain fills and check that the label matches the expected river level in m OD. Automated: `node tests/view3d.test.mjs <url>`. Renders are in /workspace/lidar-cvat/3d-extras/.

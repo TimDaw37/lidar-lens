@@ -34,6 +34,19 @@ if(await p.$('#v3dana')){const p0=await px();const t0=Date.now();await p.check('
   const tm=await p.evaluate(async()=>{const v=window.__view3d._v(),t=performance.now();for(let k=0;k<5;k++){v.dirty=true;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))}return (performance.now()-t)/5});
   console.log('TIME red-cyan frame (software GL, two rAF):',tm.toFixed(0),'ms');
   await p.uncheck('#v3dana');await p.waitForTimeout(800);const p2=await px();ok('red-cyan: off restores the plain view',Math.abs(p2.rg-p0.rg)<0.3,p2.rg.toFixed(2))}
+// soft shading and water (trials)
+if(await p.$('#v3dao')){await p.selectOption('#v3ddrape','clay');await p.waitForTimeout(500);const c0=await px();
+  await p.check('#v3dao');await p.waitForTimeout(800);const c1=await px();const ao=await p.evaluate(()=>{const v=window.__view3d._v(),c=v.top.geometry.getAttribute('color');let lo=1;if(c)for(let i=0;i<c.count;i++)lo=Math.min(lo,c.getX(i));return {has:!!c,lo,ms:v.aoMs,mat:v.top.material.name}});
+  ok('soft shading: picture changes',c1.url!==c0.url);ok('soft shading: darkens some ground',ao.has&&ao.lo<0.95,JSON.stringify(ao));console.log('TIME soft shading build:',(ao.ms||0).toFixed(0),'ms');
+  await p.uncheck('#v3dao');await p.selectOption('#v3ddrape','lens');
+  await p.check('#v3dwat');await p.evaluate(()=>{const w=document.getElementById('v3dwl');w.value='500';w.dispatchEvent(new Event('input'))});await p.waitForTimeout(800);
+  const w=await p.evaluate(()=>new Promise(res=>{const v=window.__view3d._v();new LL3D.GLTFExporter().parse(v.group,j=>res({label:document.getElementById('v3dwatv').textContent,vis:v.water.visible,names:(j.nodes||[]).map(n=>n.name)}),e=>res({err:String(e)}),{binary:false})}));
+  const pct=+((w.label||'').match(/\((\d+)% under\)/)||[])[1];
+  ok('water: label in m OD with share under water',/m OD/.test(w.label)&&pct>0&&pct<100,w.label);ok('water: in GLB as its own object',(w.names||[]).some(n=>/^water level .* m OD$/.test(n)),JSON.stringify(w.names));
+  const stl=await p.evaluate(()=>{const m=window.__view3d.model();return m.index.length/3});ok('water: not in STL (mesh unchanged)',stl>0);
+  await p.uncheck('#v3dwat');await p.waitForTimeout(300);
+  const w2=await p.evaluate(()=>new Promise(res=>{new LL3D.GLTFExporter().parse(window.__view3d._v().group,j=>res((j.nodes||[]).map(n=>n.name)),e=>res([String(e)]),{binary:false})}));
+  ok('water off: not in GLB',!w2.some(n=>/^water/.test(n)),JSON.stringify(w2))}
 ok('no JS errors',!errs.length,errs[0]||'');await ctx.close();
 // without WebGL 2: a message, no dialog, no errors
 const c2=await b.newContext();await c2.addInitScript(`(()=>{const g=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(t,...a){if(t==='webgl2')return null;return g.call(this,t,...a)}})()`);
