@@ -97,3 +97,9 @@ After Lindsay, Cockburn & Russell (2015), Geomorphology 245, 51–61, with the c
 
 **Test method.** Silbury Hill (51.41543, −1.85759) at z14 and z16, compared with hillshade and LRM. The mound should read white or orange, standing out at all scales. Valleys and ridges should show as red bands, and banks and tracks in green and blue. Automated: `node tests/modes.test.mjs <url> 14`. Renders are in /workspace/lidar-cvat/mstp/.
 **Promote:** remove "(trial)" from the index.html option and the About text, rebuild, update the gate, and deploy as for mode 11.
+
+### Red–cyan 3D in the 3D view (trial, 9 Nov 2026; not yet on production)
+
+This adds a "Red–cyan 3D (trial)" tick box in the 3D view. It uses three.js AnaglyphEffect with Dubois (2001) colour matrices. `scripts/build_three3d.mjs` exposes its StereoCamera so the eye gap can be set to 1/30 of the viewing distance, with the eyes converging on the orbit target. The tick box is screen only: GLB and STL saves are unchanged. `site/vendor/three3d.js` has been rebuilt, which gives a new three3d hash.
+
+**Test method.** Silbury Hill at z16 in hillshade, and Normanton Down at z17 in local dominance. Open 3D, tick the box and view with red–cyan glasses (red over the left eye). The mound and barrows should stand forward of the screen, and turning or zooming should stay comfortable. Automated: `node tests/view3d.test.mjs <url>` checks that colour fringes appear when ticked and go when unticked, with no errors. Renders are in /workspace/lidar-cvat/anaglyph/.
