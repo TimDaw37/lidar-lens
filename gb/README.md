@@ -82,3 +82,10 @@ Worker sources, checked against the source maps in the deployed scripts on 9 Nov
 Mode 11 was promoted to production and Wiltshire at about 22:20 GMT on 9 Nov 2026 (before that: `app.836b5ebc.js` / `app.468b2020.js`, main `5058fe4`).
 
 Rollback: the previous production, Wiltshire and live-test pages, with upload payloads, are on the box under `/workspace/lidar-cvat/rollback-20261109-mode11-promotion/` (mode 11) and `/workspace/lidar-cvat/rollback-20261109-promotion/` (Combined VAT). The old app files are still in R2, so restoring an `index.html` is enough.
+
+### Multi-scale relief model (mode 13, trial, 9 Nov 2026; not yet on production)
+
+After Orengo & Petrie (2018), ESPL 43, 1361–1369. Because the printed sum of successive differences cancels term by term, the result is (LP(i^x) − LP(n^x)) / (n − i), using two box (mean) filters. i and n are taken from the paper with rr = metres per pixel, and fmin is raised to rr as RVT does. Parameters: smallest feature mf0 (default 0 m), largest feature mf1 (default 20 m) and scaling mx (default 2). There is an option to draw it at 70% over the multi-direction hillshade (msh). The display uses a ±2.5 σ standard-deviation stretch. On phones the larger filter is capped at 64 px (120 px on desktop). Key M.
+
+**Test method.** Stonehenge Cursus (51.18698, −1.81537, z16) and Normanton Down (z17). Compare with LRM (mode 3): the Cursus banks and ditches and the barrows should read clearly at 0–20 m, without LRM's broad halos. Changing the largest feature to 60 m should bring in broader relief. Automated: `node tests/modes.test.mjs <url> 13`. Renders are in /workspace/lidar-cvat/msrm/.
+**Promote:** remove "(trial)" from the index.html option and the About text, rebuild, update the gate, and deploy as for mode 11.
