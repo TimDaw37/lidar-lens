@@ -10,10 +10,10 @@ const sw=$('swatches'),sel=$('ramp');
 function mark(){[...sw.children].forEach(b=>{b.classList.toggle('sel',b.dataset.v===sel.value);b.disabled=sel.disabled;b.style.opacity=sel.disabled?.4:1})}
 sel.addEventListener('change',mark);const ms=$('mode');ms.addEventListener('change',()=>setTimeout(mark,0));$('reset').addEventListener('click',()=>setTimeout(mark,0));mark();
 const modeBar=$('modes');
-if(modeBar){const names=['Hillshade','Multi-direction','Slope','Local relief','Sky-view','Aspect','Red relief','Combined'];
-  for(let i=0;i<8;i++){const b=document.createElement('button');b.type='button';b.textContent=String(i+1);b.title=names[i];b.setAttribute('aria-label',names[i]+', key '+(i+1));
-    b.onclick=()=>{ms.value=String(i);ms.dispatchEvent(new Event('change'));paintModes();flashMode(names[i])};modeBar.appendChild(b)}
-  function paintModes(){[...modeBar.children].forEach((b,i)=>b.classList.toggle('on',ms.value===String(i)))}
+if(modeBar){const names=['Hillshade','Multi-direction','Slope','Local relief','Sky-view','Aspect','Red relief','Combined','Combined VAT'],vals=[0,1,2,3,4,5,6,7,10],keys=['1','2','3','4','5','6','7','8','V'];
+  for(let j=0;j<names.length;j++){const i=vals[j];const b=document.createElement('button');b.type='button';b.textContent=keys[j];b.title=names[j];b.dataset.m=String(i);b.setAttribute('aria-label',names[j]+', key '+keys[j]);
+    b.onclick=()=>{ms.value=String(i);ms.dispatchEvent(new Event('change'));paintModes();flashMode(names[j])};modeBar.appendChild(b)}
+  function paintModes(){[...modeBar.children].forEach(b=>b.classList.toggle('on',ms.value===b.dataset.m))}
   function flashMode(name){if(!matchMedia('(pointer:coarse)').matches)return;const m=$('msg');
     const up=matchMedia('(max-width:700px) and (pointer:coarse)').matches&&!$('panel').classList.contains('hide');
     m.style.top='auto';m.style.bottom=up?'calc(50vh + 60px)':'72px';LZ.msg(name,1200);
@@ -37,6 +37,7 @@ document.addEventListener('keydown',e=>{const t=e.target;if(e.ctrlKey||e.metaKey
   const k=e.key;let done=true;
   if(k==='0'){ms.value='9';ms.dispatchEvent(new Event('change'))}
   else if(k>='1'&&k<='9'){ms.value=String(+k-1);ms.dispatchEvent(new Event('change'))}
+  else if(k==='v'||k==='V'){ms.value='10';ms.dispatchEvent(new Event('change'))}
   else if(k==='w'||k==='W')$('whatis').click();else if(k==='p'||k==='P')$('profile').click();
   else if(k==='f'||k==='F')$('fs').click();else if((k==='s'||k==='S')&&!LC.tidyUI)$('sm').click();
   else if(k==='c'||k==='C')LZ.resetLens();else if(k==='/'){$('gotoq').focus()}
