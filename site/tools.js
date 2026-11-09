@@ -57,9 +57,9 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
     if(Math.abs(a)>1000&&Math.abs(b)>1000){if(a>=0&&a<700000&&b>=0&&b<1300000){const [la,lo]=en2ll(a,b);goto(la,lo,18,'E '+a+' N '+b+' ('+gridRef(a,b)+')');return}showRes([{err:'Easting/northing out of range'}]);return}}
   const ll=parseLatLng(q);if(ll){let [a,b]=ll;if(!ll[2]&&Math.abs(a)<=10&&b>=49&&b<=61){[a,b]=[b,a]}if(Math.abs(a)<=90&&Math.abs(b)<=180){goto(a,b,17,a.toFixed(5)+', '+b.toFixed(5));return}}
   const pc=q.toUpperCase().replace(/\s+/g,'');
-  if(/^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/.test(pc)){try{const r=await fetch('https://api.postcodes.io/postcodes/'+encodeURIComponent(pc));const j=await r.json();
+  if(/^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/.test(pc)){try{const r=await fetch('/api/postcode?pc='+encodeURIComponent(pc));const j=await r.json();
       if(j.status===200&&j.result){goto(j.result.latitude,j.result.longitude,16,j.result.postcode+' (postcode centroid)');return}showRes([{err:'Postcode not found'}]);return}catch(e){showRes([{err:'Postcode lookup failed'}]);return}}
-  if(/^[A-Z]{1,2}\d[A-Z\d]?$/.test(pc)){try{const r=await fetch('https://api.postcodes.io/outcodes/'+encodeURIComponent(pc));const j=await r.json();if(j.status===200&&j.result){goto(j.result.latitude,j.result.longitude,13,j.result.outcode+' (postcode district)');return}}catch(e){}}
+  if(/^[A-Z]{1,2}\d[A-Z\d]?$/.test(pc)){try{const r=await fetch('/api/postcode?outcode='+encodeURIComponent(pc));const j=await r.json();if(j.status===200&&j.result){goto(j.result.latitude,j.result.longitude,13,j.result.outcode+' (postcode district)');return}}catch(e){}}
   // place name: Nominatim, UK-only, biased to the configured viewbox; at most one request per 1.1 s, submit-only (no autocomplete), cached
   {const nq=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim(),qq=nq(q),P=window.__placeNames||[];
    const hit=P.filter(f=>{const p=f.properties;return [p.cy,p.en,p.alt].some(v=>v&&nq(v)===qq)});

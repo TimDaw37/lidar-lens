@@ -43,6 +43,20 @@ const plain = (env, isPrivate, body, status, extra = {}) =>
 const json = (env, isPrivate, body, status) =>
   new Response(JSON.stringify(body), { status, headers: secure(new Headers({ "Content-Type": "application/json", "Cache-Control": "private, max-age=300" }), env, isPrivate) });
 
+
+async function postcodeLookup(url) {
+  const pc = String(url.searchParams.get("pc") || "").toUpperCase().replace(/\s+/g, "");
+  const outcode = String(url.searchParams.get("outcode") || "").toUpperCase().replace(/\s+/g, "");
+  let upstream = null;
+  if (pc && /^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/.test(pc)) upstream = "https://api.postcodes.io/postcodes/" + encodeURIComponent(pc);
+  else if (outcode && /^[A-Z]{1,2}\d[A-Z\d]?$/.test(outcode)) upstream = "https://api.postcodes.io/outcodes/" + encodeURIComponent(outcode);
+  else return null;
+  let r;
+  try { r = await fetch(upstream, { headers: { "Accept": "application/json", "User-Agent": "lidar-lens-gb" }, signal: AbortSignal.timeout(8000) }); }
+  catch (e) { return { status: 502, error: "Postcode lookup failed" }; }
+  try { return await r.json(); } catch (e) { return { status: 502, error: "Postcode lookup failed" }; }
+}
+
 // Nearby Geograph photos. The key is the Worker secret GEOGRAPH_KEY, never sent to the browser.
 // Geograph's syndicator is for on-demand lookups of a few images, with photographer credit and a link back. Creative Commons.
 async function geographNearby(env, url) {
@@ -125,6 +139,15 @@ export default {
       const ip = request.headers.get("CF-Connecting-IP") || "anon";
       const { success } = await env.RATE_LIMITER.limit({ key: ip });
       if (!success) return plain(env, isPrivate, "Too many requests, please slow down", 429, { "Retry-After": "60" });
+    }
+    if (url.pathname === "/api/postcode") {
+      const ip = request.headers.get("CF-Connecting-IP") || "anon";
+      if (!localLimit(ip, 60)) return plain(env, isPrivate, "Too many lookups, please slow down", 429, { "Retry-After": "60" });
+      const sameOrigin = !request.headers.get("Origin") || request.headers.get("Origin") === url.origin;
+      if (!sameOrigin) return plain(env, isPrivate, "Forbidden", 403);
+      const out = await postcodeLookup(url);
+      if (out === null) return plain(env, isPrivate, "Bad postcode", 400);
+      return json(env, isPrivate, out, 200);
     }
     if (url.pathname === "/api/geograph") {
       const ip = request.headers.get("CF-Connecting-IP") || "anon";
