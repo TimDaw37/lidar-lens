@@ -48,7 +48,7 @@ Visualisation option 10, "Combined VAT" (key V, phone mode bar "V"). It is Kokal
 - Differences from RVT: the lens's sparse horizon sampling (16 directions × 14 steps on desktop, 8 × 6 on phones; RVT reads every pixel along each ray). No SVF noise removal (RVT's flat setting uses noise level 3). Radii are in metres, so at zooms below 17 they span fewer, coarser pixels.
 - Computed in the browser from the DTM tiles already fetched and cached. No new Worker route, no new R2 objects, no extra cache use. The mosaic carries neighbouring tiles plus a margin (at least 96 screen px, against a 20 m ≈ 27 px horizon at z17), so tile edges show no seams.
 
-## Openness difference (mode 11, added 9 Nov 2026, live-test only until promoted)
+## Openness difference (mode 11, added 9 Nov 2026)
 
 Visualisation 11, "Openness difference" (key O). (positive openness − negative openness) / 2, in degrees: openness after Yokoyama, Shirasawa and Pike (2002), the difference after Chiba, Kaneta and Suzuki (2008), the ridge–valley index of red relief image maps. Written from the papers; no code is ported.
 
@@ -59,13 +59,13 @@ Visualisation 11, "Openness difference" (key O). (positive openness − negative
 - Checks: `node tests/modes.test.mjs <site URL> 11` (renders at Stonehenge, Pentre Ifan and Clava, differs from hillshade, share-link round trip, phone size, CPU fallback, timings, no errors). Test site: Clava, NH 757 445, cairn rims light and inner hollows dark.
 - `npm run check:gb-viewer` pins the new `app.73ba7c7a.js`: this is an intended release (live-test now, production once Tim approves), so the hashes changed in the same commit.
 
-## What is live (9 Nov 2026, after Combined VAT promotion)
+## What is live (9 Nov 2026, after the Openness difference promotion)
 
 Every live viewer is now an exact build of this tree, with no hand-edited pages:
 
-- Production (`gb/` in `lidar-lens-scotland`, lidarlens.sarsen.org): `node scripts/build_site.mjs gb/config.js`. `index.html`, `app.836b5ebc.js`, `app.6c9e6941.css`, `compat.912d81c4.js`, `config.93c04c53.js`, `view3d.594e1593.js` and `three3d.b0d9954d.js` are byte-identical to the build. The page now asks for `config.93c04c53.js`. The old `config.198ea3a0.js` (same bytes) stays in R2 for old cached pages. `live-sw.js` is unchanged (SHA-256 `7405d85b…`, from `gb/make_sw.py`). This replaces the "keep `config.198ea3a0.js`" step above.
+- Production (`gb/` in `lidar-lens-scotland`, lidarlens.sarsen.org): `node scripts/build_site.mjs gb/config.js`. `index.html`, `app.73ba7c7a.js`, `app.6c9e6941.css`, `compat.912d81c4.js`, `config.93c04c53.js`, `view3d.594e1593.js` and `three3d.b0d9954d.js` are byte-identical to the build. The page now asks for `config.93c04c53.js`. The old `config.198ea3a0.js` (same bytes) stays in R2 for old cached pages. `live-sw.js` is unchanged (SHA-256 `7405d85b…`, from `gb/make_sw.py`). This replaces the "keep `config.198ea3a0.js`" step above.
 - Live-test (`gb-live-test/`): `node scripts/build_site.mjs gb/config-live-test.js`, byte-identical.
-- Wiltshire (`public/` in `lidar-lens-wiltshire`, Worker `lidar-lens-public`): `node scripts/build_site.mjs configs/wiltshire.js` (`app.468b2020.js`, `config.11b9b8f9.js`). It previously ran a hand-patched bundle (`app.0de74083.js`) that this tree could not rebuild. The main build also brought in what `configs/wiltshire.js` already had on main: the Cloudflare analytics beacon, the Great Ridge start view, links to lidarlens.sarsen.org, the "What's here?" label and the 3D view. The other modes render pixel-identical to the old page.
+- Wiltshire (`public/` in `lidar-lens-wiltshire`, Worker `lidar-lens-public`): `node scripts/build_site.mjs configs/wiltshire.js` (`app.804283e0.js`, `config.11b9b8f9.js`; before mode 11, `app.468b2020.js`). It previously ran a hand-patched bundle (`app.0de74083.js`) that this tree could not rebuild. The main build also brought in what `configs/wiltshire.js` already had on main: the Cloudflare analytics beacon, the Great Ridge start view, links to lidarlens.sarsen.org, the "What's here?" label and the 3D view. The other modes render pixel-identical to the old page.
 
 Worker sources, checked against the source maps in the deployed scripts on 9 Nov 2026:
 
@@ -73,4 +73,6 @@ Worker sources, checked against the source maps in the deployed scripts on 9 Nov
 - `lidar-lens-gb-live-test` = `gb/worker/src/index.live-test.js` (deploy it as `index.js` next to the same two `.mjs` files). It differs from `index.js` only in "GB TEST" comments and two User-Agent strings.
 - `lidar-lens-public` (Wiltshire) = `worker/wiltshire/src/index.js`. That is an older form of `worker/src/index.js`: it has no Geograph route, fewer CSP hosts and User-Agent `lidar-lens-public`. Its vars are `PUBLIC_INDEX=1`, `HER_API=1`, `HER_BBOX=360000,110000,450000,200000`, `SITE_PREFIX=public/` and the `SHARED` terrain/rec/ctx regex, with the `RATE_LIMITER` (1200/60 s) and `HER_LIMITER` (30/60 s) bindings. As before, wrangler files are not committed.
 
-Rollback: the previous production, Wiltshire and live-test pages, with upload payloads, are on the box under `/workspace/lidar-cvat/rollback-20261109-promotion/`. The old app files are still in R2, so restoring an `index.html` is enough.
+Mode 11 was promoted to production and Wiltshire at about 22:20 GMT on 9 Nov 2026 (before that: `app.836b5ebc.js` / `app.468b2020.js`, main `5058fe4`).
+
+Rollback: the previous production, Wiltshire and live-test pages, with upload payloads, are on the box under `/workspace/lidar-cvat/rollback-20261109-mode11-promotion/` (mode 11) and `/workspace/lidar-cvat/rollback-20261109-promotion/` (Combined VAT). The old app files are still in R2, so restoring an `index.html` is enough.
