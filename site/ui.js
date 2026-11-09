@@ -41,6 +41,7 @@ document.addEventListener('keydown',e=>{const t=e.target;if(e.ctrlKey||e.metaKey
   else if(k==='o'||k==='O'){ms.value='11';ms.dispatchEvent(new Event('change'))}
   else if(k==='l'||k==='L'){ms.value='12';ms.dispatchEvent(new Event('change'))}
   else if(k==='m'||k==='M'){ms.value='13';ms.dispatchEvent(new Event('change'))}
+  else if(k==='t'||k==='T'){ms.value='14';ms.dispatchEvent(new Event('change'))}
   else if(k==='w'||k==='W')$('whatis').click();else if(k==='p'||k==='P')$('profile').click();
   else if(k==='f'||k==='F')$('fs').click();else if((k==='s'||k==='S')&&!LC.tidyUI)$('sm').click();
   else if(k==='c'||k==='C')LZ.resetLens();else if(k==='/'){$('gotoq').focus()}

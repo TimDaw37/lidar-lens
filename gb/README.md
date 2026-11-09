@@ -89,3 +89,11 @@ After Orengo & Petrie (2018), ESPL 43, 1361–1369. Because the printed sum of s
 
 **Test method.** Stonehenge Cursus (51.18698, −1.81537, z16) and Normanton Down (z17). Compare with LRM (mode 3): the Cursus banks and ditches and the barrows should read clearly at 0–20 m, without LRM's broad halos. Changing the largest feature to 60 m should bring in broader relief. Automated: `node tests/modes.test.mjs <url> 13`. Renders are in /workspace/lidar-cvat/msrm/.
 **Promote:** remove "(trial)" from the index.html option and the About text, rebuild, update the gate, and deploy as for mode 11.
+
+### Multi-scale topographic position (mode 14, trial, 9 Nov 2026; not yet on production)
+
+After Lindsay, Cockburn & Russell (2015), Geomorphology 245, 51–61, with the colour composite of Guyot, Hubert-Moy & Lorho (2018), Remote Sensing 10, 225. DEV = (z − mean) / sd in square windows, computed from float64 summed-area tables on the CPU; that happens on both renderers, with the GL renderer reading the decoded heights back once per mosaic. Three scales follow RVT's defaults: local 1–5 m (blue), meso 5–50 m (green) and broad 50–500 m (red). Each colour is 1 − exp(−lightness·|DEVmax|), with lightness `mtl` defaulting to 1.2 as in RVT. Phones use three radii per scale. Areas over 250k px (90k on phones) are computed on every second pixel. Key T.
+**Limitation:** windows are cut at the loaded area, which is 120 px beyond the view, or 64 on phones. That means the broad scale reaches the full 500 m only from about zoom 14 outwards, and the legend says so at closer zooms.
+
+**Test method.** Silbury Hill (51.41543, −1.85759) at z14 and z16, compared with hillshade and LRM. The mound should read white or orange, standing out at all scales. Valleys and ridges should show as red bands, and banks and tracks in green and blue. Automated: `node tests/modes.test.mjs <url> 14`. Renders are in /workspace/lidar-cvat/mstp/.
+**Promote:** remove "(trial)" from the index.html option and the About text, rebuild, update the gate, and deploy as for mode 11.
