@@ -6,8 +6,8 @@
 //   assets/app.6c9e6941.css
 //   assets/compat.912d81c4.js
 // The config file bytes must stay gb/config.js. The build names that copy
-// assets/config.93c04c53.js (SHA-256 prefix). The live page asks for
-// assets/config.198ea3a0.js (MD5 prefix of the same bytes); since 9 Nov 2026 production serves the built config.93c04c53.js.
+// assets/config.93c04c53.js (SHA-256 prefix). The page before 9 Nov 2026 asked for
+// assets/config.198ea3a0.js (MD5 prefix of the same bytes). Since 9 Nov 2026 production serves the built config.93c04c53.js.
 // Do not replace gb/config.js with configs that hash to a02cae18.
 // Changing these expected hashes means the build is no longer the deployed viewer.
 // Do not deploy that build unless a new deployment is intended.
