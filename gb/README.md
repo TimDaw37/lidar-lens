@@ -48,6 +48,17 @@ Visualisation option 10, "Combined VAT" (key V, phone mode bar "V"). It is Kokal
 - Differences from RVT: the lens's sparse horizon sampling (16 directions × 14 steps on desktop, 8 × 6 on phones; RVT reads every pixel along each ray). No SVF noise removal (RVT's flat setting uses noise level 3). Radii are in metres, so at zooms below 17 they span fewer, coarser pixels.
 - Computed in the browser from the DTM tiles already fetched and cached. No new Worker route, no new R2 objects, no extra cache use. The mosaic carries neighbouring tiles plus a margin (at least 96 screen px, against a 20 m ≈ 27 px horizon at z17), so tile edges show no seams.
 
+## Openness difference (mode 11, added 9 Nov 2026, live-test only until promoted)
+
+Visualisation 11, "Openness difference" (key O). (positive openness − negative openness) / 2, in degrees: openness after Yokoyama, Shirasawa and Pike (2002), the difference after Chiba, Kaneta and Suzuki (2008), the ridge–valley index of red relief image maps. Written from the papers; no code is ported.
+
+- One horizon search: the loop that modes 8 and 9 use already tracks the highest (`mx`) and lowest (`mn`) angle in each direction, so mode 11 adds `−(mx + mn)/2` per direction instead of running two searches. Same radius slider, 16 directions × 14 steps, 8 × 6 on phones (the menu tooltip says so). The vertical exaggeration applies, as in modes 8 and 9.
+- Display: centred on zero with symmetric auto-contrast (2–98%), grey by default (ridges light, hollows dark). The colour ramps work; "Red relief colours (slope in red)" is offered in the ramp list for this mode only and uses the mode 6 colour rule.
+- Margin: `needPx()` in `wantMosaic` (live mode) widens the lens margin to the horizon radius when it would pass the usual 96 px (radius capped at 120 data px, 64 on phones). Other modes are unchanged.
+- CPU fallback: same method in `makeCPU`.
+- Checks: `node tests/modes.test.mjs <site URL> 11` (renders at Stonehenge, Pentre Ifan and Clava, differs from hillshade, share-link round trip, phone size, CPU fallback, timings, no errors). Test site: Clava, NH 757 445, cairn rims light and inner hollows dark.
+- `npm run check:gb-viewer` pins the new `app.73ba7c7a.js`: this is an intended release (live-test now, production once Tim approves), so the hashes changed in the same commit.
+
 ## What is live (9 Nov 2026, after Combined VAT promotion)
 
 Every live viewer is now an exact build of this tree, with no hand-edited pages:
