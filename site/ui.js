@@ -5,9 +5,9 @@ const help=$('help'),hb=$('helpbtn');const showHelp=v=>{help.hidden=!v;hb.setAtt
 hb.onclick=()=>showHelp(help.hidden);$('helpx').onclick=()=>{showHelp(false);hb.focus()};
 // ramp swatches
 const sw=$('swatches'),sel=$('ramp');
-[...sel.options].forEach(o=>{const st=LZ.RAMPS[o.value]||['#000','#fff'];const b=document.createElement('button');b.type='button';b.dataset.v=o.value;b.title=o.textContent;b.setAttribute('aria-label','Colour ramp: '+o.textContent);
+[...sel.options].forEach(o=>{const st=o.value==='redrel'?['#000000','#8a2b1c','#ffffff']:LZ.RAMPS[o.value]||['#000','#fff'];const b=document.createElement('button');b.type='button';b.dataset.v=o.value;b.title=o.textContent;b.setAttribute('aria-label','Colour ramp: '+o.textContent);
   b.style.background='linear-gradient(90deg,'+st.join(',')+')';b.onclick=()=>{if(sel.disabled)return;sel.value=o.value;sel.dispatchEvent(new Event('change'));mark()};sw.appendChild(b)});
-function mark(){[...sw.children].forEach(b=>{b.classList.toggle('sel',b.dataset.v===sel.value);b.disabled=sel.disabled;b.style.opacity=sel.disabled?.4:1})}
+function mark(){[...sw.children].forEach(b=>{b.classList.toggle('sel',b.dataset.v===sel.value);{const o=sel.querySelector('option[value="'+b.dataset.v+'"]');b.hidden=!!(o&&o.hidden)}b.disabled=sel.disabled;b.style.opacity=sel.disabled?.4:1})}
 sel.addEventListener('change',mark);const ms=$('mode');ms.addEventListener('change',()=>setTimeout(mark,0));$('reset').addEventListener('click',()=>setTimeout(mark,0));mark();
 const modeBar=$('modes');
 if(modeBar){const names=['Hillshade','Multi-direction','Slope','Local relief','Sky-view','Aspect','Red relief','Combined','Combined VAT'],vals=[0,1,2,3,4,5,6,7,10],keys=['1','2','3','4','5','6','7','8','V'];
@@ -38,6 +38,7 @@ document.addEventListener('keydown',e=>{const t=e.target;if(e.ctrlKey||e.metaKey
   if(k==='0'){ms.value='9';ms.dispatchEvent(new Event('change'))}
   else if(k>='1'&&k<='9'){ms.value=String(+k-1);ms.dispatchEvent(new Event('change'))}
   else if(k==='v'||k==='V'){ms.value='10';ms.dispatchEvent(new Event('change'))}
+  else if(k==='o'||k==='O'){ms.value='11';ms.dispatchEvent(new Event('change'))}
   else if(k==='w'||k==='W')$('whatis').click();else if(k==='p'||k==='P')$('profile').click();
   else if(k==='f'||k==='F')$('fs').click();else if((k==='s'||k==='S')&&!LC.tidyUI)$('sm').click();
   else if(k==='c'||k==='C')LZ.resetLens();else if(k==='/'){$('gotoq').focus()}
