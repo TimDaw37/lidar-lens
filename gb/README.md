@@ -89,3 +89,9 @@ After Orengo & Petrie (2018), ESPL 43, 1361–1369. Because the printed sum of s
 
 **Test method.** Stonehenge Cursus (51.18698, −1.81537, z16) and Normanton Down (z17). Compare with LRM (mode 3): the Cursus banks and ditches and the barrows should read clearly at 0–20 m, without LRM's broad halos. Changing the largest feature to 60 m should bring in broader relief. Automated: `node tests/modes.test.mjs <url> 13`. Renders are in /workspace/lidar-cvat/msrm/.
 **Promote:** remove "(trial)" from the index.html option and the About text, rebuild, update the gate, and deploy as for mode 11.
+
+### Red–cyan 3D in the 3D view (trial, 9 Nov 2026; not yet on production)
+
+This adds a "Red–cyan 3D (trial)" tick box in the 3D view. It uses three.js AnaglyphEffect with Dubois (2001) colour matrices. `scripts/build_three3d.mjs` exposes its StereoCamera so the eye gap can be set to 1/30 of the viewing distance, with the eyes converging on the orbit target. The tick box is screen only: GLB and STL saves are unchanged. `site/vendor/three3d.js` has been rebuilt, which gives a new three3d hash.
+
+**Test method.** Silbury Hill at z16 in hillshade, and Normanton Down at z17 in local dominance. Open 3D, tick the box and view with red–cyan glasses (red over the left eye). The mound and barrows should stand forward of the screen, and turning or zooming should stay comfortable. Automated: `node tests/view3d.test.mjs <url>` checks that colour fringes appear when ticked and go when unticked, with no errors. Renders are in /workspace/lidar-cvat/anaglyph/.
