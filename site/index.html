@@ -175,8 +175,9 @@ body:has(#card[style*="block"]) #modes{display:none}
   <option value="7">Combined (LRM colour x hillshade)</option>
   <option value="8">Positive openness</option>
   <option value="9">Negative openness</option>
-  <option value="10">Combined VAT</option>
+  <option value="10" title="Combined VAT: hillshade, slope, openness and sky-view blended (Kokalj &amp; Somrak 2019; Relief Visualization Toolbox)">Combined VAT</option>
  </select>
+ <div id="modelegend" hidden style="font-size:12px;color:#374151;margin:2px 0 4px"></div>
  <div id="sunbox"><label for="dial">Sun azimuth <span class="v" id="azv"></span></label>
  <canvas id="dial" width="180" height="180" role="slider" tabindex="0" aria-label="Sun azimuth: drag or use arrow keys" title="Drag to set the sun direction (arrow keys when focused)"></canvas>
  <label for="el">Sun elevation <span class="v" id="elv"></span></label><input type="range" id="el" min="5" max="80" step="1" title="Low sun picks out subtle earthworks"></div>
