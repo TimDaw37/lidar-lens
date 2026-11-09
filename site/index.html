@@ -164,7 +164,7 @@ body:has(#card[style*="block"]) #modes{display:none}
  <div class="ph"><h1>Controls <small id="privtag">(private)</small></h1><button id="helpbtn" class="q" title="Help and keyboard shortcuts (?)" aria-label="Help and keyboard shortcuts" aria-expanded="false">?</button></div>
  <details class="sec" open><summary>Visualisation</summary>
  <label for="mode">Visualisation</label>
- <select id="mode" title="How the LiDAR is drawn inside the lens (keys 1-9, 0)">
+ <select id="mode" title="How the LiDAR is drawn inside the lens (keys 1-9, 0, V)">
   <option value="0">Hillshade (single sun)</option>
   <option value="1">Multi-direction hillshade</option>
   <option value="2">Slope</option>
@@ -175,6 +175,7 @@ body:has(#card[style*="block"]) #modes{display:none}
   <option value="7">Combined (LRM colour x hillshade)</option>
   <option value="8">Positive openness</option>
   <option value="9">Negative openness</option>
+  <option value="10">Combined VAT</option>
  </select>
  <div id="sunbox"><label for="dial">Sun azimuth <span class="v" id="azv"></span></label>
  <canvas id="dial" width="180" height="180" role="slider" tabindex="0" aria-label="Sun azimuth: drag or use arrow keys" title="Drag to set the sun direction (arrow keys when focused)"></canvas>
@@ -232,7 +233,7 @@ body:has(#card[style*="block"]) #modes{display:none}
 <p>The circle is a <b>lens</b> showing the 1 m LiDAR ground model over the aerial photo. Drag its rim or top grip to move it; drag the white dot to resize. Use <b>Go to</b> for a grid ref, postcode or place, or <b>Use my location</b>.</p>
 <p><b id="helptn">What is it?</b> shows the shape of the ground (measured from the LiDAR) and nearby records for the spot you click. <b>Elevation profile</b>: click two points.</p>
 <h3>Keyboard shortcuts</h3><table class="keys">
-<tr><td>1–9, 0</td><td>Visualisation (0 is negative openness)</td></tr><tr><td>W</td><td id="keytn">What is it? on/off</td></tr><tr><td>P</td><td>Elevation profile on/off</td></tr>
+<tr><td>1–9, 0, V</td><td>Visualisation (0 is negative openness, V is Combined VAT)</td></tr><tr><td>W</td><td id="keytn">What is it? on/off</td></tr><tr><td>P</td><td>Elevation profile on/off</td></tr>
 <tr><td>F</td><td>LiDAR full screen</td></tr><tr><td>S</td><td>Scheduled monuments</td></tr><tr><td>C</td><td>Recentre lens</td></tr><tr><td>/</td><td>Go to box</td></tr>
 <tr><td>H</td><td>Hide/show controls</td></tr><tr><td>?</td><td>This help</td></tr><tr><td>Esc</td><td>Close / tool off</td></tr></table></div>
 <div id="loading" role="status" aria-live="polite" hidden><span class="spin"></span><span id="loadt">Loading LiDAR…</span></div>

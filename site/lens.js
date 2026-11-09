@@ -24,11 +24,16 @@ if(LC.live){if(!('serviceWorker' in navigator)){document.addEventListener('DOMCo
 const CFG={tiles:LC.tiles.url,minz:LC.tiles.minzoom,maxz:LC.tiles.maxzoom,xo:LC.tiles.crossOrigin||null,bounds:LC.bounds,start:{lat:LC.start.lat,lng:LC.start.lng,z:LC.start.zoom}};
 const $=id=>document.getElementById(id);
 const DEF={mode:0,az:315,el:35,ve:2,rad:10,ramp:'grey',auto:true,ct:1,gm:1,op:1,ls:340,fs:false,sm:false,base:'sat'};
-const MODE_RAMP={0:'grey',1:'grey',2:'greyinv',3:'rdbu',4:'grey',5:'grey',6:'rdbu',7:'rdbu',8:'grey',9:'grey'};
-const MODE_RANGE={0:[0,1],1:[0.2,1],2:[0,35],3:[-0.5,0.5],4:[0.8,1],5:[0,30],6:[-0.5,0.5],7:[-0.5,0.5],8:[65,90],9:[65,90]};
+const MODE_RAMP={0:'grey',1:'grey',2:'greyinv',3:'rdbu',4:'grey',5:'grey',6:'rdbu',7:'rdbu',8:'grey',9:'grey',10:'grey'};
+const MODE_RANGE={0:[0,1],1:[0.2,1],2:[0,35],3:[-0.5,0.5],4:[0.8,1],5:[0,30],6:[-0.5,0.5],7:[-0.5,0.5],8:[65,90],9:[65,90],10:[0,1]};
 const DIVERGING=m=>m===3||m===6||m===7;
 const isLRM=m=>m===3||m===6||m===7;          // local relief, red relief, LRM×hillshade
-const isHeavy=m=>m===4||m===8||m===9;       // sky-view and the two openness modes share the horizon search
+const isHeavy=m=>m===4||m===8||m===9||m===10;   // sky-view, the two openness modes and CVAT share the horizon search
+// Combined VAT (visualisation for archaeological topography; Kokalj and Somrak 2019): written here from the paper's recipe and RVT's
+// published blend settings (Relief Visualization Toolbox, Apache 2.0); no RVT code is copied. VAT = hillshade, then slope (luminosity 50%), positive openness (overlay 50%),
+// sky-view factor (multiply 25%); 'general' and 'flat' terrain settings, then CVAT = 50% general over flat. Fixed sun 315°, true heights.
+const isCVAT=m=>m===10;
+const CVAT_R1=10,CVAT_R2=20;   // horizon radii in metres: RVT general 10 px, flat 20 px on a 1 m DTM
 function phoneLike(){return matchMedia('(pointer:coarse)').matches||matchMedia('(max-width:700px)').matches}
 function horizonN(){const p=phoneLike();if(R&&String(R.kind).indexOf('Canvas')===0)return p?{nd:8,ns:6}:{nd:12,ns:10};return p?{nd:8,ns:6}:{nd:16,ns:14}}
 const S=Object.assign({},DEF);
@@ -220,7 +225,7 @@ float h=c.a<0.5?-9999.0:(round(c.r*255.0)*256.0+round(c.g*255.0)+round(c.b*255.0
   const BLUR=HEAD+`uniform sampler2D H;uniform ivec2 dir;uniform float sig;uniform int rad;void main(){ivec2 p=ivec2(gl_FragCoord.xy);ivec2 sz=textureSize(H,0);
 float s=0.0,w=0.0;for(int k=-rad;k<=rad;k++){ivec2 q=clamp(p+dir*k,ivec2(0),sz-1);float h=texelFetch(H,q,0).r;if(h>-9000.0){float g=exp(-float(k*k)/(2.0*sig*sig));s+=g*h;w+=g;}}
 o=vec4(w>0.0?s/w:-9999.0,0.0,0.0,1.0);}`;
-  const VAL=HEAD+`uniform sampler2D H;uniform sampler2D B;uniform int mode,hnd,hns;uniform float mpp,ve,az,el,radpx;
+  const VAL=HEAD+`uniform sampler2D H;uniform sampler2D B;uniform int mode,hnd,hns;uniform float mpp,ve,az,el,radpx,cr1,cr2;
 ivec2 SZ;float hh(ivec2 q){return texelFetch(H,clamp(q,ivec2(0),SZ-1),0).r;}
 float shade(vec3 n,float a,float e){return max(0.0,dot(n,vec3(sin(a)*cos(e),cos(a)*cos(e),sin(e))));}
 // One horizon search (Zaksek, Ostir, Kokalj 2011; Yokoyama, Shirasawa, Pike 2002). hnd/hns are smaller on a phone.
@@ -236,6 +241,23 @@ float horizon(ivec2 p,float h0){float acc=0.0;float nd=float(max(hnd,1));float n
   else acc+=1.5707963+mn;}
  if(mode==4) return 1.0-acc/nd;
  return degrees(acc/nd);}
+// CVAT: one search out to the flat radius (cr2 px); samples within cr1 px also give the general-terrain horizon.
+// Returns svf (general), positive openness (general, degrees), svf (flat), openness (flat).
+vec4 horizon2(ivec2 p,float h0){float nd=float(max(hnd,1));float ns=float(max(hns,1));vec4 acc=vec4(0.0);
+ for(int k=0;k<16;k++){if(k>=hnd) break;float t=float(k)*6.2831853/nd;vec2 dv=vec2(cos(t),sin(t));
+  float m1=-1.5707963,m2=-1.5707963;bool h1=false,h2=false;
+  for(int s=1;s<=14;s++){if(s>hns) break;float dist=max(1.0,cr2*pow(float(s)/ns,1.6));
+   ivec2 q=p+ivec2(round(dv*dist));float hq=hh(q);if(hq<-9000.0) continue;
+   float ang=atan(hq-h0,dist*mpp);m2=max(m2,ang);h2=true;if(dist<=cr1+0.5){m1=max(m1,ang);h1=true;}}
+  if(!h1)m1=0.0;if(!h2)m2=0.0;
+  acc+=vec4(sin(max(m1,0.0)),1.5707963-m1,sin(max(m2,0.0)),1.5707963-m2);}
+ acc/=nd;return vec4(1.0-acc.x,degrees(acc.y),1.0-acc.z,degrees(acc.w));}
+// One VAT (RVT blend: layers rendered bottom up, each 'top' mixed over the result by its opacity)
+float vat(float hs,float slp,float op,float svf,float smax,float omin,float omax,float vmin){
+ float b=clamp(hs,0.0,1.0);
+ b=0.5*(1.0-clamp(slp/smax,0.0,1.0))+0.5*b;
+ float a=clamp((op-omin)/(omax-omin),0.0,1.0);float t=b>0.5?1.0-(1.0-2.0*(b-0.5))*(1.0-a):2.0*b*a;b=0.5*t+0.5*b;
+ float v=clamp((svf-vmin)/(1.0-vmin),0.0,1.0);return 0.25*(v*b)+0.75*b;}
 void main(){SZ=textureSize(H,0);ivec2 p=ivec2(gl_FragCoord.xy);
 float a=hh(p+ivec2(-1,-1)),b=hh(p+ivec2(0,-1)),c=hh(p+ivec2(1,-1)),d=hh(p+ivec2(-1,0)),h0=hh(p),f=hh(p+ivec2(1,0)),g=hh(p+ivec2(-1,1)),h=hh(p+ivec2(0,1)),i=hh(p+ivec2(1,1));
 if(min(min(min(a,b),min(c,d)),min(min(h0,f),min(min(g,h),i)))<-9000.0){o=vec4(0.0);return;}
@@ -248,6 +270,9 @@ if(mode==0)r=hs;else if(mode==1){r=mh;Bc=mh;}else if(mode==2)r=slope;
 else if(mode==3||mode==6||mode==7){float bl=texelFetch(B,p,0).r;r=bl>-9000.0?h0-bl:0.0;Bc=mh;}
 else if(mode==4||mode==8||mode==9) r=horizon(p,h0);
 else if(mode==5){r=mod(degrees(atan(-gx,-gn))+360.0,360.0);Bc=mh;}
+else if(mode==10){vec3 n1=normalize(vec3(-gx,-gn,1.0));float s1=degrees(atan(length(vec2(gx,gn))));float A1=radians(315.0);vec4 hz=horizon2(p,h0);
+ float vg=vat(shade(n1,A1,radians(35.0)),s1,hz.y,hz.x,50.0,68.0,93.0,0.7);float vf=vat(shade(n1,A1,radians(15.0)),s1,hz.w,hz.z,15.0,85.0,93.0,0.9);
+ r=0.5*vg+0.5*vf;G=s1;}
 o=vec4(r,G,Bc,1.0);}`;
   const SAMP=HEAD+`uniform sampler2D V;uniform vec2 b0,bs,lc;uniform int mode,fs,n;uniform float rad;
 void main(){vec2 mp=b0+(gl_FragCoord.xy/float(max(n,1)))*bs;if(fs==0&&distance(mp,lc)>rad){o=vec4(0.0);return;}
@@ -298,6 +323,7 @@ o=vec4(col,op*ea);}`;
         gl.useProgram(P.blur.p);gl.uniform2i(P.blur.u.dir,0,1);bindT(0,T.B1.tex,P.blur,'H');quad(P.blur,T.B2.fb,mz.w,mz.h);blurKey=key}}
       const p=P.val;gl.useProgram(p.p);bindT(0,T.H.tex,p,'H');bindT(1,T.B2.tex,p,'B');gl.uniform1i(p.u.mode,S.mode);gl.uniform1f(p.u.mpp,vw.mpp);gl.uniform1f(p.u.ve,S.ve);
       gl.uniform1f(p.u.az,S.az);gl.uniform1f(p.u.el,S.el);gl.uniform1f(p.u.radpx,Math.max(2,Math.min(120,S.rad/vw.mpp)));
+      gl.uniform1f(p.u.cr1,Math.max(1.5,Math.min(120,CVAT_R1/vw.mpp)));gl.uniform1f(p.u.cr2,Math.max(2,Math.min(120,CVAT_R2/vw.mpp)));
       const hn=horizonN();gl.uniform1i(p.u.hnd,hn.nd);gl.uniform1i(p.u.hns,hn.ns);
       gl.bindFramebuffer(gl.FRAMEBUFFER,T.V.fb);gl.disable(gl.SCISSOR_TEST);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
       quad(p,T.V.fb,mz.w,mz.h,[box.x,box.y,box.w,box.h])},
@@ -338,6 +364,14 @@ function makeCPU(){const ctx=cv.getContext('2d');const mc=document.createElement
         if(m===0)r=hs;else if(m===1){r=mh;B=mh}else if(m===2)r=slope;else if(isLRM(m)){const bl=BL(x,y);r=bl>-9000?h0-bl:0;B=mh}
         else if(m===4||m===8||m===9){let acc=0;for(let k=0;k<ND;k++){const t=k*2*Math.PI/ND,dx=Math.cos(t),dy=Math.sin(t);let mx=-Math.PI/2,mn=Math.PI/2,hit=false;for(let s=1;s<=NS;s++){const dist=Math.max(1,radpx*Math.pow(s/NS,1.6));const hq=hh(Math.round(x+dx*dist),Math.round(y+dy*dist));if(hq<-9000)continue;const ang=Math.atan2((hq-h0)*ve,dist*mpp);if(ang>mx)mx=ang;if(ang<mn)mn=ang;hit=true}if(!hit){mx=0;mn=0}if(m===4)acc+=Math.sin(Math.max(mx,0));else if(m===8)acc+=Math.PI/2-mx;else acc+=Math.PI/2+mn}r=m===4?1-acc/ND:acc/ND*180/Math.PI}
         else if(m===5){r=(Math.atan2(-gx,-gn)*180/Math.PI+360)%360;B=mh}
+        else if(m===10){const c1=Math.max(1.5,Math.min(120,CVAT_R1/mpp)),c2=Math.max(2,Math.min(120,CVAT_R2/mpp));let a1=0,o1=0,a2=0,o2=0;
+          for(let k=0;k<ND;k++){const t=k*2*Math.PI/ND,dx=Math.cos(t),dy=Math.sin(t);let m1=-Math.PI/2,m2=-Math.PI/2,h1=false,h2=false;
+            for(let s=1;s<=NS;s++){const dist=Math.max(1,c2*Math.pow(s/NS,1.6));const hq=hh(Math.round(x+dx*dist),Math.round(y+dy*dist));if(hq<-9000)continue;const ang=Math.atan2(hq-h0,dist*mpp);if(ang>m2)m2=ang;h2=true;if(dist<=c1+0.5){if(ang>m1)m1=ang;h1=true}}
+            if(!h1)m1=0;if(!h2)m2=0;a1+=Math.sin(Math.max(m1,0));o1+=Math.PI/2-m1;a2+=Math.sin(Math.max(m2,0));o2+=Math.PI/2-m2}
+          const D=180/Math.PI,g1=Math.hypot(gx,gn),q=Math.hypot(gx,gn,1),n1x=-gx/q,n1y=-gn/q,n1z=1/q,s1=Math.atan(g1)*D,A1=315*Math.PI/180;
+          const shE=(e)=>Math.max(0,n1x*Math.sin(A1)*Math.cos(e)+n1y*Math.cos(A1)*Math.cos(e)+n1z*Math.sin(e));
+          const vat=(hs,slp,op,svf,smax,omin,omax,vmin)=>{const cl=v=>Math.min(1,Math.max(0,v));let b=cl(hs);b=0.5*(1-cl(slp/smax))+0.5*b;const a=cl((op-omin)/(omax-omin)),tt=b>0.5?1-(1-2*(b-0.5))*(1-a):2*b*a;b=0.5*tt+0.5*b;const v=cl((svf-vmin)/(1-vmin));return 0.25*v*b+0.75*b};
+          r=0.5*vat(shE(35*Math.PI/180),s1,o1/ND*D,1-a1/ND,50,68,93,0.7)+0.5*vat(shE(15*Math.PI/180),s1,o2/ND*D,1-a2/ND,15,85,93,0.9);G=s1}
         Vv[o]=r;Vv[o+1]=G;Vv[o+2]=B;Vv[o+3]=1}},
     readBox(bx){return Vv},
     draw(vw,lo,hi){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);if(!Vv)return;const w=box.w,h=box.h;oc.width=w;oc.height=h;const im=ox.createImageData(w,h),q=im.data,rb=rampBytes(S.ramp);
@@ -403,6 +437,7 @@ let shadeBusy=false,shadeT=null;
 function bumpShade(){shadeBusy=true;clearTimeout(shadeT);shadeT=setTimeout(()=>{shadeBusy=false;requestRender()},150)}
 function stretch(vw,box){const base=MODE_RANGE[S.mode]||[0,1];let lo,hi;
   if(!S.auto){const m=manual[S.mode]||base;lo=m[0];hi=m[1];if(!(hi>lo))hi=lo+1e-3;lastStretch=[lo,hi];return lastStretch}
+  if(isCVAT(S.mode)){const hw=0.5/Math.max(S.ct,0.05);lastStretch=[0.5-hw,0.5+hw];return lastStretch}   // CVAT: RVT's fixed 0–1 scale; Contrast narrows it about the middle
   if(shadeBusy&&lastStretch)return lastStretch; // lens drag and sun turn: keep the last range, no readback
   const nSamp=phoneLike()?40:56;const cx=(vw.tl[0]+lensC[0])/vw.sc-vw.org[0],cy=(vw.tl[1]+lensC[1])/vw.sc-vw.org[1],rad=S.ls/2/vw.sc;
   let pr=null;
@@ -419,7 +454,7 @@ function render(){pending=false;if(R.kind==='none')return;if(!mosaicReady||!MZ){
   if(!defer){R.compute(MZ,vw,box);const sh=stretch(vw,box);lastLo=sh[0];lastHi=sh[1];computedMode=S.mode}
   if(lastLo==null)return;R.draw(vw,lastLo,lastHi);
   $('about').dataset.range=lastLo.toFixed(3)+' … '+lastHi.toFixed(3);
-  const rr=$('rangeread');if(rr)rr.textContent=S.auto?('On screen, 2–98%: '+fmtN(lastLo)+' … '+fmtN(lastHi)):(DIVERGING(S.mode)?'Manual range. Colours still meet at zero.':'Manual range for this view.')}
+  const rr=$('rangeread');if(rr)rr.textContent=S.auto&&isCVAT(S.mode)?('Combined VAT, fixed 0–1 scale, shown '+fmtN(lastLo)+' … '+fmtN(lastHi)):S.auto?('On screen, 2–98%: '+fmtN(lastLo)+' … '+fmtN(lastHi)):(DIVERGING(S.mode)?'Manual range. Colours still meet at zero.':'Manual range for this view.')}
 function requestRender(){if(!pending){pending=true;requestAnimationFrame(render)}}
 map.on('movestart',()=>{viewBusy=true});
 map.on('move',requestRender);map.on('moveend',()=>{scheduleMosaic();saveHash();liveHint();clearTimeout(busyT);busyT=setTimeout(()=>{viewBusy=false;requestRender()},220)});
@@ -434,7 +469,7 @@ map.on('resize',()=>{resizeCanvas();placeLens();scheduleMosaic()});
 const ctl=[['mode','',v=>+v],['el','°',v=>+v],['ve','x',v=>+v],['rad',' m',v=>+v],['ct','x',v=>+v],['gm','',v=>+v],['op','',v=>+v],['ls',' px',v=>+v]];
 function syncUI(){ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$(k+'v');if(o)o.textContent=(k==='op'?Math.round(S[k]*100)+'%':S[k]+u)});
   const sv=(id,p,v)=>{const e=$(id);if(e)e[p]=v};sv('ramp','value',S.ramp);sv('auto','checked',S.auto);sv('fs','checked',S.fs);sv('sm','checked',S.sm);sv('azv','textContent',Math.round(S.az)+'°');drawDial();
-  $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))?'':'none';
+  $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))&&!isCVAT(S.mode)?'':'none';if($('ve'))$('ve').disabled=isCVAT(S.mode);
   $('ramp').disabled=S.mode===5||S.mode===6;if($('ct'))$('ct').disabled=!S.auto;const man=$('manrange');if(man)man.hidden=!!S.auto;
   if(!S.auto&&$('rlo')&&document.activeElement!==$('rlo')&&document.activeElement!==$('rhi')){const b=manual[S.mode]||MODE_RANGE[S.mode]||[0,1];$('rlo').value=b[0];$('rhi').value=b[1]}}
 ctl.forEach(([k,u,f])=>{const e=$(k);const on=()=>{S[k]=f(e.value);if(k==='mode'){S.ramp=MODE_RAMP[S.mode]}if(k==='ls')placeLens();syncUI();requestRender();saveHashSoon()};e.addEventListener('input',on);e.addEventListener('change',on)});
@@ -500,7 +535,7 @@ function drawProfile(hs,dist){const box=$('prof');box.style.display='block';cons
   g.fillText('Elevation (m OD), relief '+(Math.max(...v)-Math.min(...v)).toFixed(2)+' m over '+dist.toFixed(0)+' m (not exaggerated to scale)',m.l,12)}
 document.querySelector('#prof .x').onclick=()=>{clearProfile(true);if(tool==='profile')setTool(null)};
 // ---------- go ----------
-$('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
+$('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Combined VAT visualisation after Kokalj, Ž. &amp; Somrak, M. (2019) Why Not a Single Image? Combining Visualizations to Facilitate Fieldwork and On-Screen Mapping. Remote Sensing 11(7), 747. doi:<a href="https://doi.org/10.3390/rs11070747" target="_blank" rel="noopener noreferrer">10.3390/rs11070747</a>. Relief Visualization Toolbox (RVT), Apache 2.0. Here: general- and flat-terrain settings (horizon radii 10 m and 20 m, sun 315°), computed in the browser from the same DTM tiles, without vertical exaggeration. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
 // config creditsFull: the full credit text lives in About / data; a .credlink in the short attribution opens it
 if(LC.creditsFull){const c=document.createElement('div');c.className='credits';c.style.marginTop='6px';c.innerHTML='<b>Credits.</b> '+LC.creditsFull;$('about').appendChild(c)}
 document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a.credlink');if(!a)return;e.preventDefault();$('panel').classList.remove('hide');const d=$('about').closest('details');if(d)d.open=true;placeLens();requestRender();setTimeout(()=>$('about').scrollIntoView({block:'nearest',behavior:'smooth'}),50)});

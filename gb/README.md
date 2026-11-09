@@ -34,3 +34,17 @@ Recovered Worker and relay sources matched `gb/worker` and `gb/relay` already on
 Production is not the same. Its page must keep `assets/config.198ea3a0.js`, the MD5 prefix of `gb/config.js`. A rebuild with `gb/config.js` names those same config bytes `assets/config.93c04c53.js`. Do not replace the production page with that built file. Upload the two scripts above, then upload last a copy of the existing production `index.html` whose only addition is `<script defer src="assets/view3d.594e1593.js"></script>` after `app.2cac7a32.js`. Leave the app, CSS, compat, `config.198ea3a0.js` and `live-sw.js` as they are. The new three.js file is required: `view3d` uses `PCFSoftShadowMap`, which `three3d.7b406472.js` does not export.
 
 Sun: the 3D sun sliders start from the lens's sun. With the single-sun hillshade they also move the lens's sun and the draped image relights; with a lit surface the sun lights the block and casts shadows (on by default on desktops, off on phones). Browser checks: `node tests/view3d.test.mjs <site URL>` (opening three times in a row, sun start and relighting, a watertight block, the no-WebGL 2 message).
+
+## Combined VAT view (added 9 Nov 2026, live-test only until promoted)
+
+Visualisation option 10, "Combined VAT" (key V, phone mode bar "V"). It is Kokalj and Somrak's (2019) combined visualisation for archaeological topography, written in the lens's own GLSL from the paper's recipe and RVT's published blend settings (`settings/blender_VAT.json`, `default_terrains_settings.json`). No RVT code is copied.
+
+- Each VAT, rendered bottom up as RVT's blender does: hillshade (sun 315°) normal 100%, then slope (inverted, 0–max°) luminosity 50%, then positive openness (min–max°) overlay 50%, then sky-view factor (min–1) multiply 25%.
+- General terrain: sun elevation 35°, slope 0–50°, openness 68–93°, SVF 0.7–1, horizon radius 10 m. Flat terrain: 15°, 0–15°, 85–93°, 0.9–1, 20 m.
+- Combined VAT = general at 50% opacity over flat.
+- One horizon search out to 20 m. Samples within 10 m also give the general-terrain SVF and openness, so the cost is about one sky-view pass, roughly 1.1× in software GL.
+- True heights (no vertical exaggeration; the slider is disabled). Fixed 0–1 display scale as in RVT. The Contrast slider narrows it about the middle. Auto percentile stretch is skipped.
+- Differences from RVT: the lens's sparse horizon sampling (16 directions × 14 steps on desktop, 8 × 6 on phones; RVT reads every pixel along each ray). No SVF noise removal (RVT's flat setting uses noise level 3). Radii are in metres, so at zooms below 17 they span fewer, coarser pixels.
+- Computed in the browser from the DTM tiles already fetched and cached. No new Worker route, no new R2 objects, no extra cache use. The mosaic carries neighbouring tiles plus a margin (at least 96 screen px, against a 20 m ≈ 27 px horizon at z17), so tile edges show no seams.
+
+Live-test deploy (9 Nov 2026): `gb-live-test/assets/app.bc440c6e.js` was uploaded, then `gb-live-test/index.html` (built with `gb/config-live-test.js`; only the option, help text and app script name changed). To promote, upload `app.bc440c6e.js` to `gb/assets/`. Then upload a copy of the current production `index.html` with the same three edits, keeping `assets/config.198ea3a0.js`.
