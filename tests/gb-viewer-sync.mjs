@@ -1,7 +1,7 @@
 // Regression gate for the live Great Britain viewer.
 // Building site/ with scripts/build_site.mjs and gb/config.js must reproduce the
 // assets on https://lidarlens.sarsen.org (checked 8 Nov 2026):
-//   assets/app.bc440c6e.js  (Combined VAT build, 9 Nov 2026: live-test now; production once promoted.
+//   assets/app.c0e687bf.js  (Combined VAT build, 9 Nov 2026: live-test now; production once promoted.
 //                            Before it, production ran app.b3706007.js, the postcode-proxy build from #6.)
 //   assets/app.6c9e6941.css
 //   assets/compat.912d81c4.js
@@ -23,7 +23,7 @@ const sha = b => crypto.createHash('sha256').update(b).digest('hex');
 const fail = m => { console.error(m); process.exit(1); };
 
 const EXPECT = {
-  'assets/app.bc440c6e.js': 'bc440c6eca683b8cb2314d9004cf514e874348866a9ef2d375360ef58e7066c0',
+  'assets/app.c0e687bf.js': 'c0e687bf0988d7e74bbf8956a372468f21b4d28c2bba632d180b2850ba5c05f0',
   'assets/app.6c9e6941.css': '6c9e6941eddcec400c0cd23d302cc71ee01e4e33a46c3416a2b05f7cc8db098f',
   'assets/compat.912d81c4.js': '912d81c41e1699925ff6e4861a318a4d7c89c21decb126ac4fd301da43c3452c',
 };
@@ -68,7 +68,7 @@ try {
   const builtCfg = fs.readFileSync(path.join(tmp, 'dist', 'assets', 'config.93c04c53.js'));
   if (!builtCfg.equals(cfgBytes)) fail('built config bytes differ from gb/config.js');
   const html = fs.readFileSync(path.join(tmp, 'dist', 'index.html'), 'utf8');
-  for (const name of ['assets/compat.912d81c4.js', 'assets/config.93c04c53.js', 'assets/app.bc440c6e.js', 'assets/app.6c9e6941.css']) {
+  for (const name of ['assets/compat.912d81c4.js', 'assets/config.93c04c53.js', 'assets/app.c0e687bf.js', 'assets/app.6c9e6941.css']) {
     if (!html.includes(name)) fail('built index.html does not reference ' + name);
   }
   // 3D view: must stay a separate, additive script (the main bundle above must not change because of it)
@@ -80,7 +80,7 @@ try {
     console.log('3D view is additive: ' + v + ' -> ' + t);
   }
   if (html.includes('config.198ea3a0.js')) fail('build renamed the config to the live MD5 filename; that step is not in this source');
-  console.log('gb viewer source reproduces live app.bc440c6e.js, app.6c9e6941.css and compat.912d81c4.js');
+  console.log('gb viewer source reproduces live app.c0e687bf.js, app.6c9e6941.css and compat.912d81c4.js');
   console.log('config bytes match gb/config.js; build filename is config.93c04c53.js (SHA-256), live HTML uses config.198ea3a0.js (MD5 of the same bytes)');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

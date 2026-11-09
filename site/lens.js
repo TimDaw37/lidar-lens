@@ -33,6 +33,9 @@ const isHeavy=m=>m===4||m===8||m===9||m===10;   // sky-view, the two openness mo
 // published blend settings (Relief Visualization Toolbox, Apache 2.0); no RVT code is copied. VAT = hillshade, then slope (luminosity 50%), positive openness (overlay 50%),
 // sky-view factor (multiply 25%); 'general' and 'flat' terrain settings, then CVAT = 50% general over flat. Fixed sun 315°, true heights.
 const isCVAT=m=>m===10;
+// Per-mode starting look: Combined VAT opens a touch more contrasty and darker in the mid-tones than RVT's plain 0–1 scale.
+// Applied when a mode is chosen while Contrast and Gamma are still at the previous mode's starting values, so a user's own setting is kept.
+const MODE_LOOK={10:{ct:1.15,gm:1.15}};const lookOf=m=>MODE_LOOK[m]||{ct:1,gm:1};
 const CVAT_R1=10,CVAT_R2=20;   // horizon radii in metres: RVT general 10 px, flat 20 px on a 1 m DTM
 function phoneLike(){return matchMedia('(pointer:coarse)').matches||matchMedia('(max-width:700px)').matches}
 function horizonN(){const p=phoneLike();if(R&&String(R.kind).indexOf('Canvas')===0)return p?{nd:8,ns:6}:{nd:12,ns:10};return p?{nd:8,ns:6}:{nd:16,ns:14}}
@@ -48,6 +51,7 @@ function readHash(){const raw=location.hash.slice(1);const out={};
 const H0=readHash();
 window.addEventListener('hashchange',()=>location.reload());   // a link pasted into an open tab: apply its view (the app's own saveHash uses replaceState, which doesn't fire this)
 ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>{if(H0[k]!==undefined&&!isNaN(+H0[k]))S[k]=+H0[k]});
+if(H0.ct===undefined&&H0.gm===undefined){const L0=lookOf(S.mode);S.ct=L0.ct;S.gm=L0.gm}
 if(H0.ramp)S.ramp=H0.ramp; else S.ramp=MODE_RAMP[S.mode];
 if(H0.auto!==undefined)S.auto=H0.auto==='1'; if(H0.fs!==undefined)S.fs=H0.fs==='1'; if(H0.sm!==undefined)S.sm=H0.sm==='1'; if(H0.base)S.base=H0.base;
 const manual={}; // per-mode display range when auto contrast is off
@@ -472,7 +476,7 @@ function syncUI(){ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$
   $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))&&!isCVAT(S.mode)?'':'none';if($('ve'))$('ve').disabled=isCVAT(S.mode);
   $('ramp').disabled=S.mode===5||S.mode===6;if($('ct'))$('ct').disabled=!S.auto;const man=$('manrange');if(man)man.hidden=!!S.auto;
   if(!S.auto&&$('rlo')&&document.activeElement!==$('rlo')&&document.activeElement!==$('rhi')){const b=manual[S.mode]||MODE_RANGE[S.mode]||[0,1];$('rlo').value=b[0];$('rhi').value=b[1]}}
-ctl.forEach(([k,u,f])=>{const e=$(k);const on=()=>{S[k]=f(e.value);if(k==='mode'){S.ramp=MODE_RAMP[S.mode]}if(k==='ls')placeLens();syncUI();requestRender();saveHashSoon()};e.addEventListener('input',on);e.addEventListener('change',on)});
+ctl.forEach(([k,u,f])=>{const e=$(k);const on=()=>{const pm=S.mode;S[k]=f(e.value);if(k==='mode'){S.ramp=MODE_RAMP[S.mode];const a=lookOf(pm),b=lookOf(S.mode);if(S.mode!==pm&&Math.abs(S.ct-a.ct)<1e-6&&Math.abs(S.gm-a.gm)<1e-6){S.ct=b.ct;S.gm=b.gm}}if(k==='ls')placeLens();syncUI();requestRender();saveHashSoon()};e.addEventListener('input',on);e.addEventListener('change',on)});
 $('ramp').onchange=e=>{S.ramp=e.target.value;requestRender();saveHashSoon()};
 $('auto').onchange=e=>{S.auto=e.target.checked;if(!S.auto){const b=lastStretch||MODE_RANGE[S.mode]||[0,1];manual[S.mode]=[b[0],b[1]]}syncUI();requestRender();saveHashSoon()};
 function readManual(){const lo=parseFloat($('rlo').value),hi=parseFloat($('rhi').value);if(!isFinite(lo)||!isFinite(hi)||!(hi>lo))return;manual[S.mode]=[lo,hi];requestRender();saveHashSoon()}
