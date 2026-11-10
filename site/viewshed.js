@@ -7,6 +7,8 @@
 (function(){
 'use strict';
 const LZ=window.__lens;if(!LZ||!window.L)return;
+// credit in About / data (this script and the sky dome are the only users of these sources)
+if(document.getElementById('about')&&!document.getElementById('skycred'))document.getElementById('about').insertAdjacentHTML('beforeend','<br><br><span id="skycred">View from here and the 3D sky: stars from the Yale Bright Star Catalogue, 5th revised edition (Hoffleit, D. &amp; Warren, W.H. Jr. 1991; CDS VizieR V/50), the 1,630 stars to magnitude 5, the same list as the Stonehenge 3D viewers. Sun and Moon from astronomy-engine 2.1.19 (MIT, Don Cross), with the obliquity of Laskar (1986) and sidereal time after Meeus.</span>');
 const map=LZ.map,CFG=LZ.CFG,LC=LZ.LC,$=id=>document.getElementById(id);
 const EYE=1.5,RE=6371000,KR=0.13,NRAY=1440,STEP=360/NRAY,D2R=Math.PI/180,RANGE=10000;
 // rings round the viewpoint: [tile zoom, from m, to m, step along the ray m]. The live worker makes zoom 17 tiles from

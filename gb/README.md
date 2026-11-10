@@ -102,6 +102,8 @@ After Orengo & Petrie (2018), ESPL 43, 1361–1369. Because the printed sum of s
 
 **Tests.** `node tests/astro.test.mjs` (Node: the calculations, 19 checks); from `tests/`, `node viewshed.test.mjs <url> [dist]` (sweep against known answers, then Stonehenge: north-east skyline 0.58° at 2.7 km) and `node sky.test.mjs <url> [dist]` (dome, 2500 BC midsummer first gleam at 49.3° from the centre of Stonehenge, standing view, clean removal). With a `dist` folder the build is tested on the live site's tiles before deployment.
 
+**Star data.** `scripts/sky3d/bright_stars.json` is the 1,630 stars to V ≤ 5 from the Yale Bright Star Catalogue, 5th revised edition (Hoffleit & Warren 1991, CDS VizieR V/50). It is the magnitude-5 cut of the 2,887-star (V ≤ 5.5) list in stonehenge-block-3d `data/bright_stars.js`, and was checked row by row against VizieR V/50 on 10 Nov 2026 (positions within 0.001°, magnitudes equal). The About / data credit is added by `viewshed.js`.
+
 **Limits.** Bare ground only; 10 km range; sea and gaps in the LiDAR are empty; the far skyline in Scotland is often outside the surveyed strips. The three.js subset (`three3d.js`) gained ten exports for the dome, so its hash and `view3d.js`'s change with this branch.
 
 ### Red–cyan 3D in the 3D view (live from 10 Nov 2026)
