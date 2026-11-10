@@ -14,21 +14,33 @@ const sgn = (v, d) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(d == null ? 2
 const hhmm = m => { m = Math.round(m) % 1440; if (m < 0) m += 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
 const yearName = y => y > 0 ? y + ' AD' : (1 - y) + ' BC';
 
-const CSS = '#v3dsky{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:6px 12px;border-top:1px solid #e5e7eb;background:#f8fafc}#v3dsky[hidden]{display:none}' +
-  '#v3dsky label{display:flex;align-items:center;gap:5px;margin:0;white-space:nowrap}#v3dsky input[type=number]{width:62px;font-size:13px}#v3dsky input[type=range]{width:150px}#v3dsky select{font-size:13px}' +
-  '#v3dsky button{font-size:13px;padding:4px 8px;cursor:pointer;border:1px solid #bbb;border-radius:5px;background:#f3f4f6}#v3dsky button.on{background:#f59e0b;border-color:#b45309;font-weight:600}' +
-  '#skyread{flex-basis:100%;margin:0;color:#111;font-variant-numeric:tabular-nums;line-height:1.4}#skykey{flex-basis:100%;margin:0;color:#555;font-size:12px}#skykey i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin:0 3px 0 8px}' +
+const CSS = '#v3dsky{display:flex;flex-direction:column;gap:4px;padding:6px 12px;border-top:1px solid #e5e7eb;background:#f8fafc}#v3dsky[hidden]{display:none}' +
+  '#v3dsky .grp{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}#v3dsky .gl{font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.04em;min-width:54px}' +
+  '#v3dsky .seg{display:inline-flex;gap:4px}#v3dsky .sp{flex:1}' +
+  '#v3dsky label{display:flex;align-items:center;gap:5px;margin:0;white-space:nowrap}#v3dsky input[type=number]{width:58px;font-size:13px}#v3dsky input[type=range]{width:150px}#v3dsky select{font-size:13px}' +
+  '#skydv,#skytv{display:inline-block;min-width:44px;font-variant-numeric:tabular-nums;font-weight:600}' +
+  '#v3dsky button{font-size:13px;padding:4px 9px;margin:0;width:auto;cursor:pointer;border:1px solid #bbb;border-radius:4px;background:#f3f4f6;color:#111}#v3dsky button:hover{background:#e5e7eb}#v3dsky button.on{background:#f59e0b;border-color:#b45309;font-weight:600}' +
+  '#skyplay{min-width:62px}#skystand{font-weight:600}' +
+  '#skyread{margin:0;color:#111;font-size:12px;font-variant-numeric:tabular-nums;line-height:1.4}' +
+  '#v3dsky details{font-size:12px;color:#555}#v3dsky details summary{padding:0;min-height:0;color:#1d4ed8;font-size:12px}#v3dsky details[open] summary{margin-bottom:4px}#v3dsky details .grp{gap:4px 14px}' +
+  '#skykey{margin:4px 0 0;color:#555;font-size:12px;line-height:1.5}#skykey i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin:0 3px 0 8px}#skykey i:first-child{margin-left:0}' +
   '#skylook{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(17,24,39,.72);color:#fff;padding:4px 10px;border-radius:6px;font-size:13px;pointer-events:none;white-space:nowrap}#skylook[hidden]{display:none}' +
-  '@media (max-width:700px){#v3dsky{max-height:32vh;overflow:auto}#v3dsky input[type=range]{width:110px}#v3dsky button{min-height:36px}}';
-const HTML = '<label>Year <input type="number" id="skyyr" min="1" max="4500" step="1"><select id="skyera" aria-label="Era"><option value="AD">AD</option><option value="BC">BC</option></select></label>' +
-  '<label>Day <span id="skydv"></span><input type="range" id="skyday" min="1" max="365" step="1"></label>' +
-  '<label>Go to <select id="skygo"><option value="">a day…</option><option value="midsummer">Midsummer solstice</option><option value="midwinter">Midwinter solstice</option><option value="spring">Spring equinox</option><option value="autumn">Autumn equinox</option><option value="today">Today</option></select></label>' +
-  '<label>Time (UT) <span id="skytv"></span><input type="range" id="skytime" min="0" max="1439.5" step="0.5"></label><button id="skyplay" title="Let the sky turn">Play</button>' +
-  '<label>Edge <select id="skylimb" title="Which part of the disc meets the skyline when seeking a rising or setting"><option value="first_gleam">First gleam (top edge)</option><option value="half">Half orb (centre)</option><option value="full_orb">Full orb (bottom edge)</option></select></label>' +
-  '<span><button id="skysr">Sunrise</button> <button id="skyss">Sunset</button> <button id="skymr">Moonrise</button> <button id="skyms">Moonset</button></span>' +
+  '@media (max-width:700px){#v3dsky{max-height:34vh;overflow:auto;padding:6px 8px}#v3dsky .gl{display:none}#v3dsky .grp{gap:6px 10px}#v3dsky input[type=range]{width:120px}#v3dsky button{min-height:36px}#v3dsky .sp{display:none}}';
+const HTML = '<div class="grp" role="group" aria-label="When"><span class="gl">When</span>' +
+  '<label title="Year: 4500 BC to 4500 AD">Year <input type="number" id="skyyr" min="1" max="4500" step="1"><select id="skyera" aria-label="Era"><option value="AD">AD</option><option value="BC">BC</option></select></label>' +
+  '<label title="Day of the year">Day <span id="skydv"></span><input type="range" id="skyday" min="1" max="365" step="1" aria-label="Day of the year"></label>' +
+  '<label title="Time of day, Universal Time (GMT)">UT <span id="skytv"></span><input type="range" id="skytime" min="0" max="1439.5" step="0.5" aria-label="Time of day (UT)"></label>' +
+  '<button id="skyplay" title="Let the sky turn">Play</button>' +
+  '<select id="skygo" aria-label="Go to a day" title="Jump to a solstice, an equinox or today"><option value="">Go to…</option><option value="midsummer">Midsummer solstice</option><option value="midwinter">Midwinter solstice</option><option value="spring">Spring equinox</option><option value="autumn">Autumn equinox</option><option value="today">Today</option></select></div>' +
+  '<div class="grp" role="group" aria-label="Find a rising or setting"><span class="gl">Find</span><span class="seg">' +
+  '<button id="skysr" title="Seek the Sun rising over the skyline on this day">Sunrise</button><button id="skyss" title="Seek the Sun setting behind the skyline on this day">Sunset</button>' +
+  '<button id="skymr" title="Seek the Moon rising over the skyline">Moonrise</button><button id="skyms" title="Seek the Moon setting behind the skyline">Moonset</button></span>' +
+  '<span class="sp"></span><button id="skystand" title="Stand at the viewpoint, eyes 1.5 m above the ground. Drag to look round, scroll to zoom.">Stand at the viewpoint</button></div>' +
+  '<p id="skyread" aria-live="off"></p>' +
+  '<details id="skymore"><summary>Paths, key and options</summary><div class="grp">' +
   '<label title="Paths of the Sun at the solstices and equinoxes, and of the Moon at its major and minor standstill limits, for the year shown"><input type="checkbox" id="skyarcs" checked> Solstice and standstill paths</label>' +
-  '<button id="skystand" title="Stand at the viewpoint, eyes 1.5 m above the ground. Drag to look round, scroll to zoom.">Stand at the viewpoint</button>' +
-  '<p id="skyread" aria-live="off"></p><p id="skykey"></p>';
+  '<label title="Which part of the disc meets the skyline when seeking a rising or setting">Seek to <select id="skylimb"><option value="first_gleam">First gleam (top edge)</option><option value="half">Half orb (centre)</option><option value="full_orb">Full orb (bottom edge)</option></select></label></div>' +
+  '<p id="skykey"></p></details>';
 
 /**
  * ctx: {T, scene, camera, controls, canvas, stage, host (element the controls go in), vs (View from here result), diam (block width, m),
@@ -62,11 +74,16 @@ export function create(ctx) {
 
   // ---- the ground beyond the block: the swept skyline as the rim of the dome, paler with distance ----
   const N = vs.alt.length, landPos = new Float32Array((N + 1) * 6), landBase = new Float32Array((N + 1) * 6), landCol = new Float32Array((N + 1) * 6), landIdx = [];
+  // the rim's colour by bearing: green near, hazy blue far, grey-blue where there is no ground data; blurred round the
+  // compass (a Gaussian of about 1.5°) so it shades smoothly instead of stepping where the skyline jumps in distance
+  const raw = [];
+  for (let i = 0; i < N; i++) { const none = vs.flag[i] === 2, t = none ? 1 : clamp(Math.log(Math.max(vs.dist[i], 150) / 150) / Math.log(10000 / 150), 0, 1); raw.push(none ? [0.52, 0.62, 0.72] : [mix(0.30, 0.62, t), mix(0.37, 0.69, t), mix(0.22, 0.74, t)]); }
+  const sig = Math.max(1, 1.5 / vs.step), W = Math.ceil(sig * 2.5), wts = []; for (let k = -W; k <= W; k++) wts.push(Math.exp(-k * k / (2 * sig * sig)));
+  const rim = raw.map((_, i) => { let r = 0, g = 0, b = 0, w = 0; for (let k = -W; k <= W; k++) { const c = raw[((i + k) % N + N) % N], q = wts[k + W]; r += c[0] * q; g += c[1] * q; b += c[2] * q; w += q; } return [r / w, g / w, b / w]; });
   for (let a = 0; a <= N; a++) {
     const i = a % N, az = i * vs.step, top = dir(az, vs.alt[i]), bot = dir(az, -38), o = a * 6, R1 = Rd * 0.975;
     landPos.set([top[0] * R1, top[1] * R1, top[2] * R1, bot[0] * R1, bot[1] * R1, bot[2] * R1], o);
-    const none = vs.flag[i] === 2, t = none ? 1 : clamp(Math.log(Math.max(vs.dist[i], 150) / 150) / Math.log(10000 / 150), 0, 1);
-    const c = none ? [0.52, 0.62, 0.72] : [mix(0.30, 0.62, t), mix(0.37, 0.69, t), mix(0.22, 0.74, t)];
+    const c = rim[i];
     landBase.set([c[0], c[1], c[2], 0.27, 0.33, 0.20], o);
     if (a < N) { const k = a * 2; landIdx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
   }

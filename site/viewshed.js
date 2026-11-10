@@ -16,18 +16,18 @@ const EYE=1.5,RE=6371000,KR=0.13,NRAY=1440,STEP=360/NRAY,D2R=Math.PI/180,RANGE=1
 const RINGS=[[17,0,200,1],[15,200,1000,4],[14,1000,3000,8],[13,3000,RANGE,16]];
 
 // ---------- markup ----------
-const CSS="#vfh{position:absolute;z-index:1000;left:10px;bottom:84px;width:min(560px,calc(100% - 20px));background:rgba(255,255,255,.97);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.4);font-size:13px;padding:8px 10px 8px;box-sizing:border-box}"+
-"#vfh[hidden]{display:none}#vfh .x{position:absolute;right:6px;top:2px;border:0;background:none;font-size:22px;cursor:pointer;line-height:1}#vfh h3{margin:0 26px 3px 0;font-size:14px}#vfh p{margin:2px 0;line-height:1.35}"+
-"#vfhsum{color:#222}#vfhwarn{color:#7c2d12}#vfhwarn:empty{display:none}#vfhc{display:block;width:100%;height:92px;margin:4px 0 2px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;touch-action:none;cursor:crosshair}"+
-"#vfhread{min-height:1.35em;color:#111;font-variant-numeric:tabular-nums}#vfh .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px}#vfh .row button{font-size:13px;padding:4px 8px;cursor:pointer;border:1px solid #bbb;border-radius:4px;background:#f3f4f6}"+
-"#vfh .row label{display:flex;gap:4px;align-items:center}#vfhnote{color:#555;font-size:12px}.vfh-img{image-rendering:pixelated}"+
-"@media (max-width:700px){#vfh{bottom:64px;font-size:12px}#vfhc{height:70px}}";
+const CSS="#vfh{position:absolute;z-index:1000;left:10px;bottom:84px;width:min(460px,calc(100% - 20px));background:rgba(255,255,255,.97);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.4);font-size:13px;padding:8px 10px 8px;box-sizing:border-box}"+
+"#vfh[hidden]{display:none}#vfh .x{position:absolute;right:6px;top:2px;border:0;background:none;font-size:22px;cursor:pointer;line-height:1}#vfh h3{margin:0 26px 3px 0;font-size:14px}#vfh h3 small{font-weight:400;color:#555;font-size:12px;margin-left:6px}#vfh p{margin:2px 0;line-height:1.35}"+
+"#vfhsum{color:#222}#vfhwarn{color:#92400e;font-size:12px;cursor:help}#vfhwarn:empty{display:none}#vfhc{display:block;width:100%;height:92px;margin:4px 0 2px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;touch-action:none;cursor:crosshair}"+
+"#vfhread{min-height:1.35em;color:#111;font-variant-numeric:tabular-nums}#vfh .row{display:flex;gap:6px 10px;flex-wrap:wrap;align-items:center;margin-top:4px}#vfh .row .sp{flex:1}#vfh .row button{font-size:13px;padding:4px 8px;margin:0;width:auto;cursor:pointer;border:1px solid #bbb;border-radius:4px;background:#f3f4f6}#vfh3d{font-weight:600}#vfh3d .st,#vfh3d{color:#111}"+
+"#vfh .row label{display:flex;gap:4px;align-items:center}#vfhnote{color:#666;font-size:11px;cursor:help}.vfh-img{image-rendering:pixelated}"+
+"#vfhread{font-size:12px}@media (max-width:700px){#vfh{top:92px;bottom:auto;font-size:12px;padding:6px 8px}#vfhc{height:64px}#vfhnote{display:none}#vfh .row button{min-height:36px;font-size:14px}}";
 const BOX="<div id=\"vfh\" role=\"region\" aria-labelledby=\"vfhh\" hidden><button class=\"x\" id=\"vfhx\" aria-label=\"Close and clear the view\" title=\"Close and clear\">&times;</button>"+
-"<h3 id=\"vfhh\">View from here</h3><p id=\"vfhsum\"></p><p id=\"vfhwarn\"></p>"+
+"<h3 id=\"vfhh\">View from here<small id=\"vfhgr\"></small></h3><p id=\"vfhsum\"></p><p id=\"vfhwarn\"></p>"+
 "<canvas id=\"vfhc\" role=\"img\" aria-label=\"Height of the skyline, in degrees, round the compass from north through east, south and west\"></canvas>"+
 "<p id=\"vfhread\" aria-live=\"polite\"></p>"+
-"<div class=\"row\"><label><input type=\"checkbox\" id=\"vfhshade\"> Shade hidden ground instead</label><button id=\"vfhpick\">Pick another spot</button><span id=\"vfhextra\"></span></div>"+
-"<p id=\"vfhnote\">Bare ground from LiDAR: trees, hedges and buildings are not included. Eye height 1.5 m. Ground checked to 10 km.</p></div>";
+"<div class=\"row\"><label title=\"Shade the ground that cannot be seen, instead of tinting the ground that can\"><input type=\"checkbox\" id=\"vfhshade\"> Shade hidden ground</label><span class=\"sp\"></span><button id=\"vfhpick\" title=\"Click a new spot to stand at\">New spot</button><span id=\"vfhextra\"></span></div>"+
+"<p id=\"vfhnote\" title=\"Bare ground from LiDAR: trees, hedges and buildings are not included. Eye height 1.5 m. Ground checked to 10 km.\">Bare ground only: no trees or buildings · eye 1.5 m · to 10 km</p></div>";
 if(!$('vfhcss')){const st=document.createElement('style');st.id='vfhcss';st.textContent=CSS;document.head.appendChild(st)}
 if(!$('vfh')){const t=document.createElement('template');t.innerHTML=BOX;document.body.appendChild(t.content.firstElementChild)}
 if(!$('viewfrom')){const pr=$('profile');if(pr){const b=document.createElement('button');b.id='viewfrom';b.setAttribute('aria-pressed','false');
@@ -36,8 +36,8 @@ if(!$('viewfrom')){const pr=$('profile');if(pr){const b=document.createElement('
 // Sky: its own button at the top of Tools, the main way into the sky dome. With a viewpoint it opens the 3D view with the
 // dome; without one it asks for a spot, works out the view from there, then opens the dome.
 if(window.__view3d&&!$('skybtn')){const t=$('whatis')||$('profile');if(t){const b=document.createElement('button');b.id='skybtn';b.setAttribute('aria-pressed','false');
-  b.title='Sky dome: stand at a spot and see its real skyline with the Sun, Moon and stars for any date from 4500 BC, in the 3D view (K)';b.innerHTML='&#9733; Sky: Sun, Moon and stars from a spot';t.insertAdjacentElement('beforebegin',b)}}
-if(!$('skybtncss')){const st=document.createElement('style');st.id='skybtncss';st.textContent='#skybtn{background:#1e3a8a;color:#fff;border-color:#1e3a8a;font-weight:600}#skybtn.on{background:#fbbf24;color:#1f2937;border-color:#b45309}';document.head.appendChild(st)}
+  b.title='Sky dome: stand at a spot and see its real skyline with the Sun, Moon and stars for any date from 4500 BC, in the 3D view (K)';b.innerHTML='<span class="st">&#9733;</span> Sky dome';t.insertAdjacentElement('beforebegin',b)}}
+if(!$('skybtncss')){const st=document.createElement('style');st.id='skybtncss';st.textContent='#skybtn{font-weight:600}#skybtn .st{color:#b45309}#skybtn.on .st{color:#111}';document.head.appendChild(st)}
 const btn=$('viewfrom'),box=$('vfh');if(!btn||!box)return;
 
 // ---------- a pane above the lens for the overlay and skyline (the lens canvas sits over the map's own panes) ----------
@@ -170,9 +170,9 @@ function readout(a,pt){const S=cur.S,f=S.flag[a],b=a*STEP;let t='Bearing '+beari
 function summary(){const S=cur.S;let seen=0,all=0,open=0,none=0,dmin=Infinity,dmax=0;cur.rast.forEach(R=>{seen+=R.seen*R.cell;all+=R.all*R.cell});
   for(let a=0;a<NRAY;a++){const f=S.flag[a];if(f===2){none++;continue}if(f)open++;dmin=Math.min(dmin,S.dist[a]);dmax=Math.max(dmax,S.dist[a])}
   const gr=cur.gr?cur.gr+', ':'';cur.seenKm2=seen/1e6;cur.groundKm2=all/1e6;
-  $('vfhsum').textContent=gr+'ground '+S.z0.toFixed(1)+' m, eye '+(S.z0+S.eye).toFixed(1)+' m. Ground in view: '+(seen/1e6).toFixed(2)+' km² ('+(all?Math.round(100*seen/all):0)+'% of the '+(all/1e6).toFixed(0)+' km² with LiDAR within '+fmtD(S.range)+'). Skyline '+(dmax?fmtD(dmin)+' to '+fmtD(dmax)+' away.':'not found.');
+  $('vfhgr').textContent=cur.gr||'';$('vfhsum').textContent='Eye '+(S.z0+S.eye).toFixed(1)+' m OD · '+(seen/1e6).toFixed(2)+' km² in view ('+(all?Math.round(100*seen/all):0)+'% of '+(all/1e6).toFixed(0)+' km² within '+fmtD(S.range)+') · skyline '+(dmax?fmtD(dmin)+'–'+fmtD(dmax)+' away':'not found');$('vfhsum').title='Ground '+S.z0.toFixed(1)+' m, eye '+(S.z0+S.eye).toFixed(1)+' m above datum. Ground in view: '+(seen/1e6).toFixed(2)+' km² of the '+(all/1e6).toFixed(0)+' km² with LiDAR within '+fmtD(S.range)+'.';
   const deg=n=>Math.round(n*STEP)+'°';
-  $('vfhwarn').textContent=(open?'On '+deg(open)+' of the compass (amber on the chart) the skyline is in the last tenth of the range or the LiDAR stops short: higher ground further off may form the true skyline. ':'')+(none?'No ground data on '+deg(none)+'.':'')}
+  $('vfhwarn').textContent=(open?'⚠ Skyline uncertain on '+deg(open)+' (amber on the chart). ':'')+(none?'No ground data on '+deg(none)+'.':'');$('vfhwarn').title=open?'On '+deg(open)+' of the compass the skyline is in the last tenth of the range or the LiDAR stops short: higher ground further off may form the true skyline.':''}
 function clear(keepTool){runSeq++;if(busy)busy.dead=true;busy=null;if(cur){cur.imgs.forEach(l=>map.removeLayer(l));(cur.lines||[]).forEach(l=>map.removeLayer(l))}cur=null;box.hidden=true;
   $('vfhread').textContent='';LZ.saveHashSoon&&LZ.saveHashSoon();document.dispatchEvent(new CustomEvent('viewshed',{detail:null}));if(!keepTool&&LZ.tool()==='viewfrom')LZ.setTool(null)}
 
@@ -191,19 +191,19 @@ async function run(ll){ll=L.latLng(ll);ensurePane();clear(true);const seq=runSeq
 
 // ---------- tool wiring ----------
 let skyAfter=false;const skyBtn=$('skybtn');
-function setSkyBtn(on){if(!skyBtn)return;skyBtn.classList.toggle('on',on);skyBtn.setAttribute('aria-pressed',on);skyBtn.innerHTML=on?'&#9733; Sky: click a spot to stand at':'&#9733; Sky: Sun, Moon and stars from a spot'}
-function setBtn(on){btn.classList.toggle('on',on);btn.setAttribute('aria-pressed',on);btn.textContent=on?'View from here ON: click a spot':cur||busy?'View from here (shown)':'View from here (off)'}
-LZ.toolHooks.viewfrom={on(){setBtn(true);if(!skyAfter)LZ.msg('View from here ON: click the spot to stand on (inside or outside the lens). Esc or the button turns it off.',4000)},off(){setBtn(false);skyAfter=false;setSkyBtn(false)}};
+function setSkyBtn(on){if(!skyBtn)return;skyBtn.classList.toggle('on',on);skyBtn.setAttribute('aria-pressed',on);skyBtn.innerHTML=on?'<span class="st">&#9733;</span> Sky: click a spot':'<span class="st">&#9733;</span> Sky dome'}
+function setBtn(on){on=on&&!skyAfter;btn.classList.toggle('on',on);btn.setAttribute('aria-pressed',on);btn.textContent=on?'View from here ON: click a spot':cur||busy?'View from here (shown)':'View from here (off)'}
+LZ.toolHooks.viewfrom={on(){setBtn(true);if(!skyAfter)LZ.msg('View from here: click a spot to stand at. Esc cancels.',4000)},off(){setBtn(false);skyAfter=false;setSkyBtn(false)}};
 btn.onclick=()=>LZ.setTool('viewfrom');
 map.on('click',e=>{if(LZ.tool()!=='viewfrom')return;if(window.__lensEatClick&&Date.now()<window.__lensEatClick)return;const sky=skyAfter;LZ.setTool(null);run(e.latlng).then(v=>{setBtn(false);if(sky&&v)openSky()});setBtn(false)});
 // with the 3D view present: move the map so the viewpoint is under the lens, then open the block with its sky dome
 async function openSky(){if(!cur||!window.__view3d)return;const st=LZ.lensState(),pt=map.latLngToContainerPoint(cur.ll);if(!st.fs)map.panBy([pt.x-st.c[0],pt.y-st.c[1]],{animate:false});
   for(let k=0;k<25;k++){await sleep(160);if($('loading').hidden)break}return window.__view3d.show({sky:true})}
-if(window.__view3d){const b=document.createElement('button');b.id='vfh3d';b.textContent='3D view with sky';b.title='Open the 3D view of the lens, centred on this viewpoint, with the skyline, Sun, Moon and stars';$('vfhextra').appendChild(b);
+if(window.__view3d){const b=document.createElement('button');b.id='vfh3d';b.innerHTML='&#9733; Sky dome';b.title='Open the 3D view of the lens, centred on this viewpoint, with the skyline, Sun, Moon and stars';$('vfhextra').appendChild(b);
   b.onclick=()=>openSky()}
 function skyStart(){if(!window.__view3d)return;if(window.__view3d.isOpen&&window.__view3d.isOpen())return;if(busy)return;
   if(cur){openSky();return}
-  skyAfter=true;if(LZ.tool()!=='viewfrom')LZ.setTool('viewfrom');skyAfter=true;setSkyBtn(true);LZ.msg('Sky: click a spot to stand at (inside or outside the lens). Esc turns it off.',5000)}
+  skyAfter=true;if(LZ.tool()!=='viewfrom')LZ.setTool('viewfrom');skyAfter=true;setSkyBtn(true);LZ.msg('Sky dome: click a spot to stand at. Esc cancels.',5000)}
 if(skyBtn)skyBtn.onclick=()=>{if(skyAfter&&LZ.tool()==='viewfrom'){LZ.setTool(null);return}skyStart()};
 $('vfhx').onclick=()=>{clear();setBtn(false)};$('vfhpick').onclick=()=>{if(LZ.tool()!=='viewfrom')LZ.setTool('viewfrom')};$('vfhshade').onchange=drawOverlays;
 document.addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey||!/^[eEkK]$/.test(e.key))return;const t=e.target;
