@@ -7,7 +7,7 @@ const LZ=window.__lens;if(!LZ)return;
 const map=LZ.map,CFG=LZ.CFG,LC=LZ.LC,$=id=>document.getElementById(id);
 // ---------- markup: added here, so the view drops into any LiDAR Lens build with one script line ----------
 const CSS="#v3d{position:fixed;z-index:3000;inset:3vh 3vw;background:#fff;border-radius:10px;box-shadow:0 6px 30px rgba(0,0,0,.55);display:flex;flex-direction:column;overflow:hidden;font-size:13px}\n#v3d[hidden]{display:none}\n#v3d .hd{display:flex;align-items:baseline;gap:10px;padding:8px 40px 6px 12px;border-bottom:1px solid #e5e7eb;flex-wrap:wrap}#v3d .hd b{font-size:15px}#v3dinfo{color:#444}\n#v3d .x{position:absolute;right:8px;top:4px;border:0;background:none;font-size:24px;cursor:pointer;line-height:1}\n#v3dstage{position:relative;flex:1;min-height:200px;background:#eef1f4}#v3dc{width:100%;height:100%;display:block;touch-action:none;cursor:grab}#v3dc:active{cursor:grabbing}\n#v3dnorth{position:absolute;right:12px;top:12px;width:40px;height:40px;pointer-events:none}#v3dnorth span{position:absolute;left:0;right:0;top:-14px;text-align:center;font-weight:700;font-size:11px;color:#c92a2a}\n#v3dwait{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,.95);padding:10px 14px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.25);max-width:80%}#v3dwait.err{color:#9b1c1c}\n#v3d .ctl{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;padding:8px 12px;border-top:1px solid #e5e7eb}\n#v3d .ctl label{display:flex;align-items:center;gap:6px;margin:0;white-space:nowrap}#v3d .ctl input[type=range]{width:110px}#v3dsun{display:contents}#v3dsun.off label{opacity:.45}#v3dshadowl.off{opacity:.45}#v3d .hint{color:#666;font-size:12px}\n#v3d .btns{display:flex;gap:6px;margin-left:auto}#v3d .btns button{font-size:13px;padding:5px 9px;cursor:pointer;border:1px solid #bbb;border-radius:5px;background:#f3f4f6}\n#v3d .note{margin:0;padding:0 12px 8px;color:#555;font-size:12px}\nbody.v3dopen #card{display:none!important}\n@media (max-width:700px),(max-height:500px) and (pointer:coarse){#v3d{inset:0;border-radius:0}#v3d .ctl input[type=range]{width:90px}#v3d .btns{margin-left:0}#v3d .btns button{min-height:40px}#v3d .note{font-size:11px}}";
-const DIALOG="<div id=\"v3d\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"v3dh\" hidden>\n <div class=\"hd\"><b id=\"v3dh\">3D view of the lens</b><span id=\"v3dinfo\"></span><button class=\"x\" id=\"v3dx\" aria-label=\"Close 3D view\" title=\"Close (Esc)\">&times;</button></div>\n <div id=\"v3dstage\"><canvas id=\"v3dc\" aria-label=\"3D block of the ground in the lens. Drag to turn, scroll to zoom.\"></canvas>\n  <div id=\"v3dnorth\" aria-hidden=\"true\"><svg viewBox=\"0 0 40 40\" width=\"40\" height=\"40\"><circle cx=\"20\" cy=\"20\" r=\"18\" fill=\"rgba(255,255,255,.85)\" stroke=\"#555\"/><path d=\"M20 5 L26 22 L20 18 L14 22 Z\" fill=\"#c92a2a\"/><path d=\"M20 35 L26 22 L20 18 L14 22 Z\" fill=\"#888\"/></svg><span>N</span></div>\n  <div id=\"v3dwait\" role=\"status\" aria-live=\"polite\" hidden></div></div>\n <div class=\"ctl\">\n  <label>Surface <select id=\"v3ddrape\" title=\"What is painted on the ground\"><option value=\"lens\">Lens view, as shown</option><option value=\"lenslit\">Lens view + sun shading</option><option value=\"clay\">Plain, lit by the sun</option></select></label>\n  <label>Height &times;<span id=\"v3dvev\"></span><input type=\"range\" id=\"v3dve\" min=\"1\" max=\"10\" step=\"0.5\" title=\"Vertical exaggeration\"></label>\n  <span id=\"v3dsun\"><label>Sun from <span id=\"v3dazv\"></span><input type=\"range\" id=\"v3daz\" min=\"0\" max=\"359\" step=\"1\" title=\"Sun direction (degrees from north)\"></label>\n  <label>Sun height <span id=\"v3delv\"></span><input type=\"range\" id=\"v3del\" min=\"5\" max=\"85\" step=\"1\" title=\"Sun elevation\"></label>\n  <label id=\"v3dshadowl\" title=\"Let the sun cast shadows across the ground (lit surfaces)\"><input type=\"checkbox\" id=\"v3dshadow\"> Shadows</label><span id=\"v3dsunnote\" class=\"hint\"></span></span>\n  <label id=\"v3danal\" title=\"Red–cyan 3D: view with red–cyan glasses, red over the left eye. three.js AnaglyphEffect with Dubois (2001) colour matrices. Colours are muted in this view. Screen only: GLB and STL files are saved as normal. Draws the block twice, so it is slower on phones.\"><input type=\"checkbox\" id=\"v3dana\"> Red–cyan 3D</label>\n  <label id=\"v3daol\" title=\"Soft shading: darkens hollows and ditches by how much sky each point sees (sky-view factor after Zakšek et al. 2011, 16 directions within 10 m; 8 on phones), on the lit and plain surfaces\"><input type=\"checkbox\" id=\"v3dao\"> Soft shading</label>\n  <label title=\"Water level: a flat sheet of water at the height chosen, in metres above sea level (OD); starts from the map's water level when that is on. Saved in GLB as its own object; never in STL.\"><input type=\"checkbox\" id=\"v3dwat\"> Water <span id=\"v3dwatv\"></span><input type=\"range\" id=\"v3dwl\" min=\"0\" max=\"1000\" step=\"1\" value=\"300\" disabled></label>\n  <span class=\"btns\"><button id=\"v3dreset\" title=\"Back to the starting view, looking north\">Reset view</button><button id=\"v3dglb\" title=\"Save the block with its surface, for Blender and 3D viewers\">Save GLB</button><button id=\"v3dstl\" title=\"Save the block's shape for 3D printing (metres, with the height exaggeration)\">Save STL</button></span>\n </div>\n <p class=\"note\" id=\"v3dnote\"></p>\n</div>";
+const DIALOG="<div id=\"v3d\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"v3dh\" hidden>\n <div class=\"hd\"><b id=\"v3dh\">3D view of the lens</b><span id=\"v3dinfo\"></span><button class=\"x\" id=\"v3dx\" aria-label=\"Close 3D view\" title=\"Close (Esc)\">&times;</button></div>\n <div id=\"v3dstage\"><canvas id=\"v3dc\" aria-label=\"3D block of the ground in the lens. Drag to turn, scroll to zoom.\"></canvas>\n  <div id=\"v3dnorth\" aria-hidden=\"true\"><svg viewBox=\"0 0 40 40\" width=\"40\" height=\"40\"><circle cx=\"20\" cy=\"20\" r=\"18\" fill=\"rgba(255,255,255,.85)\" stroke=\"#555\"/><path d=\"M20 5 L26 22 L20 18 L14 22 Z\" fill=\"#c92a2a\"/><path d=\"M20 35 L26 22 L20 18 L14 22 Z\" fill=\"#888\"/></svg><span>N</span></div>\n  <div id=\"v3dwait\" role=\"status\" aria-live=\"polite\" hidden></div></div>\n <div class=\"ctl\">\n  <label>Surface <select id=\"v3ddrape\" title=\"What is painted on the ground\"><option value=\"lens\">Lens view, as shown</option><option value=\"lenslit\">Lens view + sun shading</option><option value=\"clay\">Plain, lit by the sun</option></select></label>\n  <label>Height &times;<span id=\"v3dvev\"></span><input type=\"range\" id=\"v3dve\" min=\"1\" max=\"10\" step=\"0.5\" title=\"Vertical exaggeration\"></label>\n  <span id=\"v3dsun\"><label>Sun from <span id=\"v3dazv\"></span><input type=\"range\" id=\"v3daz\" min=\"0\" max=\"359\" step=\"1\" title=\"Sun direction (degrees from north)\"></label>\n  <label>Sun height <span id=\"v3delv\"></span><input type=\"range\" id=\"v3del\" min=\"5\" max=\"85\" step=\"1\" title=\"Sun elevation\"></label>\n  <label id=\"v3dshadowl\" title=\"Let the sun cast shadows across the ground (lit surfaces)\"><input type=\"checkbox\" id=\"v3dshadow\"> Shadows</label><span id=\"v3dsunnote\" class=\"hint\"></span></span>\n  <label id=\"v3danal\" title=\"Red–cyan 3D: view with red–cyan glasses, red over the left eye. three.js AnaglyphEffect with Dubois (2001) colour matrices. Colours are muted in this view. Screen only: GLB and STL files are saved as normal. Draws the block twice, so it is slower on phones.\"><input type=\"checkbox\" id=\"v3dana\"> Red–cyan 3D</label>\n  <label id=\"v3daol\" title=\"Soft shading: darkens hollows and ditches by how much sky each point sees (sky-view factor after Zakšek et al. 2011, 16 directions within 10 m; 8 on phones), on the lit and plain surfaces\"><input type=\"checkbox\" id=\"v3dao\"> Soft shading</label>\n  <label title=\"Water level: a flat sheet of water at the height chosen, in metres above sea level (OD); starts from the map's water level when that is on. Saved in GLB as its own object; never in STL.\"><input type=\"checkbox\" id=\"v3dwat\"> Water <span id=\"v3dwatv\"></span><input type=\"range\" id=\"v3dwl\" min=\"0\" max=\"1000\" step=\"1\" value=\"300\" disabled></label>\n  <label id=\"v3dskyl\" title=\"Sky dome: the skyline seen from a viewpoint in the lens, with the Sun, the Moon and the stars for any date. Uses View from here; if no viewpoint is set in the lens, the lens centre is used.\"><input type=\"checkbox\" id=\"v3dskyon\"> Sky</label>\n  <span class=\"btns\"><button id=\"v3dreset\" title=\"Back to the starting view, looking north\">Reset view</button><button id=\"v3dglb\" title=\"Save the block with its surface, for Blender and 3D viewers\">Save GLB</button><button id=\"v3dstl\" title=\"Save the block's shape for 3D printing (metres, with the height exaggeration)\">Save STL</button></span>\n </div>\n <div id=\"v3dsky\" hidden></div>\n <p class=\"note\" id=\"v3dnote\"></p>\n</div>";
 if(!document.getElementById('v3dcss')){const st=document.createElement('style');st.id='v3dcss';st.textContent=CSS;document.head.appendChild(st)}
 if(!document.getElementById('v3d')){const t=document.createElement('template');t.innerHTML=DIALOG;document.body.appendChild(t.content.firstElementChild)}
 if(!document.getElementById('view3d')){const pr=document.getElementById('profile');if(pr){const b=document.createElement('button');b.id='view3d';b.setAttribute('aria-pressed','false');
@@ -16,6 +16,8 @@ if(!document.getElementById('view3d')){const pr=document.getElementById('profile
 const btn=$('view3d'),box=$('v3d');if(!btn||!box)return;
 const THREE_SRC='vendor/three3d.js';   // build_site.mjs rewrites this to the hashed asset
 const phone=()=>Math.min(screen.width,screen.height)<700||matchMedia('(pointer:coarse)').matches;
+const SKY_SRC='vendor/sky3d.js';     // likewise; the sky dome (scripts/sky3d), fetched when Sky is ticked
+let skyLoading=null;
 let T=null,loading=null;               // three.js namespace, once loaded
 let V=null;                             // live view: {renderer,scene,camera,controls,group,top,mats,...}
 let model=null;                         // last built model: geometry data + metadata
@@ -25,6 +27,11 @@ function loadThree(){if(window.LL3D)return Promise.resolve(window.LL3D);if(loadi
   loading=new Promise((res,rej)=>{const s=document.createElement('script');s.src=THREE_SRC;s.async=true;
     s.onload=()=>window.LL3D?res(window.LL3D):rej(new Error('3D library did not start'));s.onerror=()=>{loading=null;rej(new Error('3D library could not be loaded'))};document.head.appendChild(s)});
   return loading}
+
+function loadSky(){if(window.LLSKY)return Promise.resolve(window.LLSKY);if(skyLoading)return skyLoading;
+  skyLoading=new Promise((res,rej)=>{const s=document.createElement('script');s.src=SKY_SRC;s.async=true;
+    s.onload=()=>window.LLSKY?res(window.LLSKY):rej(new Error('sky library did not start'));s.onerror=()=>{skyLoading=null;rej(new Error('sky library could not be loaded'))};document.head.appendChild(s)});
+  return skyLoading}
 
 // ---------- heights under the lens ----------
 const tHeight=d=>(o)=>d[o+3]<128?NaN:d[o]*256+d[o+1]+d[o+2]/256-32768;
@@ -145,7 +152,30 @@ function applyLook(){if(!V)return;const ve=+$('v3dve').value,az=+$('v3daz').valu
   $('v3dsunnote').textContent=on?(hs?'Moves the lens sun too':''):'This lens view has no sun';
   $('v3dshadow').disabled=!lit;$('v3dshadowl').classList.toggle('off',!lit);V.sun.castShadow=lit&&$('v3dshadow').checked;
   if(hs&&(Math.round(LZ.S.az)!==az||Math.round(LZ.S.el)!==el))relightLens(az,el);
-  V.controls.target.y=model.relief*ve*0.4;V.controls.update();V.dirty=true}
+  V.controls.target.y=model.relief*ve*0.4;if(!standing())V.controls.update();lightSky();if(V.sky)V.sky.place();V.dirty=true}
+// ---------- sky dome (Sky tick box): scripts/sky3d/skydome.js draws it; this is the join ----------
+const standing=()=>!!(V&&V.sky&&V.sky.heading()!=null);
+// the eye in the block's frame: x east, y up from the lowest point, z south
+function eyeAt(ve){const vs=V.skyVs,g=model.geo,p=map.project(vs.ll,g.zt);ve=ve==null?+$('v3dve').value:ve;return [(p.x-g.pc.x)*g.mpp,(vs.z0-model.lo)*ve+vs.eye,(p.y-g.pc.y)*g.mpp]}
+// with the sky on, the block is lit from where the dome's Sun is (dim at night); the sun sliders are set aside
+function lightSky(){if(!V)return;const k=V.skySun;if(!k){V.sun.intensity=2.9;V.hemi.intensity=0.45;return}
+  const d=sunDir(k[0],Math.max(2,k[1])),R=model.diam;V.sun.position.set(d[0]*R*1.5,d[1]*R*1.5,d[2]*R*1.5);V.sun.intensity=2.9*Math.max(0.02,Math.min(1,(k[1]+1.5)/9));V.hemi.intensity=0.45*(0.2+0.8*k[2]);
+  $('v3daz').disabled=$('v3del').disabled=true;$('v3dsun').classList.add('off');$('v3dsunnote').textContent='Sun set by the sky'}
+async function skyOn(){if(!V||V.sky||V.skyBusy)return;V.skyBusy=true;status('Working out the skyline…');
+  try{const VS=window.__viewshed;if(!VS)throw new Error('View from here is not part of this build');
+    const g=model.geo,inLens=s=>{const p=map.project(s.ll,g.zt);return Math.hypot(p.x-g.pc.x,p.y-g.pc.y)*g.mpp<model.diam*0.45};
+    let vs=VS.state();if(!vs||!inLens(vs))vs=await VS.run(g.cll);            // no viewpoint in the lens: stand at its centre
+    if(!vs)throw new Error('there is no LiDAR height at the centre of the lens');
+    const SK=await loadSky();if(!V||!open||!$('v3dskyon').checked){status('');return}
+    V.skyVs=vs;const mine=V;
+    V.sky=SK.create({T,scene:V.scene,camera:V.camera,controls:V.controls,canvas:V.renderer.domElement,stage:$('v3dstage'),host:$('v3dsky'),vs,diam:model.diam,eyeAt,
+      setSun:(az,alt,day)=>{if(V!==mine)return;V.skySun=az==null?null:[az,alt,day];if(az==null)applyLook();else lightSky()},
+      setVE:v=>{if(V!==mine)return;const e=$('v3dve');if(v==null){e.disabled=false;if(V.veWas!=null){e.value=V.veWas;V.veWas=null}}else{V.veWas=e.value;e.value=String(v);e.disabled=true}applyLook()},
+      dirty:()=>{if(V===mine)V.dirty=true},resetCam});
+    status('');applyLook()}
+  catch(e){console.warn('sky dome',e);$('v3dskyon').checked=false;status('The sky could not be added: '+(e&&e.message||e),true);setTimeout(()=>{const w=$('v3dwait');if(w.classList.contains('err')&&/^The sky/.test(w.textContent))status('')},5000)}
+  finally{if(V)V.skyBusy=false}}
+function skyOff(){if(V&&V.sky){const s=V.sky;V.sky=null;s.dispose();V.skyVs=null;V.skySun=null;applyLook()}}
 // hillshade drape: set the lens's sun, let the lens redraw, then copy it onto the block again (coalesced while dragging)
 let relit=null,relitBusy=false;
 function relightLens(az,el){relit=[az,el];if(relitBusy)return;relitBusy=true;
@@ -159,13 +189,13 @@ function resetCam(){if(!V)return;const D=model.diam,ve=+$('v3dve').value,dist=Ma
 function sizeAna(){if(!V||!V.ana)return;const st=$('v3dstage'),w=st.clientWidth,h=st.clientHeight;if(!w||!h)return;V.ana.setSize(w,h);const c=V.renderer.domElement;c.style.width=c.style.height=''}   // setSize also styles the canvas; the stylesheet sizes it
 function sizeView(){if(!V)return;const st=$('v3dstage'),w=st.clientWidth,h=st.clientHeight;if(!w||!h)return;
   V.renderer.setSize(w,h,false);sizeAna();V.camera.aspect=w/h;V.camera.updateProjectionMatrix();V.dirty=true}
-function loop(){raf=requestAnimationFrame(loop);if(!V)return;const moved=V.controls.update();
+function loop(){raf=requestAnimationFrame(loop);if(!V)return;if(V.sky)V.sky.frame(performance.now());const st=standing(),moved=st?false:V.controls.update();
   if(moved||V.dirty){V.dirty=false;
     // red-cyan: three's AnaglyphEffect (Dubois colour matrices) with the eye gap at 1/30 of the viewing distance and the
     // eyes converging on the orbit target, so the block sits at the screen and its relief comes forward
     if($('v3dana').checked){if(!V.ana){V.ana=new T.AnaglyphEffect(V.renderer);sizeAna()}const d=V.camera.position.distanceTo(V.controls.target);V.ana.stereo.eyeSep=d/30;V.camera.focus=d;V.ana.render(V.scene,V.camera)}
     else V.renderer.render(V.scene,V.camera);
-    $('v3dnorth').style.transform='rotate('+(V.controls.getAzimuthalAngle()*180/Math.PI).toFixed(1)+'deg)'}}
+    $('v3dnorth').style.transform='rotate('+(st?-V.sky.heading():V.controls.getAzimuthalAngle()*180/Math.PI).toFixed(1)+'deg)'}}
 
 function makeView(m,tex){
   const t=T,old=$('v3dc'),cv=old.cloneNode(false);old.replaceWith(cv);   // fresh canvas: the last one's context was released on close
@@ -187,22 +217,22 @@ function makeView(m,tex){
   mats.flat.name='lens view';mats.water.name='water';mats.lit.name='lens view, lit';mats.clay.name='clay';mats.side.name='block sides';mats.litao.name='lens view, lit, soft shading';mats.clayao.name='clay, soft shading';
   const top=new t.Mesh(topGeo,mats.flat),side=new t.Mesh(sideGeo,mats.side);top.name='ground (DTM)';side.name='block sides and base';
   const group=new t.Group();group.add(top);group.add(side);group.add(water);scene.add(group);
-  scene.add(new t.HemisphereLight(0xffffff,0x6a6a6a,0.45));const sun=new t.DirectionalLight(0xffffff,2.9);scene.add(sun);scene.add(sun.target);
+  const hemi=new t.HemisphereLight(0xffffff,0x6a6a6a,0.45);scene.add(hemi);const sun=new t.DirectionalLight(0xffffff,2.9);scene.add(sun);scene.add(sun.target);
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=t.PCFSoftShadowMap;
   sun.shadow.mapSize.set(phone()?1024:4096,phone()?1024:4096);sun.shadow.bias=-0.0004;sun.shadow.normalBias=m.mpp*0.8;
   top.castShadow=top.receiveShadow=true;side.castShadow=true;side.receiveShadow=true;
   const controls=new t.OrbitControls(camera,cv);controls.enableDamping=true;controls.dampingFactor=0.12;controls.screenSpacePanning=true;
   controls.minDistance=m.diam*0.15;controls.maxDistance=m.diam*5;controls.maxPolarAngle=Math.PI*0.62;
   controls.addEventListener('change',()=>{V&&(V.dirty=true)});
-  V={renderer,scene,camera,controls,group,top,side,water,mats,sun,tex:map,texCanvas:tex,dirty:true}}
+  V={renderer,scene,camera,controls,group,top,side,water,mats,sun,hemi,tex:map,texCanvas:tex,dirty:true}}
 
-function disposeView(){if(!V)return;cancelAnimationFrame(raf);raf=0;V.controls.dispose();if(V.ana)V.ana.dispose();
+function disposeView(){if(!V)return;cancelAnimationFrame(raf);raf=0;if(V.sky){const s=V.sky;V.sky=null;try{s.dispose()}catch(e){}}$('v3dve').disabled=false;$('v3dsky').hidden=true;V.controls.dispose();if(V.ana)V.ana.dispose();
   V.top.geometry.dispose();V.side.geometry.dispose();V.water.geometry.dispose();Object.values(V.mats).forEach(m=>m.dispose());V.tex.dispose();
   V.renderer.dispose();if(V.renderer.forceContextLoss)V.renderer.forceContextLoss();V=null}
 
 function status(t,err){const w=$('v3dwait');w.textContent=t||'';w.hidden=!t;w.classList.toggle('err',!!err)}
 
-async function show(){
+async function show(opt){
   if(busy)return;if(LZ.renderer()==='none'){LZ.msg('This device cannot draw the LiDAR, so the 3D view is not available.',4000);return}
   {let ok=false;try{ok=!!document.createElement('canvas').getContext('webgl2')}catch(e){}
     if(!ok){LZ.msg('The 3D view needs WebGL 2, which this browser or device does not offer. The lens itself still works.',5000);return}}
@@ -212,7 +242,7 @@ async function show(){
     LZ.requestRender();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
     const [t,S]=await Promise.all([loadThree(),sampleLens()]);T=t;if(!open)return;
     const tex=captureLens(S);const m=buildModel(S);if(m.error){status(m.error,true);return}
-    fixOrientation(m);model=m;model.cap={c:S.c,rpx:S.rpx};
+    fixOrientation(m);model=m;model.cap={c:S.c,rpx:S.rpx};model.geo={pc:S.pc,zt:S.zt,mpp:S.mpp,cll:S.cll};
     model.meta={mode:modeName(),credit:credit(S.cll),grid:gridRef(S.cll),lat:+S.cll.lat.toFixed(6),lng:+S.cll.lng.toFixed(6),spacing:m.mpp,zt:S.zt,made:new Date().toISOString().slice(0,10)};
     makeView(m,tex);
     {const steep=Math.max(1,Math.floor(0.12*m.diam/Math.max(m.relief,0.01)*2)/2);$('v3dve').value=String(Math.max(1,Math.min(10,LZ.S.ve||2,steep)))}   // steep ground starts gentler: relief at most ~12% of the width
@@ -223,6 +253,7 @@ async function show(){
     $('v3dinfo').textContent=model.meta.mode+' · '+fmt(m.diam,0)+' m across · relief '+fmt(m.relief,2)+' m · centre '+where;
     $('v3dnote').textContent='Bare-earth model (DTM): trees, buildings and standing stones are removed, so megaliths do not appear. Heights every '+fmt(m.mpp,2)+' m, exaggerated by the factor shown; the sides are '+fmt(m.depth,1)+' m deep at 1×. LiDAR: '+model.meta.credit+'.';
     status('');sizeView();resetCam();applyLook();if(!raf)loop();
+    $('v3dskyon').checked=!!(opt&&opt.sky);if(opt&&opt.sky)skyOn();
   }catch(e){console.warn('3D view',e);status('The 3D view could not be built: '+(e&&e.message||e),true)}
   finally{busy=false}}
 function hide(){open=false;box.hidden=true;document.body.classList.remove('v3dopen');btn.setAttribute('aria-pressed','false');disposeView();status('');btn.focus()}
@@ -247,6 +278,7 @@ function saveSTL(){if(!model)return;const ve=+$('v3dve').value,p=model.pos,ix=mo
 
 // ---------- wiring ----------
 btn.addEventListener('click',()=>open?hide():show());
+$('v3dskyon').addEventListener('change',e=>e.target.checked?skyOn():skyOff());
 $('v3dx').addEventListener('click',hide);
 ['v3dve','v3daz','v3del','v3ddrape','v3dshadow','v3dwl'].forEach(id=>$(id).addEventListener('input',applyLook));$('v3dao').addEventListener('change',applyLook);$('v3dwat').addEventListener('change',applyLook);$('v3dshadow').addEventListener('change',applyLook);
 $('v3ddrape').addEventListener('change',applyLook);$('v3dana').addEventListener('change',()=>{if(V)V.dirty=true});
@@ -258,5 +290,5 @@ document.addEventListener('keydown',e=>{if(!open)return;if(e.key==='Escape'){hid
 document.addEventListener('keydown',e=>{if(open||e.ctrlKey||e.metaKey||e.altKey||(e.key!=='d'&&e.key!=='D'))return;const t=e.target;
   if(t&&(t.tagName==='INPUT'&&t.type!=='checkbox'&&t.type!=='range'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable))return;if(!btn.disabled){e.preventDefault();show()}});
 if(LZ.renderer()==='none'){btn.disabled=true;btn.title='This device cannot draw the LiDAR, so the 3D view is not available'}
-window.__view3d={show,hide,model:()=>model,isOpen:()=>open,_build:buildModel,_fix:fixOrientation,_v:()=>V};
+window.__view3d={show,hide,sky:()=>V&&V.sky,model:()=>model,isOpen:()=>open,_build:buildModel,_fix:fixOrientation,_v:()=>V};
 })();

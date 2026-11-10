@@ -1,18 +1,13 @@
-// View from here checks in Chromium. Usage (from tests/): node viewshed.test.mjs <site URL> [path to a local site/viewshed.js to inject]
+// View from here checks in Chromium. Usage (from tests/): node viewshed.test.mjs <site URL> [dist folder]
 // e.g. node viewshed.test.mjs https://lidar-lens-gb-live-test.tim-daw.workers.dev/
-// The second argument tests a viewshed.js that is not deployed yet against the live site's tiles (the page's CSP is bypassed to inject it).
+// With a dist folder (node scripts/build_site.mjs gb/config-live-test.js) the build is tested on the live site's tiles before it is deployed.
 // Part 1 checks the sweep against cases with known answers; part 2 runs the tool at Stonehenge on real LiDAR.
-import {chromium} from 'playwright';import fs from 'node:fs';
-const BASE=(process.argv[2]||'').replace(/\/?$/,'/'),INJECT=process.argv[3];if(!/^https?:/.test(BASE)){console.error('give the site URL');process.exit(2)}
+import {openSite} from './open.mjs';
+const BASE=(process.argv[2]||'').replace(/\/?$/,'/');if(!/^https?:/.test(BASE)){console.error('give the site URL');process.exit(2)}
 let pass=0,fail=0;const ok=(n,c,i='')=>{c?pass++:fail++;console.log((c?'PASS ':'FAIL ')+n+(i?' '+i:''))};
-const b=await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader'],proxy:process.env.HTTPS_PROXY?{server:process.env.HTTPS_PROXY}:undefined});
-const ctx=await b.newContext({viewport:{width:1300,height:900},bypassCSP:!!INJECT});const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
-const open=async hash=>{await p.goto(BASE+hash,{waitUntil:'load'});await p.waitForTimeout(2500);
-  if(await p.evaluate(()=>!!(navigator.serviceWorker&&navigator.serviceWorker.controller))){await p.goto('about:blank');await p.goto(BASE+hash,{waitUntil:'load'})}
-  await p.waitForFunction(()=>window.__lens&&document.getElementById('loading').hidden,null,{timeout:60000}).catch(()=>{});await p.waitForTimeout(1500);
-  if(INJECT)await p.addScriptTag({content:fs.readFileSync(INJECT,'utf8')});
-  await p.waitForFunction(()=>window.__viewshed,null,{timeout:10000})};
+const {b,p,errs,open}=await openSite(BASE,process.argv[3]);
 await open('#c=51.1789%2C-1.8262%2C15&l=51.1789%2C-1.8262');
+await p.waitForFunction(()=>window.__viewshed,null,{timeout:10000});
 ok('button and key row added',await p.evaluate(()=>!!document.getElementById('viewfrom')&&/View from here/.test(document.querySelector('#help table.keys').textContent)));
 
 // ---------- part 1: known answers ----------

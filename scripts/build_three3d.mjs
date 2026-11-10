@@ -4,7 +4,8 @@
 // Usage: npm i && node scripts/build_three3d.mjs
 import * as esbuild from 'esbuild';import fs from 'node:fs';
 const entry=`export {WebGLRenderer,Scene,PerspectiveCamera,BufferGeometry,BufferAttribute,Mesh,MeshBasicMaterial,MeshLambertMaterial,
-  DirectionalLight,AmbientLight,HemisphereLight,CanvasTexture,SRGBColorSpace,PCFSoftShadowMap,LinearFilter,LinearMipmapLinearFilter,Group,Color,Vector3,DoubleSide,FrontSide,REVISION} from 'three';
+  DirectionalLight,AmbientLight,HemisphereLight,CanvasTexture,SRGBColorSpace,PCFSoftShadowMap,LinearFilter,LinearMipmapLinearFilter,Group,Color,Vector3,DoubleSide,FrontSide,REVISION,
+  SphereGeometry,CircleGeometry,LineSegments,LineBasicMaterial,Points,PointsMaterial,Sprite,SpriteMaterial,BackSide,AdditiveBlending} from 'three';   // second line: the sky dome
 export {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 export {GLTFExporter} from 'three/examples/jsm/exporters/GLTFExporter.js';
 export {AnaglyphEffect} from 'three/examples/jsm/effects/AnaglyphEffect.js';`;

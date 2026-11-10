@@ -187,6 +187,10 @@ function setBtn(on){btn.classList.toggle('on',on);btn.setAttribute('aria-pressed
 LZ.toolHooks.viewfrom={on(){setBtn(true);LZ.msg('View from here ON: click the spot to stand on (inside or outside the lens). Esc or the button turns it off.',4000)},off(){setBtn(false)}};
 btn.onclick=()=>LZ.setTool('viewfrom');
 map.on('click',e=>{if(LZ.tool()!=='viewfrom')return;if(window.__lensEatClick&&Date.now()<window.__lensEatClick)return;LZ.setTool(null);run(e.latlng).then(()=>setBtn(false));setBtn(false)});
+// with the 3D view present: move the map so the viewpoint is under the lens, then open the block with its sky dome
+if(window.__view3d){const b=document.createElement('button');b.id='vfh3d';b.textContent='3D view with sky';b.title='Open the 3D view of the lens, centred on this viewpoint, with the skyline, Sun, Moon and stars';$('vfhextra').appendChild(b);
+  b.onclick=async()=>{if(!cur)return;const st=LZ.lensState(),pt=map.latLngToContainerPoint(cur.ll);if(!st.fs)map.panBy([pt.x-st.c[0],pt.y-st.c[1]],{animate:false});
+    for(let k=0;k<25;k++){await sleep(160);if($('loading').hidden)break}window.__view3d.show({sky:true})}}
 $('vfhx').onclick=()=>{clear();setBtn(false)};$('vfhpick').onclick=()=>{if(LZ.tool()!=='viewfrom')LZ.setTool('viewfrom')};$('vfhshade').onchange=drawOverlays;
 document.addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey||(e.key!=='e'&&e.key!=='E'))return;const t=e.target;
   if(t&&(t.tagName==='INPUT'&&t.type!=='checkbox'&&t.type!=='range'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable))return;

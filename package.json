@@ -5,7 +5,8 @@
   "scripts": {
     "build": "node scripts/build_site.mjs",
     "check:gb-viewer": "node tests/gb-viewer-sync.mjs",
-    "build:three3d": "node scripts/build_three3d.mjs"
+    "build:three3d": "node scripts/build_three3d.mjs",
+    "build:sky3d": "node scripts/build_sky3d.mjs"
   },
   "repository": {
     "type": "git",

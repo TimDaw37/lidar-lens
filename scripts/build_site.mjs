@@ -31,6 +31,8 @@ html=html.replace('<link rel="stylesheet" href="vendor/leaflet.css">','<link rel
 if(fs.existsSync(SITE+'/view3d.js')){let v=fs.readFileSync(SITE+'/view3d.js','utf8');
   if(fs.existsSync(SITE+'/vendor/three3d.js')){const t3=fs.readFileSync(SITE+'/vendor/three3d.js');const t3Name='three3d.'+hash(t3)+'.js';fs.writeFileSync(OUT+'/assets/'+t3Name,t3);
     if(!v.includes("'vendor/three3d.js'"))throw new Error('view3d.js: three3d path not found');v=v.split("'vendor/three3d.js'").join("'assets/"+t3Name+"'")}
+  if(fs.existsSync(SITE+'/vendor/sky3d.js')&&v.includes("'vendor/sky3d.js'")){const k=fs.readFileSync(SITE+'/vendor/sky3d.js');const kName='sky3d.'+hash(k)+'.js';fs.writeFileSync(OUT+'/assets/'+kName,k);   // sky dome, fetched when Sky is ticked
+    v=v.split("'vendor/sky3d.js'").join("'assets/"+kName+"'")}
   v=(await esbuild.transform(v,{loader:'js',minify:true,target:TARGET,supported:{destructuring:true},legalComments:'inline'})).code;
   const vName='view3d.'+hash(v)+'.js';fs.writeFileSync(OUT+'/assets/'+vName,v);html=html.replace('<script src="view3d.js"></script>','<script defer src="assets/'+vName+'"></script>')}
 else html=html.replace(/\n?<script src="view3d\.js"><\/script>/,'');
