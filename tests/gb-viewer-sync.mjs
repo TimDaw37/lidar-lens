@@ -57,10 +57,11 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gb-viewer-'));
 try {
   fs.cpSync(path.join(root, 'site'), path.join(tmp, 'site'), { recursive: true });
   fs.cpSync(path.join(root, 'scripts'), path.join(tmp, 'scripts'), { recursive: true });
-  fs.mkdirSync(path.join(tmp, 'configs'));
-  fs.copyFileSync(path.join(root, 'gb/config.js'), path.join(tmp, 'configs', 'gb.js'));
+  fs.mkdirSync(path.join(tmp, 'gb'));   // gb/config.js with what the build takes from gb/: make_sw.mjs (live-sw.js) and places.json
+  for (const f of ['config.js', 'make_sw.mjs', 'places.json', 'scot-shell.js', 'gb-route.js']) fs.copyFileSync(path.join(root, 'gb', f), path.join(tmp, 'gb', f));
+  fs.cpSync(path.join(root, 'gb', 'worker', 'src'), path.join(tmp, 'gb', 'worker', 'src'), { recursive: true });
   fs.symlinkSync(path.join(root, 'node_modules'), path.join(tmp, 'node_modules'));
-  const run = spawnSync(process.execPath, ['scripts/build_site.mjs', 'configs/gb.js'], { cwd: tmp, encoding: 'utf8' });
+  const run = spawnSync(process.execPath, ['scripts/build_site.mjs', 'gb/config.js'], { cwd: tmp, encoding: 'utf8' });
   if (run.status !== 0) fail('build failed\n' + (run.stdout || '') + (run.stderr || ''));
   for (const [rel, expect] of Object.entries(EXPECT)) {
     const got = sha(fs.readFileSync(path.join(tmp, 'dist', rel)));
@@ -80,6 +81,12 @@ try {
     if (!t || !fs.existsSync(path.join(tmp, 'dist', t))) fail('3D view does not point at a built assets/three3d.*.js');
     console.log('3D view is additive: ' + v + ' -> ' + t);
   }
+  // the live-mode service worker and the monument names production serves at the site root (checked against the live files 10 Nov 2026)
+  for (const [rel, expect] of [['live-sw.js', '7405d85b2454a5b1eb0f479ad34c65f426bb8a54626dd72feecf2a2016982a3d'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
+    const got = sha(fs.readFileSync(path.join(tmp, 'dist', rel)));
+    if (got !== expect) fail(rel + ' sha256 ' + got + ' != live ' + expect);
+  }
+  console.log('live-sw.js (gb/make_sw.mjs) and nhle_places.json (gb/places.json) match production');
   if (html.includes('config.198ea3a0.js')) fail('build renamed the config to the live MD5 filename; that step is not in this source');
   console.log('gb viewer source reproduces live app.8c00751d.js, app.6c9e6941.css and compat.912d81c4.js');
   console.log('config bytes match gb/config.js; build filename is config.93c04c53.js (SHA-256), production serves this build as-is since 9 Nov 2026');
