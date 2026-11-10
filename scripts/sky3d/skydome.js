@@ -35,7 +35,7 @@ const HTML = '<div class="grp" role="group" aria-label="When"><span class="gl">W
   '<div class="grp" role="group" aria-label="Find a rising or setting"><span class="gl">Find</span><span class="seg">' +
   '<button id="skysr" title="Seek the Sun rising over the skyline on this day">Sunrise</button><button id="skyss" title="Seek the Sun setting behind the skyline on this day">Sunset</button>' +
   '<button id="skymr" title="Seek the Moon rising over the skyline">Moonrise</button><button id="skyms" title="Seek the Moon setting behind the skyline">Moonset</button></span>' +
-  '<span class="sp"></span><span class="seg"><button id="skyinside" aria-pressed="false" title="Go inside the dome: the ground drops to the foot of the screen and the sky fills the view. Drag to look round, scroll to move in or out.">Inside the dome</button><button id="skystand" title="Stand at the viewpoint, eyes 1.5 m above the ground. Drag to look round, scroll to zoom.">Stand at the viewpoint</button></span></div>' +
+  '<span class="sp"></span><span class="seg"><button id="skyinside" aria-pressed="false" title="Inside the dome (the usual view): the ground sits at the foot of the screen and the sky fills the view. Drag to look round, scroll to move in or out. Click to see the dome from outside, over the whole block.">Inside the dome</button><button id="skystand" title="Stand at the viewpoint, eyes 1.5 m above the ground. Drag to look round, scroll to zoom.">Stand at the viewpoint</button></span></div>' +
   '<p id="skyread" aria-live="off"></p>' +
   '<details id="skymore"><summary>Paths, key and options</summary><div class="grp">' +
   '<label title="Paths of the Sun at the solstices and equinoxes, and of the Moon at its major and minor standstill limits, for the year shown"><input type="checkbox" id="skyarcs" checked> Solstice and standstill paths</label>' +
@@ -54,7 +54,7 @@ export function create(ctx) {
   const root = new T.Group(); root.name = 'sky dome'; ctx.scene.add(root);
   const disposables = [], keep = o => { disposables.push(o); return o; };
   const now = new Date(), d0 = A.doyOf(now);
-  const st = { year: now.getUTCFullYear(), doy: d0.doy, minute: Math.round(d0.minute), playing: false, standing: false, inside: false, yaw: 50, pitch: 2, fov: 50, sun: null, moon: null };
+  const st = { year: now.getUTCFullYear(), doy: d0.doy, minute: Math.round(d0.minute), playing: false, standing: false, inside: false, wasInside: false, yaw: 50, pitch: 2, fov: 50, sun: null, moon: null };
 
   // ---- sky: a sphere seen from inside, coloured by the Sun's height ----
   const skyGeo = keep(new T.SphereGeometry(Rd, 48, 24, 0, Math.PI * 2, 0, Math.PI * 0.72)), skyCol = new Float32Array(skyGeo.attributes.position.count * 3);
@@ -171,9 +171,10 @@ export function create(ctx) {
   const cam = ctx.camera, saved = { near: cam.near, far: cam.far, fov: cam.fov };
   function aim() { if (!st.standing) return; const e = ctx.eyeAt(1); cam.position.set(e[0], e[1], e[2]); cam.rotation.order = 'YXZ'; cam.rotation.set(st.pitch * D2R, -st.yaw * D2R, 0); cam.fov = st.fov; cam.near = 0.25; cam.far = Rd * 3; cam.updateProjectionMatrix();
     const y = ((st.yaw % 360) + 360) % 360; look.textContent = 'Looking ' + String(Math.round(y) % 360).padStart(3, '0') + '° (' + PTS[Math.round(y / 22.5) % 16] + '), ' + (st.pitch >= 0 ? 'up ' : 'down ') + Math.abs(st.pitch).toFixed(0) + '° · view ' + Math.round(st.fov) + '° wide'; ctx.dirty(); }
-  function stand(on) { if (on === st.standing) return; if (on && st.inside) inside(false); st.standing = on; $('skystand').classList.toggle('on', on); $('skystand').textContent = on ? 'Back to the block' : 'Stand at the viewpoint'; look.hidden = !on; ctx.controls.enabled = !on; ctx.setVE(on ? 1 : null); place();
+  function stand(on) { if (on === st.standing) return; if (on) { st.wasInside = st.inside; if (st.inside) inside(false); } st.standing = on; $('skystand').classList.toggle('on', on); $('skystand').textContent = on ? 'Back to the block' : 'Stand at the viewpoint'; look.hidden = !on; ctx.controls.enabled = !on; ctx.setVE(on ? 1 : null); place();
     if (on) { if (st.sun && st.sun.app > -6) { st.yaw = st.sun.az; st.pitch = clamp(st.sun.app, 0, 50); } aim(); }
-    else { cam.near = saved.near; cam.far = saved.far; cam.fov = saved.fov; cam.rotation.order = 'XYZ'; cam.updateProjectionMatrix(); ctx.resetCam(); } }
+    else { cam.near = saved.near; cam.far = saved.far; cam.fov = saved.fov; cam.rotation.order = 'XYZ'; cam.updateProjectionMatrix(); ctx.resetCam(); if (st.wasInside) inside(true); }   // back to the view you stood up from
+    if (ctx.changed) ctx.changed(); }
   // ---- inside the dome: the orbit camera goes in under the dome, low down, looking up and out over the block ----
   // The camera starts a fifth of the dome's radius above the eye, looking slightly up, so the block sits at the foot of
   // the screen and the sky fills the rest; it can neither leave the dome nor sink under the ground, so the bowl under the

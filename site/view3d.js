@@ -174,7 +174,7 @@ async function skyOn(){if(!V||V.sky||V.skyBusy)return;V.skyBusy=true;status('Wor
       setVE:v=>{if(V!==mine)return;const e=$('v3dve');if(v==null){e.disabled=false;if(V.veWas!=null){e.value=V.veWas;V.veWas=null}}else{V.veWas=e.value;e.value=String(v);e.disabled=true}applyLook()},
       dirty:()=>{if(V===mine)V.dirty=true},resetCam,changed:()=>{LZ.saveHashSoon&&LZ.saveHashSoon()}});
     status('');applyLook();
-    if(!domeFromLink&&LZ.H0&&LZ.H0.dome==='in'&&V.sky.inside){domeFromLink=true;V.sky.inside(true)}}   // dome=in in a share link: open inside the dome (once)
+    const lk=!domeFromLink&&LZ.H0?LZ.H0.dome:null;domeFromLink=true;if(lk!=='out'&&V.sky.inside)V.sky.inside(true);LZ.saveHashSoon&&LZ.saveHashSoon()}   // the dome opens with the camera inside it; dome=out in a share link opens the outside view (once)
   catch(e){console.warn('sky dome',e);$('v3dskyon').checked=false;syncSkyBtn();status('The sky could not be added: '+(e&&e.message||e),true);setTimeout(()=>{const w=$('v3dwait');if(w.classList.contains('err')&&/^The sky/.test(w.textContent))status('')},5000)}
   finally{if(V)V.skyBusy=false}}
 function syncSkyBtn(){const c=$('v3dskyon'),b=$('v3dskybtn');if(!b)return;b.setAttribute('aria-pressed',c.checked?'true':'false');b.innerHTML=c.checked?'&#9733; Sky dome on':'&#9733; Sky dome'}

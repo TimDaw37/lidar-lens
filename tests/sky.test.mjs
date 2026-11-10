@@ -30,8 +30,8 @@ ok('standing: looking at the sunrise',lit.head>48&&lit.head<51&&/^Looking 0(49|5
 ok('the Sun is drawn near the middle of the view',lit.n>50&&Math.abs(lit.cx-0.5)<0.2&&Math.abs(lit.cy-0.5)<0.25,lit.n+' px at '+lit.cx.toFixed(2)+','+lit.cy.toFixed(2));
 await p.mouse.move(650,330);await p.mouse.down();await p.mouse.move(450,330,{steps:4});await p.mouse.up();
 ok('dragging looks round',await p.evaluate(h=>window.__view3d.sky().heading()>h+0.5,lit.head));
-await p.click('#skystand');const back=await p.evaluate(()=>({h:window.__view3d.sky().heading(),veOff:document.getElementById('v3dve').disabled,fov:window.__view3d._v().camera.fov}));
-ok('back to the block: orbit view restored',back.h===null&&!back.veOff&&back.fov===35,JSON.stringify(back));
+await p.click('#skystand');const back=await p.evaluate(()=>({h:window.__view3d.sky().heading(),veOff:document.getElementById('v3dve').disabled,fov:window.__view3d._v().camera.fov,inside:window.__view3d.sky().state().inside}));
+ok('back from standing: orbit view restored, inside the dome as before',back.h===null&&!back.veOff&&back.inside&&back.fov===62,JSON.stringify(back));
 await p.click('#skyplay');const m0=await p.evaluate(()=>window.__view3d.sky().state().minute);await p.waitForTimeout(1500);const m1=await p.evaluate(()=>window.__view3d.sky().state().minute);await p.click('#skyplay');
 ok('Play turns the sky',m1>m0+2,(m1-m0).toFixed(1)+' min in 1.5 s');
 ok('night: stars drawn',await p.evaluate(()=>{const k=window.__view3d.sky();k.set({minute:0});return k.root.children.some(c=>c.isPoints&&c.visible)}));

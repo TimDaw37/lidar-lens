@@ -1,8 +1,9 @@
-// Inside the dome (sky panel button "Inside the dome", share links with dome=in), at Stonehenge.
+// Inside the dome, the sky dome's usual view (sky panel button "Inside the dome" toggles the outside block view; share links
+// carry dome=out for that, and older dome=in links still open inside), at Stonehenge.
 // Usage (from tests/): node inside.test.mjs <site URL> [dist folder]
 // The camera goes in under the dome, above the ground, looking up and out: the sky fills most of the view, it can be
 // turned and zoomed but never leaves the dome or sinks below the eye; the button, Reset view, Stand and the Sky tick box
-// all bring the usual block view back.
+// all behave sensibly.
 import {openSite} from './open.mjs';
 const BASE=(process.argv[2]||'').replace(/\/?$/,'/');if(!/^https?:/.test(BASE)){console.error('give the site URL');process.exit(2)}
 let pass=0,fail=0;const ok=(n,c,i='')=>{c?pass++:fail++;console.log((c?'PASS ':'FAIL ')+n+(i?' '+i:''))};
@@ -18,32 +19,36 @@ const skyShare=async p=>{const r=await p.locator('#v3dstage').boundingBox(),b64=
 const drag=async(p,dx,dy)=>{const r=await p.locator('#v3dstage canvas').first().boundingBox();const x=r.x+r.width/2,y=r.y+r.height/2;await p.mouse.move(x,y);await p.mouse.down();await p.mouse.move(x+dx,y+dy,{steps:12});await p.mouse.up();await p.waitForTimeout(300)};
 
 {const o=await openSite(BASE,process.argv[3]);const p=o.p;await o.open(SH);await skyOpen(p);await p.evaluate(()=>window.__view3d.sky().set({doy:172,minute:600}));await p.waitForTimeout(800);   // a summer morning, so the sky is blue
-  const a=await cam(p),s0=await skyShare(p);
-  ok('sky=1 alone still opens the usual block view (camera outside the dome)',!a.inside&&a.d>1&&a.pressed==='false',JSON.stringify({d:a.d.toFixed(2)}));
-  await p.click('#skyinside');await p.waitForTimeout(800);const b=await cam(p),s1=await skyShare(p);
-  ok('Inside the dome: camera under the dome, above the eye',b.inside&&b.pressed==='true'&&b.d<1&&b.h>0,JSON.stringify({d:b.d.toFixed(2),h:b.h.toFixed(2)}));
+  const b=await cam(p),s1=await skyShare(p);
+  ok('sky=1 opens inside the dome by default: camera under the dome, above the eye',b.inside&&b.pressed==='true'&&b.d<1&&b.h>0,JSON.stringify({d:b.d.toFixed(2),h:b.h.toFixed(2)}));
   ok('wider view and no panning while inside',b.fov>50&&b.pan===false,b.fov+' '+b.pan);
-  if(s0!=null)ok('much more sky on screen',s1>0.55&&s1>s0+0.15,'sky share '+s0.toFixed(2)+' -> '+s1.toFixed(2));
-  await p.waitForTimeout(900);ok('page link gains dome=in',/sky=1/.test((await cam(p)).hash)&&/dome=in/.test((await cam(p)).hash));
-  await drag(p,0,-600);let c=await cam(p);ok('dragging the view right down: still above the ground and under the dome',c.h>0.02&&c.d<1,JSON.stringify({d:c.d.toFixed(2),h:c.h.toFixed(2)}));
+  await p.waitForTimeout(900);ok('page link: sky=1 with no dome=out',/sky=1/.test(b.hash=(await cam(p)).hash)&&!/dome=/.test(b.hash),b.hash.slice(-40));
+  await p.click('#skyinside');await p.waitForTimeout(800);const a=await cam(p),s0=await skyShare(p);
+  ok('the button switches to the outside block view (camera outside the dome)',!a.inside&&a.d>1&&a.pressed==='false'&&a.fov===35&&a.pan===true,JSON.stringify({d:a.d.toFixed(2),fov:a.fov}));
+  ok('inside shows much more sky than outside',s1>0.55&&s1>s0+0.15,'sky share outside '+s0.toFixed(2)+', inside '+s1.toFixed(2));
+  await p.waitForTimeout(900);ok('page link gains dome=out',/sky=1/.test((await cam(p)).hash)&&/dome=out/.test((await cam(p)).hash));
+  await p.click('#skyinside');await p.waitForTimeout(800);let c=await cam(p);ok('and back inside',c.inside&&c.d<1);
+  await p.waitForTimeout(900);ok('page link drops dome=out',!/dome=/.test((await cam(p)).hash));
+  await drag(p,0,-600);c=await cam(p);ok('dragging the view right down: still above the ground and under the dome',c.h>0.02&&c.d<1,JSON.stringify({d:c.d.toFixed(2),h:c.h.toFixed(2)}));
   await drag(p,0,700);c=await cam(p);ok('dragging the other way: still under the dome',c.d<1&&c.h>0.02,JSON.stringify({d:c.d.toFixed(2),h:c.h.toFixed(2)}));
   const r=await p.locator('#v3dstage canvas').first().boundingBox();await p.mouse.move(r.x+r.width/2,r.y+r.height/2);for(let i=0;i<25;i++){await p.mouse.wheel(0,400);await p.waitForTimeout(40)}await p.waitForTimeout(400);
   c=await cam(p);ok('zooming right out stays inside the dome',c.d<1.0,c.d.toFixed(2));
   await drag(p,500,0);c=await cam(p);ok('turning round keeps it inside',c.d<1&&c.h>0.02);
-  await p.click('#skyinside');await p.waitForTimeout(800);c=await cam(p);
-  ok('clicking again brings the usual view back (limits restored)',!c.inside&&c.d>1&&c.fov===a.fov&&c.maxD===a.maxD&&c.pan===a.pan,JSON.stringify({d:c.d.toFixed(2),fov:c.fov}));
-  await p.waitForTimeout(900);ok('page link drops dome=in',!/dome=in/.test((await cam(p)).hash));
-  await p.click('#skyinside');await p.waitForTimeout(300);await p.click('#skystand');await p.waitForTimeout(500);
-  c=await cam(p);const st=await p.evaluate(()=>window.__view3d.sky().state().standing);ok('Stand at the viewpoint from inside: standing, Inside off',st&&!c.inside&&c.pressed==='false');
-  await p.click('#skystand');await p.waitForTimeout(500);c=await cam(p);ok('Back to the block from standing: usual view',!c.inside&&c.d>1);
-  await p.click('#skyinside');await p.waitForTimeout(300);await p.click('#v3dreset');await p.waitForTimeout(500);c=await cam(p);ok('Reset view leaves the dome',!c.inside&&c.d>1&&c.maxD===a.maxD);
+  await p.click('#skystand');await p.waitForTimeout(500);c=await cam(p);let st=await p.evaluate(()=>window.__view3d.sky().state().standing);ok('Stand at the viewpoint from inside: standing, Inside off',st&&!c.inside&&c.pressed==='false');
+  await p.click('#skystand');await p.waitForTimeout(500);c=await cam(p);ok('Back from standing returns inside the dome',c.inside&&c.d<1);
+  await p.click('#skyinside');await p.waitForTimeout(300);await p.click('#skystand');await p.waitForTimeout(400);await p.click('#skystand');await p.waitForTimeout(500);c=await cam(p);ok('...and to the outside view when that is where you stood up from',!c.inside&&c.d>1&&c.maxD===a.maxD);
+  await p.click('#skyinside');await p.waitForTimeout(300);await p.click('#v3dreset');await p.waitForTimeout(500);c=await cam(p);ok('Reset view goes to the outside view with its usual limits',!c.inside&&c.d>1&&c.maxD===a.maxD&&c.pan===a.pan);
   await p.click('#skyinside');await p.waitForTimeout(300);await p.click('#v3dskybtn');await p.waitForTimeout(800);
   const off=await p.evaluate(()=>{const v=window.__view3d._v();return {sky:!!window.__view3d.sky(),maxD:v.controls.maxDistance,pan:v.controls.enablePan,fov:v.camera.fov}});
   ok('turning the sky off while inside restores the block view controls',!off.sky&&off.maxD===a.maxD&&off.pan===a.pan&&off.fov===a.fov,JSON.stringify(off));
+  await p.click('#v3dskybtn');await p.waitForFunction(()=>window.__view3d.sky()&&document.getElementById('v3dwait').hidden,null,{timeout:120000});await p.waitForTimeout(600);c=await cam(p);ok('turning it on again opens inside',c.inside&&c.d<1);
   ok('no JS errors (button)',o.errs.length===0,o.errs.join(' | '));await o.b.close()}
 
+{const o=await openSite(BASE,process.argv[3]);const p=o.p;await o.open(SH+'&dome=out');await skyOpen(p);await p.waitForTimeout(1200);await p.waitForFunction(()=>/dome=out/.test(location.hash),null,{timeout:5000}).catch(()=>{});const c=await cam(p);
+  ok('share link with dome=out opens the outside view',!c.inside&&c.pressed==='false'&&c.d>1&&/dome=out/.test(c.hash),JSON.stringify({d:c.d.toFixed(2)}));
+  ok('no JS errors (dome=out link)',o.errs.length===0,o.errs.join(' | '));await o.b.close()}
 {const o=await openSite(BASE,process.argv[3]);const p=o.p;await o.open(SH+'&dome=in');await skyOpen(p);await p.waitForTimeout(1200);const c=await cam(p);
-  ok('share link with dome=in opens straight inside the dome',c.inside&&c.pressed==='true'&&c.d<1&&c.h>0,JSON.stringify({d:c.d.toFixed(2),h:c.h.toFixed(2)}));
+  ok('older share links with dome=in still open inside the dome',c.inside&&c.pressed==='true'&&c.d<1&&c.h>0,JSON.stringify({d:c.d.toFixed(2),h:c.h.toFixed(2)}));
   ok('no JS errors (dome=in link)',o.errs.length===0,o.errs.join(' | '));await o.b.close()}
 {const o=await openSite(BASE,process.argv[3],{width:420,height:860});const p=o.p;await o.open(SH+'&dome=in');await skyOpen(p);await p.waitForTimeout(1200);const c=await cam(p);
   ok('phone width: dome=in opens inside too',c.inside&&c.d<1&&c.h>0);ok('no JS errors (phone)',o.errs.length===0,o.errs.join(' | '));await o.b.close()}
