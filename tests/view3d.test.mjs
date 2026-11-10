@@ -34,6 +34,11 @@ if(await p.$('#v3dana')){const p0=await px();const t0=Date.now();await p.check('
   const tm=await p.evaluate(async()=>{const v=window.__view3d._v(),t=performance.now();for(let k=0;k<5;k++){v.dirty=true;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))}return (performance.now()-t)/5});
   console.log('TIME red-cyan frame (software GL, two rAF):',tm.toFixed(0),'ms');
   await p.uncheck('#v3dana');await p.waitForTimeout(800);const p2=await px();ok('red-cyan: off restores the plain view',Math.abs(p2.rg-p0.rg)<0.3,p2.rg.toFixed(2))}
+// soft shading
+if(await p.$('#v3dao')){await p.selectOption('#v3ddrape','clay');await p.waitForTimeout(500);const c0=await px();
+  await p.check('#v3dao');await p.waitForTimeout(800);const c1=await px();const ao=await p.evaluate(()=>{const v=window.__view3d._v(),c=v.top.geometry.getAttribute('color');let lo=1;if(c)for(let i=0;i<c.count;i++)lo=Math.min(lo,c.getX(i));return {has:!!c,lo,ms:v.aoMs,mat:v.top.material.name}});
+  ok('soft shading: picture changes',c1.url!==c0.url);ok('soft shading: darkens some ground',ao.has&&ao.lo<0.95,JSON.stringify(ao));console.log('TIME soft shading build:',(ao.ms||0).toFixed(0),'ms');
+  await p.uncheck('#v3dao');await p.selectOption('#v3ddrape','lens');}
 ok('no JS errors',!errs.length,errs[0]||'');await ctx.close();
 // without WebGL 2: a message, no dialog, no errors
 const c2=await b.newContext();await c2.addInitScript(`(()=>{const g=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(t,...a){if(t==='webgl2')return null;return g.call(this,t,...a)}})()`);

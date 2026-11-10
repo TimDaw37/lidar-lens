@@ -59,11 +59,11 @@ Visualisation 11, "Openness difference" (key O). (positive openness − negative
 - Checks: `node tests/modes.test.mjs <site URL> 11` (renders at Stonehenge, Pentre Ifan and Clava, differs from hillshade, share-link round trip, phone size, CPU fallback, timings, no errors). Test site: Clava, NH 757 445, cairn rims light and inner hollows dark.
 - `npm run check:gb-viewer` pins the new `app.73ba7c7a.js`: this is an intended release (live-test now, production once Tim approves), so the hashes changed in the same commit.
 
-## Local dominance (mode 12, trial, 9 Nov 2026; not yet on production)
+## Local dominance (mode 12; live from 10 Nov 2026)
 
-Visualisation 12, "Local dominance (trial)" (key L), after Hesse (2016). An observer stands `h` m above each point; the value is the mean angle (degrees) down to every sample on rings from the inner to the outer radius, 1 m apart (one data pixel apart when pixels are larger than 1 m), in 24 directions (12 on phones; the tooltip says so). True heights: the vertical exaggeration slider is disabled for this mode, as for Combined VAT. Settings under the menu, saved in share links (`ld0`, `ld1`, `ldh`): inner radius 10 m (2–30), outer 20 m (5–60), observer 1.7 m (0.5–5); RVT's defaults, converted from pixels on 1 m data to metres. Grey, auto-contrast 2–98%. `needPx` widens the live margin to the outer radius. CPU fallback: same method.
+Visualisation 12, "Local dominance" (key L), after Hesse (2016). An observer stands `h` m above each point; the value is the mean angle (degrees) down to every sample on rings from the inner to the outer radius, 1 m apart (one data pixel apart when pixels are larger than 1 m), in 24 directions (12 on phones; the tooltip says so). True heights: the vertical exaggeration slider is disabled for this mode, as for Combined VAT. Settings under the menu, saved in share links (`ld0`, `ld1`, `ldh`): inner radius 10 m (2–30), outer 20 m (5–60), observer 1.7 m (0.5–5); RVT's defaults, converted from pixels on 1 m data to metres. Grey, auto-contrast 2–98%. `needPx` widens the live margin to the outer radius. CPU fallback: same method.
 
-Test (Tim): open live-test at Normanton Down (SU 115 413), mode 12. Each barrow, including the low ploughed ones, should be a bright spot. Automated: `node tests/modes.test.mjs <url> 12`. Promotion: remove "(trial)" from the menu label in `site/index.html` and the About text, rebuild, then deploy as for mode 11.
+Test: open the viewer at Normanton Down (SU 115 413), mode 12. Each barrow, including the low ploughed ones, should be a bright spot. Automated: `node tests/modes.test.mjs <url> 12`.
 
 ## What is live (9 Nov 2026, after the Openness difference promotion)
 
@@ -83,15 +83,19 @@ Mode 11 was promoted to production and Wiltshire at about 22:20 GMT on 9 Nov 202
 
 Rollback: the previous production, Wiltshire and live-test pages, with upload payloads, are on the box under `/workspace/lidar-cvat/rollback-20261109-mode11-promotion/` (mode 11) and `/workspace/lidar-cvat/rollback-20261109-promotion/` (Combined VAT). The old app files are still in R2, so restoring an `index.html` is enough.
 
-### Multi-scale relief model (mode 13, trial, 9 Nov 2026; not yet on production)
+### Multi-scale relief model (mode 13; live from 10 Nov 2026)
 
 After Orengo & Petrie (2018), ESPL 43, 1361–1369. Because the printed sum of successive differences cancels term by term, the result is (LP(i^x) − LP(n^x)) / (n − i), using two box (mean) filters. i and n are taken from the paper with rr = metres per pixel, and fmin is raised to rr as RVT does. Parameters: smallest feature mf0 (default 0 m), largest feature mf1 (default 20 m) and scaling mx (default 2). There is an option to draw it at 70% over the multi-direction hillshade (msh). The display uses a ±2.5 σ standard-deviation stretch. On phones the larger filter is capped at 64 px (120 px on desktop). Key M.
 
 **Test method.** Stonehenge Cursus (51.18698, −1.81537, z16) and Normanton Down (z17). Compare with LRM (mode 3): the Cursus banks and ditches and the barrows should read clearly at 0–20 m, without LRM's broad halos. Changing the largest feature to 60 m should bring in broader relief. Automated: `node tests/modes.test.mjs <url> 13`. Renders are in /workspace/lidar-cvat/msrm/.
-**Promote:** remove "(trial)" from the index.html option and the About text, rebuild, update the gate, and deploy as for mode 11.
 
-### Red–cyan 3D in the 3D view (trial, 9 Nov 2026; not yet on production)
+### Red–cyan 3D in the 3D view (live from 10 Nov 2026)
 
-This adds a "Red–cyan 3D (trial)" tick box in the 3D view. It uses three.js AnaglyphEffect with Dubois (2001) colour matrices. `scripts/build_three3d.mjs` exposes its StereoCamera so the eye gap can be set to 1/30 of the viewing distance, with the eyes converging on the orbit target. The tick box is screen only: GLB and STL saves are unchanged. `site/vendor/three3d.js` has been rebuilt, which gives a new three3d hash.
+This adds a "Red–cyan 3D" tick box in the 3D view. It uses three.js AnaglyphEffect with Dubois (2001) colour matrices. `scripts/build_three3d.mjs` exposes its StereoCamera so the eye gap can be set to 1/30 of the viewing distance, with the eyes converging on the orbit target. The tick box is screen only: GLB and STL saves are unchanged. `site/vendor/three3d.js` has been rebuilt, which gives a new three3d hash.
 
 **Test method.** Silbury Hill at z16 in hillshade, and Normanton Down at z17 in local dominance. Open 3D, tick the box and view with red–cyan glasses (red over the left eye). The mound and barrows should stand forward of the screen, and turning or zooming should stay comfortable. Automated: `node tests/view3d.test.mjs <url>` checks that colour fringes appear when ticked and go when unticked, with no errors. Renders are in /workspace/lidar-cvat/anaglyph/.
+
+### Soft shading in the 3D view (live from 10 Nov 2026)
+
+This is a tick box in the 3D view. It computes a sky-view factor per top vertex (Zakšek et al. 2011), using 16 directions within 10 m (8 on phones) at true heights. That is turned into a vertex-colour darkening of 0.55 + 0.45·clamp((SVF − 0.7)/0.3) on the lit and plain surfaces. The "Lens view, as shown" surface is left as drawn. It is computed once per block.
+**Test method.** At Old Sarum (51.09345, −1.80575, z16), use the plain surface: ditches should darken and banks should stay light. Automated: `node tests/view3d.test.mjs <url>`.
