@@ -49,11 +49,14 @@ if(!NOMODELS&&fs.existsSync(SITE+'/models.json'))fs.copyFileSync(SITE+'/models.j
 // it is written as whole cm, delta-coded (about half the download), and tools.js and live-sw.js decode it
 if(process.argv[2]){const g=process.argv[2].replace(/\.js$/,'-ostn_grid.json');if(fs.existsSync(g)){fs.mkdirSync(OUT+'/data',{recursive:true});{const G=JSON.parse(fs.readFileSync(g,'utf8'));if(!G.enc){for(const k of['de','dn']){let p=0;G[k]=G[k].map(x=>{const v=Math.round(x*100),d=v-p;p=v;return d})}G.enc='cm-delta'}fs.writeFileSync(OUT+'/data/ostn_grid.json',JSON.stringify(G))}}}
 if(fs.existsSync(SITE+'/live-sw.js'))fs.copyFileSync(SITE+'/live-sw.js',OUT+'/live-sw.js');   // live mode service worker: fixed name at the site root (its scope)
+// an area whose live mode differs can build its own worker: a make_sw.mjs next to its config (gb/make_sw.mjs: the Great Britain worker)
+if(cfg&&fs.existsSync(path.dirname(cfg)+'/make_sw.mjs'))fs.writeFileSync(OUT+'/live-sw.js',(await import(path.resolve(path.dirname(cfg)+'/make_sw.mjs'))).default(cfg));
 html=html.replace('<title>',pre+'<title>');fs.writeFileSync(OUT+'/index.html',html.replace(/\n\s*\n/g,'\n'));
 // Cloudflare static assets ignore long Cache-Control on hashed files unless _headers says so.
 fs.writeFileSync(OUT+'/_headers','/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n');
 if(fs.existsSync(SITE+'/nhle_places.json'))fs.copyFileSync(SITE+'/nhle_places.json',OUT+'/nhle_places.json');
 // an area can carry its own scheduled-monument names for type-ahead search as <config>-places.json (e.g. configs/england-places.json)
-if(process.argv[2]){const pl=process.argv[2].replace(/\.js$/,'-places.json');if(fs.existsSync(pl))fs.copyFileSync(pl,OUT+'/nhle_places.json')}
+// or, for several configs of one area, as places.json in the config's folder (gb/places.json: England, Wales and Scotland)
+if(process.argv[2]){const pl=process.argv[2].replace(/\.js$/,'-places.json'),pd=path.dirname(process.argv[2])+'/places.json';if(fs.existsSync(pl))fs.copyFileSync(pl,OUT+'/nhle_places.json');else if(fs.existsSync(pd))fs.copyFileSync(pd,OUT+'/nhle_places.json')}
 const sz=f=>(fs.statSync(OUT+'/'+f).size/1024).toFixed(0)+' KB';
 console.log('dist/index.html',sz('index.html'),'| assets/'+jsName,sz('assets/'+jsName),'| assets/'+cssName,sz('assets/'+cssName),'| assets/'+compatName,sz('assets/'+compatName));
