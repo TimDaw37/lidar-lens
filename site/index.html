@@ -164,7 +164,7 @@ body:has(#card[style*="block"]) #modes{display:none}
  <div class="ph"><h1>Controls <small id="privtag">(private)</small></h1><button id="helpbtn" class="q" title="Help and keyboard shortcuts (?)" aria-label="Help and keyboard shortcuts" aria-expanded="false">?</button></div>
  <details class="sec" open><summary>Visualisation</summary>
  <label for="mode">Visualisation</label>
- <select id="mode" title="How the LiDAR is drawn inside the lens (keys 1-9, 0, V, O)">
+ <select id="mode" title="How the LiDAR is drawn inside the lens (keys 1-9, 0, V, O, L, M)">
   <option value="0">Hillshade (single sun)</option>
   <option value="1">Multi-direction hillshade</option>
   <option value="2">Slope</option>
@@ -177,12 +177,23 @@ body:has(#card[style*="block"]) #modes{display:none}
   <option value="9">Negative openness</option>
   <option value="10" title="Combined VAT: hillshade, slope, openness and sky-view blended (Kokalj &amp; Somrak 2019; Relief Visualization Toolbox)">Combined VAT</option>
   <option value="11" title="Openness difference: ridges light, hollows dark. Openness after Yokoyama et al. (2002); difference after Chiba et al. (2008). Phones use 8 directions × 6 steps instead of 16 × 14.">Openness difference</option>
+  <option value="12" title="Local dominance: how far each point looks down on the ground around it; suits low mounds. After Hesse (2016). Phones use 12 directions instead of 24.">Local dominance</option>
+  <option value="13" title="Multi-scale relief model: raised and sunken features of a chosen size range. Multi-scale relief model after Orengo &amp; Petrie (2018). Phones cap the larger filter at 64 pixels.">Multi-scale relief model</option>
  </select>
  <div id="modelegend" hidden style="font-size:12px;color:#374151;margin:2px 0 4px"></div>
  <div id="sunbox"><label for="dial">Sun azimuth <span class="v" id="azv"></span></label>
  <canvas id="dial" width="180" height="180" role="slider" tabindex="0" aria-label="Sun azimuth: drag or use arrow keys" title="Drag to set the sun direction (arrow keys when focused)"></canvas>
  <label for="el">Sun elevation <span class="v" id="elv"></span></label><input type="range" id="el" min="5" max="80" step="1" title="Low sun picks out subtle earthworks"></div>
  <label for="ve">Vertical exaggeration <span class="v" id="vev"></span></label><input type="range" id="ve" min="1" max="20" step="0.5" title="Exaggerates height differences">
+ <div id="modeparams">
+  <div class="mp" data-m="12" hidden><label for="ld0">Inner radius <span class="v" id="ld0v"></span></label><input type="range" id="ld0" min="2" max="30" step="1" title="Nearest ring, in metres (RVT default 10)">
+  <label for="ld1">Outer radius <span class="v" id="ld1v"></span></label><input type="range" id="ld1" min="5" max="60" step="1" title="Furthest ring, in metres (RVT default 20)">
+  <label for="ldh">Observer height <span class="v" id="ldhv"></span></label><input type="range" id="ldh" min="0.5" max="5" step="0.1" title="Eye height above the ground, in metres (default 1.7)"></div>
+  <div class="mp" data-m="13" hidden><label for="mf0">Smallest feature <span class="v" id="mf0v"></span></label><input type="range" id="mf0" min="0" max="10" step="1" title="Smallest feature size, in metres (default 0)">
+  <label for="mf1">Largest feature <span class="v" id="mf1v"></span></label><input type="range" id="mf1" min="5" max="100" step="1" title="Largest feature size, in metres (default 20)">
+  <label for="mx">Scaling factor <span class="v" id="mxv"></span></label><input type="range" id="mx" min="1" max="2" step="1" title="x in the paper: 2 widens the range of sizes, 1 keeps more sensitivity to mid-sized features">
+  <label style="margin-top:4px" title="Draw the relief model at 70% over the multi-direction hillshade"><input type="checkbox" id="msh"> Over multi-direction hillshade (70%)</label></div>
+ </div>
  <div id="radbox"><label for="rad">Radius (LRM / SVF / openness) <span class="v" id="radv"></span></label><input type="range" id="rad" min="3" max="50" step="1" title="Feature size the relief model looks for, in metres"></div>
  </details>
  <details class="sec" open><summary>Lens &amp; appearance</summary>
@@ -235,7 +246,7 @@ body:has(#card[style*="block"]) #modes{display:none}
 <p>The circle is a <b>lens</b> showing the 1 m LiDAR ground model over the aerial photo. Drag its rim or top grip to move it; drag the white dot to resize. Use <b>Go to</b> for a grid ref, postcode or place, or <b>Use my location</b>.</p>
 <p><b id="helptn">What is it?</b> shows the shape of the ground (measured from the LiDAR) and nearby records for the spot you click. <b>Elevation profile</b>: click two points.</p>
 <h3>Keyboard shortcuts</h3><table class="keys">
-<tr><td>1–9, 0, V, O</td><td>Visualisation (0 is negative openness, V is Combined VAT, O is openness difference)</td></tr><tr><td>W</td><td id="keytn">What is it? on/off</td></tr><tr><td>P</td><td>Elevation profile on/off</td></tr>
+<tr><td>1–9, 0, V, O, L</td><td>Visualisation (0 is negative openness, V is Combined VAT, O is openness difference, L is local dominance, M is the multi-scale relief model)</td></tr><tr><td>W</td><td id="keytn">What is it? on/off</td></tr><tr><td>P</td><td>Elevation profile on/off</td></tr>
 <tr><td>F</td><td>LiDAR full screen</td></tr><tr><td>S</td><td>Scheduled monuments</td></tr><tr><td>C</td><td>Recentre lens</td></tr><tr><td>/</td><td>Go to box</td></tr>
 <tr><td>H</td><td>Hide/show controls</td></tr><tr><td>?</td><td>This help</td></tr><tr><td>Esc</td><td>Close / tool off</td></tr></table></div>
 <div id="loading" role="status" aria-live="polite" hidden><span class="spin"></span><span id="loadt">Loading LiDAR…</span></div>

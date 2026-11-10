@@ -7,7 +7,7 @@ const LZ=window.__lens;if(!LZ)return;
 const map=LZ.map,CFG=LZ.CFG,LC=LZ.LC,$=id=>document.getElementById(id);
 // ---------- markup: added here, so the view drops into any LiDAR Lens build with one script line ----------
 const CSS="#v3d{position:fixed;z-index:3000;inset:3vh 3vw;background:#fff;border-radius:10px;box-shadow:0 6px 30px rgba(0,0,0,.55);display:flex;flex-direction:column;overflow:hidden;font-size:13px}\n#v3d[hidden]{display:none}\n#v3d .hd{display:flex;align-items:baseline;gap:10px;padding:8px 40px 6px 12px;border-bottom:1px solid #e5e7eb;flex-wrap:wrap}#v3d .hd b{font-size:15px}#v3dinfo{color:#444}\n#v3d .x{position:absolute;right:8px;top:4px;border:0;background:none;font-size:24px;cursor:pointer;line-height:1}\n#v3dstage{position:relative;flex:1;min-height:200px;background:#eef1f4}#v3dc{width:100%;height:100%;display:block;touch-action:none;cursor:grab}#v3dc:active{cursor:grabbing}\n#v3dnorth{position:absolute;right:12px;top:12px;width:40px;height:40px;pointer-events:none}#v3dnorth span{position:absolute;left:0;right:0;top:-14px;text-align:center;font-weight:700;font-size:11px;color:#c92a2a}\n#v3dwait{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,.95);padding:10px 14px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.25);max-width:80%}#v3dwait.err{color:#9b1c1c}\n#v3d .ctl{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;padding:8px 12px;border-top:1px solid #e5e7eb}\n#v3d .ctl label{display:flex;align-items:center;gap:6px;margin:0;white-space:nowrap}#v3d .ctl input[type=range]{width:110px}#v3dsun{display:contents}#v3dsun.off label{opacity:.45}#v3dshadowl.off{opacity:.45}#v3d .hint{color:#666;font-size:12px}\n#v3d .btns{display:flex;gap:6px;margin-left:auto}#v3d .btns button{font-size:13px;padding:5px 9px;cursor:pointer;border:1px solid #bbb;border-radius:5px;background:#f3f4f6}\n#v3d .note{margin:0;padding:0 12px 8px;color:#555;font-size:12px}\nbody.v3dopen #card{display:none!important}\n@media (max-width:700px),(max-height:500px) and (pointer:coarse){#v3d{inset:0;border-radius:0}#v3d .ctl input[type=range]{width:90px}#v3d .btns{margin-left:0}#v3d .btns button{min-height:40px}#v3d .note{font-size:11px}}";
-const DIALOG="<div id=\"v3d\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"v3dh\" hidden>\n <div class=\"hd\"><b id=\"v3dh\">3D view of the lens</b><span id=\"v3dinfo\"></span><button class=\"x\" id=\"v3dx\" aria-label=\"Close 3D view\" title=\"Close (Esc)\">&times;</button></div>\n <div id=\"v3dstage\"><canvas id=\"v3dc\" aria-label=\"3D block of the ground in the lens. Drag to turn, scroll to zoom.\"></canvas>\n  <div id=\"v3dnorth\" aria-hidden=\"true\"><svg viewBox=\"0 0 40 40\" width=\"40\" height=\"40\"><circle cx=\"20\" cy=\"20\" r=\"18\" fill=\"rgba(255,255,255,.85)\" stroke=\"#555\"/><path d=\"M20 5 L26 22 L20 18 L14 22 Z\" fill=\"#c92a2a\"/><path d=\"M20 35 L26 22 L20 18 L14 22 Z\" fill=\"#888\"/></svg><span>N</span></div>\n  <div id=\"v3dwait\" role=\"status\" aria-live=\"polite\" hidden></div></div>\n <div class=\"ctl\">\n  <label>Surface <select id=\"v3ddrape\" title=\"What is painted on the ground\"><option value=\"lens\">Lens view, as shown</option><option value=\"lenslit\">Lens view + sun shading</option><option value=\"clay\">Plain, lit by the sun</option></select></label>\n  <label>Height &times;<span id=\"v3dvev\"></span><input type=\"range\" id=\"v3dve\" min=\"1\" max=\"10\" step=\"0.5\" title=\"Vertical exaggeration\"></label>\n  <span id=\"v3dsun\"><label>Sun from <span id=\"v3dazv\"></span><input type=\"range\" id=\"v3daz\" min=\"0\" max=\"359\" step=\"1\" title=\"Sun direction (degrees from north)\"></label>\n  <label>Sun height <span id=\"v3delv\"></span><input type=\"range\" id=\"v3del\" min=\"5\" max=\"85\" step=\"1\" title=\"Sun elevation\"></label>\n  <label id=\"v3dshadowl\" title=\"Let the sun cast shadows across the ground (lit surfaces)\"><input type=\"checkbox\" id=\"v3dshadow\"> Shadows</label><span id=\"v3dsunnote\" class=\"hint\"></span></span>\n  <span class=\"btns\"><button id=\"v3dreset\" title=\"Back to the starting view, looking north\">Reset view</button><button id=\"v3dglb\" title=\"Save the block with its surface, for Blender and 3D viewers\">Save GLB</button><button id=\"v3dstl\" title=\"Save the block's shape for 3D printing (metres, with the height exaggeration)\">Save STL</button></span>\n </div>\n <p class=\"note\" id=\"v3dnote\"></p>\n</div>";
+const DIALOG="<div id=\"v3d\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"v3dh\" hidden>\n <div class=\"hd\"><b id=\"v3dh\">3D view of the lens</b><span id=\"v3dinfo\"></span><button class=\"x\" id=\"v3dx\" aria-label=\"Close 3D view\" title=\"Close (Esc)\">&times;</button></div>\n <div id=\"v3dstage\"><canvas id=\"v3dc\" aria-label=\"3D block of the ground in the lens. Drag to turn, scroll to zoom.\"></canvas>\n  <div id=\"v3dnorth\" aria-hidden=\"true\"><svg viewBox=\"0 0 40 40\" width=\"40\" height=\"40\"><circle cx=\"20\" cy=\"20\" r=\"18\" fill=\"rgba(255,255,255,.85)\" stroke=\"#555\"/><path d=\"M20 5 L26 22 L20 18 L14 22 Z\" fill=\"#c92a2a\"/><path d=\"M20 35 L26 22 L20 18 L14 22 Z\" fill=\"#888\"/></svg><span>N</span></div>\n  <div id=\"v3dwait\" role=\"status\" aria-live=\"polite\" hidden></div></div>\n <div class=\"ctl\">\n  <label>Surface <select id=\"v3ddrape\" title=\"What is painted on the ground\"><option value=\"lens\">Lens view, as shown</option><option value=\"lenslit\">Lens view + sun shading</option><option value=\"clay\">Plain, lit by the sun</option></select></label>\n  <label>Height &times;<span id=\"v3dvev\"></span><input type=\"range\" id=\"v3dve\" min=\"1\" max=\"10\" step=\"0.5\" title=\"Vertical exaggeration\"></label>\n  <span id=\"v3dsun\"><label>Sun from <span id=\"v3dazv\"></span><input type=\"range\" id=\"v3daz\" min=\"0\" max=\"359\" step=\"1\" title=\"Sun direction (degrees from north)\"></label>\n  <label>Sun height <span id=\"v3delv\"></span><input type=\"range\" id=\"v3del\" min=\"5\" max=\"85\" step=\"1\" title=\"Sun elevation\"></label>\n  <label id=\"v3dshadowl\" title=\"Let the sun cast shadows across the ground (lit surfaces)\"><input type=\"checkbox\" id=\"v3dshadow\"> Shadows</label><span id=\"v3dsunnote\" class=\"hint\"></span></span>\n  <label id=\"v3danal\" title=\"Red–cyan 3D: view with red–cyan glasses, red over the left eye. three.js AnaglyphEffect with Dubois (2001) colour matrices. Colours are muted in this view. Screen only: GLB and STL files are saved as normal. Draws the block twice, so it is slower on phones.\"><input type=\"checkbox\" id=\"v3dana\"> Red–cyan 3D</label>\n  <label id=\"v3daol\" title=\"Soft shading: darkens hollows and ditches by how much sky each point sees (sky-view factor after Zakšek et al. 2011, 16 directions within 10 m; 8 on phones), on the lit and plain surfaces\"><input type=\"checkbox\" id=\"v3dao\"> Soft shading</label>\n  <span class=\"btns\"><button id=\"v3dreset\" title=\"Back to the starting view, looking north\">Reset view</button><button id=\"v3dglb\" title=\"Save the block with its surface, for Blender and 3D viewers\">Save GLB</button><button id=\"v3dstl\" title=\"Save the block's shape for 3D printing (metres, with the height exaggeration)\">Save STL</button></span>\n </div>\n <p class=\"note\" id=\"v3dnote\"></p>\n</div>";
 if(!document.getElementById('v3dcss')){const st=document.createElement('style');st.id='v3dcss';st.textContent=CSS;document.head.appendChild(st)}
 if(!document.getElementById('v3d')){const t=document.createElement('template');t.innerHTML=DIALOG;document.body.appendChild(t.content.firstElementChild)}
 if(!document.getElementById('view3d')){const pr=document.getElementById('profile');if(pr){const b=document.createElement('button');b.id='view3d';b.setAttribute('aria-pressed','false');
@@ -87,8 +87,17 @@ function buildModel(S){
   const all=new Float32Array(pos.length+wp.length);all.set(pos);all.set(wp,pos.length);
   const uvAll=new Float32Array(all.length/3*2);uvAll.set(uv);
   const index=new Uint32Array(topCount+wi.length);index.set(tri);index.set(wi,topCount);
-  return {pos:all,uv:uvAll,index,topCount,lo,hi,relief,depth,diam:2*r*mpp,mpp,nv}}
+  return {pos:all,uv:uvAll,index,topCount,lo,hi,relief,depth,diam:2*r*mpp,mpp,nv,grid:{idx,N,n,H}}}
 
+// soft shading: sky-view factor per top vertex at true height (Zakšek, Oštir and Kokalj 2011's sky-view factor,
+// 1 - mean sine of the horizon angle), within 10 m in 16 directions (8 on phones), mapped to a gentle darkening
+function skyShade(m){const {idx,N,n,H}=m.grid,nd=phone()?8:16,R=Math.max(2,Math.min(phone()?12:20,Math.round(10/m.mpp))),out=new Float32Array(m.nv*3).fill(1);
+  const dirs=[];for(let k=0;k<nd;k++){const t=k*2*Math.PI/nd;dirs.push([Math.cos(t),Math.sin(t)])}
+  for(let j=-n;j<=n;j++)for(let i=-n;i<=n;i++){const q=idx[(j+n)*N+(i+n)];if(q<0)continue;const h0=H[q];let acc=0,cnt=0;
+    for(const [dx,dy] of dirs){let mx=0,hit=false;for(let s=1;s<=R;s++){const ii=Math.round(i+dx*s),jj=Math.round(j+dy*s);if(Math.abs(ii)>n||Math.abs(jj)>n)break;const p=idx[(jj+n)*N+(ii+n)];if(p<0)break;
+      const a=(H[p]-h0)/(s*m.mpp);if(a>mx)mx=a;hit=true}if(hit){acc+=Math.sin(Math.atan(mx));cnt++}}
+    const svf=cnt?1-acc/cnt:1,ao=Math.min(1,Math.max(0,(svf-0.7)/0.3)),c=0.55+0.45*ao;out[q*3]=out[q*3+1]=out[q*3+2]=c}
+  return out}
 // orientation check, used once: the edge direction recorded in the map decides whether walls face out
 function fixOrientation(m){
   // signed volume of the closed mesh must be positive (outward normals)
@@ -125,7 +134,9 @@ function applyLook(){if(!V)return;const ve=+$('v3dve').value,az=+$('v3daz').valu
   $('v3dvev').textContent=ve+'×';$('v3dazv').textContent=az+'°';$('v3delv').textContent=el+'°';
   V.group.scale.y=ve;const d=sunDir(az,el),R=model.diam;V.sun.position.set(d[0]*R*1.5,d[1]*R*1.5,d[2]*R*1.5);
   {const c=V.sun.shadow.camera,h=R*0.62;c.left=-h;c.right=h;c.top=h;c.bottom=-h;c.near=R*0.2;c.far=R*3.5;c.updateProjectionMatrix()}
-  V.top.material=dr==='lens'?V.mats.flat:dr==='lenslit'?V.mats.lit:V.mats.clay;
+  const ao=$('v3dao').checked&&dr!=='lens';$('v3dao').disabled=dr==='lens';$('v3daol').classList.toggle('off',dr==='lens');
+  if(ao&&!V.top.geometry.getAttribute('color')){const t0=performance.now();V.top.geometry.setAttribute('color',new T.BufferAttribute(skyShade(model),3));V.aoMs=performance.now()-t0}
+  V.top.material=dr==='lens'?V.mats.flat:dr==='lenslit'?(ao?V.mats.litao:V.mats.lit):(ao?V.mats.clayao:V.mats.clay);
   const lit=dr!=='lens',hs=LZ.S.mode===0,on=lit||hs;   // single-sun hillshade is the only lens view drawn with the sun
   $('v3daz').disabled=$('v3del').disabled=!on;$('v3dsun').classList.toggle('off',!on);
   $('v3dsunnote').textContent=on?(hs?'Moves the lens sun too':''):'This lens view has no sun';
@@ -142,10 +153,15 @@ function relightLens(az,el){relit=[az,el];if(relitBusy)return;relitBusy=true;
 function resetCam(){if(!V)return;const D=model.diam,ve=+$('v3dve').value,dist=Math.max(D*1.7,0.6*D/(Math.tan(V.camera.fov*Math.PI/360)*(V.camera.aspect||1)));   // narrow screens: step back until the block fits across
   V.camera.position.set(0,Math.sin(38*Math.PI/180)*dist+model.relief*ve*0.4,Math.cos(38*Math.PI/180)*dist);
   V.controls.target.set(0,model.relief*ve*0.4,0);V.controls.update();V.dirty=true}
+function sizeAna(){if(!V||!V.ana)return;const st=$('v3dstage'),w=st.clientWidth,h=st.clientHeight;if(!w||!h)return;V.ana.setSize(w,h);const c=V.renderer.domElement;c.style.width=c.style.height=''}   // setSize also styles the canvas; the stylesheet sizes it
 function sizeView(){if(!V)return;const st=$('v3dstage'),w=st.clientWidth,h=st.clientHeight;if(!w||!h)return;
-  V.renderer.setSize(w,h,false);V.camera.aspect=w/h;V.camera.updateProjectionMatrix();V.dirty=true}
+  V.renderer.setSize(w,h,false);sizeAna();V.camera.aspect=w/h;V.camera.updateProjectionMatrix();V.dirty=true}
 function loop(){raf=requestAnimationFrame(loop);if(!V)return;const moved=V.controls.update();
-  if(moved||V.dirty){V.dirty=false;V.renderer.render(V.scene,V.camera);
+  if(moved||V.dirty){V.dirty=false;
+    // red-cyan: three's AnaglyphEffect (Dubois colour matrices) with the eye gap at 1/30 of the viewing distance and the
+    // eyes converging on the orbit target, so the block sits at the screen and its relief comes forward
+    if($('v3dana').checked){if(!V.ana){V.ana=new T.AnaglyphEffect(V.renderer);sizeAna()}const d=V.camera.position.distanceTo(V.controls.target);V.ana.stereo.eyeSep=d/30;V.camera.focus=d;V.ana.render(V.scene,V.camera)}
+    else V.renderer.render(V.scene,V.camera);
     $('v3dnorth').style.transform='rotate('+(V.controls.getAzimuthalAngle()*180/Math.PI).toFixed(1)+'deg)'}}
 
 function makeView(m,tex){
@@ -160,7 +176,8 @@ function makeView(m,tex){
   topGeo.computeVertexNormals();sideGeo.computeVertexNormals();geo.dispose();
   const map=new t.CanvasTexture(tex);map.colorSpace=t.SRGBColorSpace;map.anisotropy=renderer.capabilities.getMaxAnisotropy();
   const mats={flat:new t.MeshBasicMaterial({map}),lit:new t.MeshLambertMaterial({map}),clay:new t.MeshLambertMaterial({color:0xd8d2c4}),side:new t.MeshLambertMaterial({color:0x8d7b66})};
-  mats.flat.name='lens view';mats.lit.name='lens view, lit';mats.clay.name='clay';mats.side.name='block sides';
+  mats.litao=new t.MeshLambertMaterial({map,vertexColors:true});mats.clayao=new t.MeshLambertMaterial({color:0xd8d2c4,vertexColors:true});
+  mats.flat.name='lens view';mats.lit.name='lens view, lit';mats.clay.name='clay';mats.side.name='block sides';mats.litao.name='lens view, lit, soft shading';mats.clayao.name='clay, soft shading';
   const top=new t.Mesh(topGeo,mats.flat),side=new t.Mesh(sideGeo,mats.side);top.name='ground (DTM)';side.name='block sides and base';
   const group=new t.Group();group.add(top);group.add(side);scene.add(group);
   scene.add(new t.HemisphereLight(0xffffff,0x6a6a6a,0.45));const sun=new t.DirectionalLight(0xffffff,2.9);scene.add(sun);scene.add(sun.target);
@@ -172,7 +189,7 @@ function makeView(m,tex){
   controls.addEventListener('change',()=>{V&&(V.dirty=true)});
   V={renderer,scene,camera,controls,group,top,side,mats,sun,tex:map,texCanvas:tex,dirty:true}}
 
-function disposeView(){if(!V)return;cancelAnimationFrame(raf);raf=0;V.controls.dispose();
+function disposeView(){if(!V)return;cancelAnimationFrame(raf);raf=0;V.controls.dispose();if(V.ana)V.ana.dispose();
   V.top.geometry.dispose();V.side.geometry.dispose();Object.values(V.mats).forEach(m=>m.dispose());V.tex.dispose();
   V.renderer.dispose();if(V.renderer.forceContextLoss)V.renderer.forceContextLoss();V=null}
 
@@ -223,8 +240,8 @@ function saveSTL(){if(!model)return;const ve=+$('v3dve').value,p=model.pos,ix=mo
 // ---------- wiring ----------
 btn.addEventListener('click',()=>open?hide():show());
 $('v3dx').addEventListener('click',hide);
-['v3dve','v3daz','v3del','v3ddrape','v3dshadow'].forEach(id=>$(id).addEventListener('input',applyLook));$('v3dshadow').addEventListener('change',applyLook);
-$('v3ddrape').addEventListener('change',applyLook);
+['v3dve','v3daz','v3del','v3ddrape','v3dshadow'].forEach(id=>$(id).addEventListener('input',applyLook));$('v3dao').addEventListener('change',applyLook);$('v3dshadow').addEventListener('change',applyLook);
+$('v3ddrape').addEventListener('change',applyLook);$('v3dana').addEventListener('change',()=>{if(V)V.dirty=true});
 $('v3dreset').addEventListener('click',resetCam);
 $('v3dglb').addEventListener('click',saveGLB);$('v3dstl').addEventListener('click',saveSTL);
 window.addEventListener('resize',()=>{if(open)sizeView()});

@@ -33,17 +33,20 @@ for(const m of MODES){
     if(name==='Stonehenge')console.log(`TIME mode ${m} desktop redraw (software GL, lens ${await p.evaluate(()=>window.__lens.S.ls)} px): ${await redrawMs(p)} ms; hillshade for comparison: ${await (async()=>{await p.selectOption('#mode','0');await p.waitForTimeout(800);const t=await redrawMs(p);await p.selectOption('#mode',String(m));await p.waitForTimeout(1500);return t})()} ms`);
   }
   // share link round trip with non-default settings
-  if(m===11)await p.selectOption('#ramp','redrel');
-  await p.evaluate(()=>{const r=document.getElementById('rad');r.value='15';r.dispatchEvent(new Event('input'))});await p.waitForTimeout(800);
-  const want=await p.evaluate(()=>{const s=window.__lens.S;return {mode:s.mode,rad:s.rad,ramp:s.ramp,ct:s.ct,gm:s.gm}});
+  // non-default settings for this mode (sliders by id, plus a ramp), then a share link round trip
+  const TW={11:{ramp:'redrel',set:{rad:15}},12:{set:{ld0:6,ld1:25,ldh:2.5}},13:{ramp:'rdbu',set:{mf1:40,mx:1}},14:{set:{mtl:1.4}}}[m]||{set:{}};
+  if(TW.ramp)await p.selectOption('#ramp',TW.ramp);
+  await p.evaluate(set=>{for(const [k,v] of Object.entries(set)){const r=document.getElementById(k);r.value=String(v);r.dispatchEvent(new Event('input'))}},TW.set);await p.waitForTimeout(1500);
+  const keys=['mode','ramp','ct','gm'].concat(Object.keys(TW.set));
+  const want=await p.evaluate(keys=>{const s=window.__lens.S;return Object.fromEntries(keys.map(k=>[k,s[k]]))},keys);
   await p.evaluate(()=>window.__lens.saveHashSoon());await p.waitForTimeout(600);const url=p.url();
-  await open(p,url);const got=await p.evaluate(()=>{const s=window.__lens.S;return {mode:s.mode,rad:s.rad,ramp:s.ramp,ct:s.ct,gm:s.gm}});
+  await open(p,url);const got=await p.evaluate(keys=>{const s=window.__lens.S;return Object.fromEntries(keys.map(k=>[k,s[k]]))},keys);
   ok(`mode ${m} share link round trip`,JSON.stringify(want)===JSON.stringify(got),JSON.stringify(got));
   ok(`mode ${m} no JS errors (desktop)`,!errs.length,errs[0]||'');await ctx.close();
   // phone-sized
   {const {p,ctx,errs}=await page({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:2});const [n,la,lo,z]=SITES[0];
     await open(p,`${BASE}#c=${la}%2C${lo}%2C${z}&l=${la}%2C${lo}&mode=${m}`);const t=await redrawMs(p);
-    console.log(`TIME mode ${m} phone-sized redraw (software GL, 8 directions x 6 steps): ${t} ms`);ok(`mode ${m} phone redraw does not freeze`,t<5000,t+' ms');ok(`mode ${m} no JS errors (phone)`,!errs.length,errs[0]||'');await ctx.close()}
+    console.log(`TIME mode ${m} phone-sized redraw (software GL, phone settings): ${t} ms`);ok(`mode ${m} phone redraw does not freeze`,t<5000,t+' ms');ok(`mode ${m} no JS errors (phone)`,!errs.length,errs[0]||'');await ctx.close()}
   // CPU fallback
   {const {p,ctx,errs}=await page();const [n,la,lo,z]=SITES[0];await open(p,`${BASE}?cpu=1#c=${la}%2C${lo}%2C${z}&l=${la}%2C${lo}&mode=0`);const hs=await lensShot(p);
     await p.selectOption('#mode',String(m));await p.waitForTimeout(6000);const md=await lensShot(p);const c=await cmp(p,hs,md);

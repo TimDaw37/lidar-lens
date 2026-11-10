@@ -59,13 +59,19 @@ Visualisation 11, "Openness difference" (key O). (positive openness − negative
 - Checks: `node tests/modes.test.mjs <site URL> 11` (renders at Stonehenge, Pentre Ifan and Clava, differs from hillshade, share-link round trip, phone size, CPU fallback, timings, no errors). Test site: Clava, NH 757 445, cairn rims light and inner hollows dark.
 - `npm run check:gb-viewer` pins the new `app.73ba7c7a.js`: this is an intended release (live-test now, production once Tim approves), so the hashes changed in the same commit.
 
-## What is live (9 Nov 2026, after the Openness difference promotion)
+## Local dominance (mode 12; live from 10 Nov 2026)
+
+Visualisation 12, "Local dominance" (key L), after Hesse (2016). An observer stands `h` m above each point; the value is the mean angle (degrees) down to every sample on rings from the inner to the outer radius, 1 m apart (one data pixel apart when pixels are larger than 1 m), in 24 directions (12 on phones; the tooltip says so). True heights: the vertical exaggeration slider is disabled for this mode, as for Combined VAT. Settings under the menu, saved in share links (`ld0`, `ld1`, `ldh`): inner radius 10 m (2–30), outer 20 m (5–60), observer 1.7 m (0.5–5); RVT's defaults, converted from pixels on 1 m data to metres. Grey, auto-contrast 2–98%. `needPx` widens the live margin to the outer radius. CPU fallback: same method.
+
+Test: open the viewer at Normanton Down (SU 115 413), mode 12. Each barrow, including the low ploughed ones, should be a bright spot. Automated: `node tests/modes.test.mjs <url> 12`.
+
+## What is live (10 Nov 2026, after the local dominance / MSRM / red–cyan / soft shading release)
 
 Every live viewer is now an exact build of this tree, with no hand-edited pages:
 
-- Production (`gb/` in `lidar-lens-scotland`, lidarlens.sarsen.org): `node scripts/build_site.mjs gb/config.js`. `index.html`, `app.73ba7c7a.js`, `app.6c9e6941.css`, `compat.912d81c4.js`, `config.93c04c53.js`, `view3d.594e1593.js` and `three3d.b0d9954d.js` are byte-identical to the build. The page now asks for `config.93c04c53.js`. The old `config.198ea3a0.js` (same bytes) stays in R2 for old cached pages. `live-sw.js` is unchanged (SHA-256 `7405d85b…`, from `gb/make_sw.py`). This replaces the "keep `config.198ea3a0.js`" step above.
-- Live-test (`gb-live-test/`): `node scripts/build_site.mjs gb/config-live-test.js`, byte-identical.
-- Wiltshire (`public/` in `lidar-lens-wiltshire`, Worker `lidar-lens-public`): `node scripts/build_site.mjs configs/wiltshire.js` (`app.804283e0.js`, `config.11b9b8f9.js`; before mode 11, `app.468b2020.js`). It previously ran a hand-patched bundle (`app.0de74083.js`) that this tree could not rebuild. The main build also brought in what `configs/wiltshire.js` already had on main: the Cloudflare analytics beacon, the Great Ridge start view, links to lidarlens.sarsen.org, the "What's here?" label and the 3D view. The other modes render pixel-identical to the old page.
+- Production (`gb/` in `lidar-lens-scotland`, lidarlens.sarsen.org): `node scripts/build_site.mjs gb/config.js`. `index.html`, `app.8c00751d.js`, `app.6c9e6941.css`, `compat.912d81c4.js`, `config.93c04c53.js`, `view3d.6b3214ac.js` and `three3d.1b72ca05.js` are byte-identical to the build. The page now asks for `config.93c04c53.js`. The old `config.198ea3a0.js` (same bytes) stays in R2 for old cached pages. `live-sw.js` is unchanged (SHA-256 `7405d85b…`, from `gb/make_sw.py`). This replaces the "keep `config.198ea3a0.js`" step above.
+- Live-test (`gb-live-test/`): `node scripts/build_site.mjs gb/config-live-test.js`. Since 10 Nov 2026 it carries open trials on top of main (MSTP palette and the 2D water level, see their PRs), so it is not byte-identical to main until they are promoted or dropped.
+- Wiltshire (`public/` in `lidar-lens-wiltshire`, Worker `lidar-lens-public`): `node scripts/build_site.mjs configs/wiltshire.js` (`app.34e16d74.js`, `config.11b9b8f9.js`; before this release `app.804283e0.js`, before mode 11 `app.468b2020.js`). It previously ran a hand-patched bundle (`app.0de74083.js`) that this tree could not rebuild. The main build also brought in what `configs/wiltshire.js` already had on main: the Cloudflare analytics beacon, the Great Ridge start view, links to lidarlens.sarsen.org, the "What's here?" label and the 3D view. The other modes render pixel-identical to the old page.
 
 Worker sources, checked against the source maps in the deployed scripts on 9 Nov 2026:
 
@@ -73,6 +79,23 @@ Worker sources, checked against the source maps in the deployed scripts on 9 Nov
 - `lidar-lens-gb-live-test` = `gb/worker/src/index.live-test.js` (deploy it as `index.js` next to the same two `.mjs` files). It differs from `index.js` only in "GB TEST" comments and two User-Agent strings.
 - `lidar-lens-public` (Wiltshire) = `worker/wiltshire/src/index.js`. That is an older form of `worker/src/index.js`: it has no Geograph route, fewer CSP hosts and User-Agent `lidar-lens-public`. Its vars are `PUBLIC_INDEX=1`, `HER_API=1`, `HER_BBOX=360000,110000,450000,200000`, `SITE_PREFIX=public/` and the `SHARED` terrain/rec/ctx regex, with the `RATE_LIMITER` (1200/60 s) and `HER_LIMITER` (30/60 s) bindings. As before, wrangler files are not committed.
 
-Mode 11 was promoted to production and Wiltshire at about 22:20 GMT on 9 Nov 2026 (before that: `app.836b5ebc.js` / `app.468b2020.js`, main `5058fe4`).
+Local dominance (12), MSRM (13), red–cyan 3D and 3D soft shading were promoted to production and Wiltshire on the morning of 10 Nov 2026 (before that: `app.73ba7c7a.js` / `app.804283e0.js`, main `0a224a5`). Mode 11 was promoted at about 22:20 GMT on 9 Nov 2026 (before that: `app.836b5ebc.js` / `app.468b2020.js`, main `5058fe4`).
 
-Rollback: the previous production, Wiltshire and live-test pages, with upload payloads, are on the box under `/workspace/lidar-cvat/rollback-20261109-mode11-promotion/` (mode 11) and `/workspace/lidar-cvat/rollback-20261109-promotion/` (Combined VAT). The old app files are still in R2, so restoring an `index.html` is enough.
+Rollback: the previous production, Wiltshire and live-test pages, with upload payloads, are on the box under `/workspace/lidar-cvat/rollback-20261110-release/` (this release), `/workspace/lidar-cvat/rollback-20261109-mode11-promotion/` (mode 11) and `/workspace/lidar-cvat/rollback-20261109-promotion/` (Combined VAT). The old app files are still in R2, so restoring an `index.html` is enough.
+
+### Multi-scale relief model (mode 13; live from 10 Nov 2026)
+
+After Orengo & Petrie (2018), ESPL 43, 1361–1369. Because the printed sum of successive differences cancels term by term, the result is (LP(i^x) − LP(n^x)) / (n − i), using two box (mean) filters. i and n are taken from the paper with rr = metres per pixel, and fmin is raised to rr as RVT does. Parameters: smallest feature mf0 (default 0 m), largest feature mf1 (default 20 m) and scaling mx (default 2). There is an option to draw it at 70% over the multi-direction hillshade (msh). The display uses a ±2.5 σ standard-deviation stretch. On phones the larger filter is capped at 64 px (120 px on desktop). Key M.
+
+**Test method.** Stonehenge Cursus (51.18698, −1.81537, z16) and Normanton Down (z17). Compare with LRM (mode 3): the Cursus banks and ditches and the barrows should read clearly at 0–20 m, without LRM's broad halos. Changing the largest feature to 60 m should bring in broader relief. Automated: `node tests/modes.test.mjs <url> 13`. Renders are in /workspace/lidar-cvat/msrm/.
+
+### Red–cyan 3D in the 3D view (live from 10 Nov 2026)
+
+This adds a "Red–cyan 3D" tick box in the 3D view. It uses three.js AnaglyphEffect with Dubois (2001) colour matrices. `scripts/build_three3d.mjs` exposes its StereoCamera so the eye gap can be set to 1/30 of the viewing distance, with the eyes converging on the orbit target. The tick box is screen only: GLB and STL saves are unchanged. `site/vendor/three3d.js` has been rebuilt, which gives a new three3d hash.
+
+**Test method.** Silbury Hill at z16 in hillshade, and Normanton Down at z17 in local dominance. Open 3D, tick the box and view with red–cyan glasses (red over the left eye). The mound and barrows should stand forward of the screen, and turning or zooming should stay comfortable. Automated: `node tests/view3d.test.mjs <url>` checks that colour fringes appear when ticked and go when unticked, with no errors. Renders are in /workspace/lidar-cvat/anaglyph/.
+
+### Soft shading in the 3D view (live from 10 Nov 2026)
+
+This is a tick box in the 3D view. It computes a sky-view factor per top vertex (Zakšek et al. 2011), using 16 directions within 10 m (8 on phones) at true heights. That is turned into a vertex-colour darkening of 0.55 + 0.45·clamp((SVF − 0.7)/0.3) on the lit and plain surfaces. The "Lens view, as shown" surface is left as drawn. It is computed once per block.
+**Test method.** At Old Sarum (51.09345, −1.80575, z16), use the plain surface: ditches should darken and banks should stay light. Automated: `node tests/view3d.test.mjs <url>`.
