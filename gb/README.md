@@ -65,13 +65,13 @@ Visualisation 12, "Local dominance" (key L), after Hesse (2016). An observer sta
 
 Test: open the viewer at Normanton Down (SU 115 413), mode 12. Each barrow, including the low ploughed ones, should be a bright spot. Automated: `node tests/modes.test.mjs <url> 12`.
 
-## What is live (9 Nov 2026, after the Openness difference promotion)
+## What is live (10 Nov 2026, after the local dominance / MSRM / red–cyan / soft shading release)
 
 Every live viewer is now an exact build of this tree, with no hand-edited pages:
 
-- Production (`gb/` in `lidar-lens-scotland`, lidarlens.sarsen.org): `node scripts/build_site.mjs gb/config.js`. `index.html`, `app.73ba7c7a.js`, `app.6c9e6941.css`, `compat.912d81c4.js`, `config.93c04c53.js`, `view3d.594e1593.js` and `three3d.b0d9954d.js` are byte-identical to the build. The page now asks for `config.93c04c53.js`. The old `config.198ea3a0.js` (same bytes) stays in R2 for old cached pages. `live-sw.js` is unchanged (SHA-256 `7405d85b…`, from `gb/make_sw.py`). This replaces the "keep `config.198ea3a0.js`" step above.
-- Live-test (`gb-live-test/`): `node scripts/build_site.mjs gb/config-live-test.js`, byte-identical.
-- Wiltshire (`public/` in `lidar-lens-wiltshire`, Worker `lidar-lens-public`): `node scripts/build_site.mjs configs/wiltshire.js` (`app.804283e0.js`, `config.11b9b8f9.js`; before mode 11, `app.468b2020.js`). It previously ran a hand-patched bundle (`app.0de74083.js`) that this tree could not rebuild. The main build also brought in what `configs/wiltshire.js` already had on main: the Cloudflare analytics beacon, the Great Ridge start view, links to lidarlens.sarsen.org, the "What's here?" label and the 3D view. The other modes render pixel-identical to the old page.
+- Production (`gb/` in `lidar-lens-scotland`, lidarlens.sarsen.org): `node scripts/build_site.mjs gb/config.js`. `index.html`, `app.8c00751d.js`, `app.6c9e6941.css`, `compat.912d81c4.js`, `config.93c04c53.js`, `view3d.6b3214ac.js` and `three3d.1b72ca05.js` are byte-identical to the build. The page now asks for `config.93c04c53.js`. The old `config.198ea3a0.js` (same bytes) stays in R2 for old cached pages. `live-sw.js` is unchanged (SHA-256 `7405d85b…`, from `gb/make_sw.py`). This replaces the "keep `config.198ea3a0.js`" step above.
+- Live-test (`gb-live-test/`): `node scripts/build_site.mjs gb/config-live-test.js`. Since 10 Nov 2026 it carries open trials on top of main (MSTP palette and the 2D water level, see their PRs), so it is not byte-identical to main until they are promoted or dropped.
+- Wiltshire (`public/` in `lidar-lens-wiltshire`, Worker `lidar-lens-public`): `node scripts/build_site.mjs configs/wiltshire.js` (`app.34e16d74.js`, `config.11b9b8f9.js`; before this release `app.804283e0.js`, before mode 11 `app.468b2020.js`). It previously ran a hand-patched bundle (`app.0de74083.js`) that this tree could not rebuild. The main build also brought in what `configs/wiltshire.js` already had on main: the Cloudflare analytics beacon, the Great Ridge start view, links to lidarlens.sarsen.org, the "What's here?" label and the 3D view. The other modes render pixel-identical to the old page.
 
 Worker sources, checked against the source maps in the deployed scripts on 9 Nov 2026:
 
@@ -79,9 +79,9 @@ Worker sources, checked against the source maps in the deployed scripts on 9 Nov
 - `lidar-lens-gb-live-test` = `gb/worker/src/index.live-test.js` (deploy it as `index.js` next to the same two `.mjs` files). It differs from `index.js` only in "GB TEST" comments and two User-Agent strings.
 - `lidar-lens-public` (Wiltshire) = `worker/wiltshire/src/index.js`. That is an older form of `worker/src/index.js`: it has no Geograph route, fewer CSP hosts and User-Agent `lidar-lens-public`. Its vars are `PUBLIC_INDEX=1`, `HER_API=1`, `HER_BBOX=360000,110000,450000,200000`, `SITE_PREFIX=public/` and the `SHARED` terrain/rec/ctx regex, with the `RATE_LIMITER` (1200/60 s) and `HER_LIMITER` (30/60 s) bindings. As before, wrangler files are not committed.
 
-Mode 11 was promoted to production and Wiltshire at about 22:20 GMT on 9 Nov 2026 (before that: `app.836b5ebc.js` / `app.468b2020.js`, main `5058fe4`).
+Local dominance (12), MSRM (13), red–cyan 3D and 3D soft shading were promoted to production and Wiltshire on the morning of 10 Nov 2026 (before that: `app.73ba7c7a.js` / `app.804283e0.js`, main `0a224a5`). Mode 11 was promoted at about 22:20 GMT on 9 Nov 2026 (before that: `app.836b5ebc.js` / `app.468b2020.js`, main `5058fe4`).
 
-Rollback: the previous production, Wiltshire and live-test pages, with upload payloads, are on the box under `/workspace/lidar-cvat/rollback-20261109-mode11-promotion/` (mode 11) and `/workspace/lidar-cvat/rollback-20261109-promotion/` (Combined VAT). The old app files are still in R2, so restoring an `index.html` is enough.
+Rollback: the previous production, Wiltshire and live-test pages, with upload payloads, are on the box under `/workspace/lidar-cvat/rollback-20261110-release/` (this release), `/workspace/lidar-cvat/rollback-20261109-mode11-promotion/` (mode 11) and `/workspace/lidar-cvat/rollback-20261109-promotion/` (Combined VAT). The old app files are still in R2, so restoring an `index.html` is enough.
 
 ### Multi-scale relief model (mode 13; live from 10 Nov 2026)
 
