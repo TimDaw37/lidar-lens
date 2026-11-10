@@ -34,6 +34,10 @@ if(fs.existsSync(SITE+'/view3d.js')){let v=fs.readFileSync(SITE+'/view3d.js','ut
   v=(await esbuild.transform(v,{loader:'js',minify:true,target:TARGET,supported:{destructuring:true},legalComments:'inline'})).code;
   const vName='view3d.'+hash(v)+'.js';fs.writeFileSync(OUT+'/assets/'+vName,v);html=html.replace('<script src="view3d.js"></script>','<script defer src="assets/'+vName+'"></script>')}
 else html=html.replace(/\n?<script src="view3d\.js"><\/script>/,'');
+// View from here (site/viewshed.js): the same arrangement, a separate hashed, deferred script, so the main bundle is unchanged.
+if(fs.existsSync(SITE+'/viewshed.js')){const v=(await esbuild.transform(fs.readFileSync(SITE+'/viewshed.js','utf8'),{loader:'js',minify:true,target:TARGET,supported:{destructuring:true},legalComments:'inline'})).code;
+  const vName='viewshed.'+hash(v)+'.js';fs.writeFileSync(OUT+'/assets/'+vName,v);html=html.replace('<script src="viewshed.js"></script>','<script defer src="assets/'+vName+'"></script>')}
+else html=html.replace(/\n?<script src="viewshed\.js"><\/script>/,'');
 html=html.replace(/<script src="compat\.js"><\/script>\s*<script src="config\.js"><\/script>[\s\S]*?<script src="models\.js"><\/script>/,
   '<script src="assets/'+compatName+'"></script>\n<script defer src="config.js"></script>\n<script defer src="assets/'+jsName+'"></script>');
 let pre='';if(cfg){const c=fs.readFileSync(cfg,'utf8');const m=c.match(/url:\s*'(https:\/\/[^/'{]+)/);if(m)pre='<link rel="preconnect" href="'+m[1]+'">\n';
