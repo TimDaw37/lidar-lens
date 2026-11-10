@@ -1,4 +1,4 @@
-// Water level on the 2D map (trial, 10 Nov 2026): full screen only; cells below the level are shaded blue, the readout gives m OD and
+// Water level on the 2D map (10 Nov 2026): full screen only; cells below the level are shaded blue, the readout gives m OD and
 // the share of the view under water, the level is in share links, and it works on a phone-sized screen and on the CPU fallback.
 // Also: the 3D view starts its water sheet at the map's level. Usage (from tests/): node water.test.mjs <site URL>
 import {chromium} from 'playwright';

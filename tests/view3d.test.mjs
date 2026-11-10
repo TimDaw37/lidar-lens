@@ -25,7 +25,7 @@ const m=await p.evaluate(()=>{const m=window.__view3d.model(),p=m.pos,ix=m.index
   for(let k=0;k<ix.length;k+=3)for(const [a,b] of [[ix[k],ix[k+1]],[ix[k+1],ix[k+2]],[ix[k+2],ix[k]]]){const A=key(a),B=key(b);if(A!==B)E.set(A+'>'+B,(E.get(A+'>'+B)||0)+1)}
   let open=0,dup=0;E.forEach((c,f)=>{const [a,b]=f.split('>');if(c>1)dup++;if(!E.has(b+'>'+a))open++});return {open,dup}});
 ok('block is watertight',m.open===0&&m.dup===0,JSON.stringify(m));
-// red-cyan (trial): the left eye goes to red and the right eye to green-blue, so the channels differ where the relief is; ticking it
+// red-cyan: the left eye goes to red and the right eye to green-blue, so the channels differ where the relief is; ticking it
 // changes the picture, unticking it restores the plain one, and the GLB (screen-only setting) is the same either way
 const px=()=>p.evaluate(()=>{const c=document.getElementById('v3dc'),g=document.createElement('canvas');g.width=200;g.height=Math.round(200*c.height/c.width);const x=g.getContext('2d');x.drawImage(c,0,0,g.width,g.height);
   const d=x.getImageData(0,0,g.width,g.height).data;let rg=0,n=0;for(let i=0;i<d.length;i+=4){if(Math.abs(d[i]-d[i+2])>30)rg++;n++}return {rg:100*rg/n,url:g.toDataURL()}});   // % of pixels with red and blue apart (colour fringes)
@@ -39,7 +39,7 @@ if(await p.$('#v3dao')){await p.selectOption('#v3ddrape','clay');await p.waitFor
   await p.check('#v3dao');await p.waitForTimeout(800);const c1=await px();const ao=await p.evaluate(()=>{const v=window.__view3d._v(),c=v.top.geometry.getAttribute('color');let lo=1;if(c)for(let i=0;i<c.count;i++)lo=Math.min(lo,c.getX(i));return {has:!!c,lo,ms:v.aoMs,mat:v.top.material.name}});
   ok('soft shading: picture changes',c1.url!==c0.url);ok('soft shading: darkens some ground',ao.has&&ao.lo<0.95,JSON.stringify(ao));console.log('TIME soft shading build:',(ao.ms||0).toFixed(0),'ms');
   await p.uncheck('#v3dao');await p.selectOption('#v3ddrape','lens');}
-// water sheet (trial)
+// water sheet
 if(await p.$('#v3dwat')){await p.check('#v3dwat');await p.evaluate(()=>{const w=document.getElementById('v3dwl');w.value='500';w.dispatchEvent(new Event('input'))});await p.waitForTimeout(800);
   const w=await p.evaluate(()=>new Promise(res=>{const v=window.__view3d._v();new LL3D.GLTFExporter().parse(v.group,j=>res({label:document.getElementById('v3dwatv').textContent,names:(j.nodes||[]).map(n=>n.name)}),e=>res({err:String(e)}),{binary:false})}));
   const pct=+((w.label||'').match(/\((\d+)% under\)/)||[])[1];

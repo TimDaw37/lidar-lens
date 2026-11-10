@@ -1,4 +1,4 @@
-// MSTP (mode 14) colour choice (trial, 10 Nov 2026): the three-size colour composite is the default; any other colour ramp shows one
+// MSTP (mode 14) colour choice (10 Nov 2026): the three-size colour composite is the default; any other colour ramp shows one
 // value (the strongest of the three sizes, or one size) on that ramp, with an honest legend; checked on WebGL and the CPU fallback.
 // Usage (from tests/): node mstp-palette.test.mjs <site URL>
 import {chromium} from 'playwright';
