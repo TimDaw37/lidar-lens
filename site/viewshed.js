@@ -37,7 +37,7 @@ if(!$('viewfrom')){const pr=$('profile');if(pr){const b=document.createElement('
 // dome; without one it asks for a spot, works out the view from there, then opens the dome.
 if(window.__view3d&&!$('skybtn')){const t=$('whatis')||$('profile');if(t){const b=document.createElement('button');b.id='skybtn';b.setAttribute('aria-pressed','false');
   b.title='Sky dome: stand at a spot and see its real skyline with the Sun, Moon and stars for any date from 4500 BC, in the 3D view (K)';b.innerHTML='&#9733; Sky: Sun, Moon and stars from a spot';t.insertAdjacentElement('beforebegin',b)}}
-if(!$('skycss')){const st=document.createElement('style');st.id='skycss';st.textContent='#skybtn{background:#1e3a8a;color:#fff;border-color:#1e3a8a;font-weight:600}#skybtn.on{background:#fbbf24;color:#1f2937;border-color:#b45309}';document.head.appendChild(st)}
+if(!$('skybtncss')){const st=document.createElement('style');st.id='skybtncss';st.textContent='#skybtn{background:#1e3a8a;color:#fff;border-color:#1e3a8a;font-weight:600}#skybtn.on{background:#fbbf24;color:#1f2937;border-color:#b45309}';document.head.appendChild(st)}
 const btn=$('viewfrom'),box=$('vfh');if(!btn||!box)return;
 
 // ---------- a pane above the lens for the overlay and skyline (the lens canvas sits over the map's own panes) ----------

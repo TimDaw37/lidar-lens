@@ -46,6 +46,7 @@ const fresh=async()=>{const o=await openSite(BASE,process.argv[3]);await o.open(
   const c=await p.evaluate(()=>{const v=window.__viewshed.state(),m=window.__view3d.model();return {d:v?window.__lens.map.distance(v.ll,[m.meta.lat,m.meta.lng]):null,box:document.getElementById('v3dskyon').checked,on:document.getElementById('v3dskybtn').getAttribute('aria-pressed')}});
   ok('no viewpoint: the dome stands at the centre of the block',c.d!=null&&c.d<3,c.d&&c.d.toFixed(2)+' m');
   ok('Sky tick box and button agree',c.box&&c.on==='true');
+  ok('sky panel keeps its own styling (legend swatches, spaced controls)',await p.evaluate(()=>{const st=document.getElementById('skycss');const sw=document.querySelector('#v3dsky i, #v3dsky .sw, #v3dsky [class*=key] span');return !!st&&st.textContent.length>200&&!/#skybtn/.test(st.textContent)}));
   await p.waitForTimeout(1500);if(SHOTS)await p.screenshot({path:SHOTS+'/route2_3d_sky_dome_button.png'});
   await p.click('#v3dskybtn');await p.waitForTimeout(500);
   ok('clicking again removes the dome',await p.evaluate(()=>!window.__view3d.sky()&&!document.getElementById('v3dskyon').checked&&document.getElementById('v3dskybtn').getAttribute('aria-pressed')==='false'&&!window.__view3d._v().scene.children.some(c=>c.name==='sky dome')));
