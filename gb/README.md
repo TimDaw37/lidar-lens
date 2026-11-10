@@ -101,3 +101,21 @@ This adds a "Red–cyan 3D" tick box in the 3D view. It uses three.js AnaglyphEf
 
 This is a tick box in the 3D view. It computes a sky-view factor per top vertex (Zakšek et al. 2011), using 16 directions within 10 m (8 on phones) at true heights. That is turned into a vertex-colour darkening of 0.55 + 0.45·clamp((SVF − 0.7)/0.3) on the lit and plain surfaces. The "Lens view, as shown" surface is left as drawn. It is computed once per block.
 **Test method.** At Old Sarum (51.09345, −1.80575, z16), use the plain surface: ditches should darken and banks should stay light. Automated: `node tests/view3d.test.mjs <url>`.
+
+### Multi-scale topographic position (mode 14, trial, reworked 10 Nov 2026; not yet on production)
+
+After Lindsay, Cockburn & Russell (2015), Geomorphology 245, 51–61, with the colour composite of Guyot, Hubert-Moy & Lorho (2018), Remote Sensing 10, 225. DEV = (z − mean) / sd in square windows, computed from float64 summed-area tables on the CPU; that happens on both renderers, with the GL renderer reading the decoded heights back once per mosaic. Three scales follow RVT's defaults: local 1–5 m (blue), meso 5–50 m (green) and broad 50–500 m (red). Each colour is 1 − exp(−lightness·|DEVmax|), with lightness `mtl` defaulting to 1.2 as in RVT. Phones use three radii per scale. Areas over 250k px (90k on phones) are computed on every second pixel. Key T.
+**Limitation:** windows are cut at the loaded area, which is 120 px beyond the view, or 64 on phones. That means the broad scale reaches the full 500 m only from about zoom 14 outwards, and the legend says so at closer zooms.
+
+**Test method.** Silbury Hill (51.41543, −1.85759) at z14 and z16, compared with hillshade and LRM. The mound should read white or orange, standing out at all scales. Valleys and ridges should show as red bands, and banks and tracks in green and blue. Automated: `node tests/modes.test.mjs <url> 14`. Renders are in /workspace/lidar-cvat/mstp/.
+**Promote:** remove "(trial)" from the index.html option and the About text, rebuild, update the gate, and deploy as for mode 11.
+**Colours (10 Nov 2026).** The ramp list for this mode adds "Three sizes in colour", which is the default and the RGB composite above. Choosing any other ramp (grey, viridis, magma and so on) shows a single value on that ramp. A new "On a colour ramp, show" choice sets which value: the strongest of the three sizes, i.e. max(local, meso, broad) of 1 − exp(−lightness·|DEVmax|) (the default), or one size on its own. The usual 2–98% auto contrast applies. The legend says what the ramp shows, and that it shows neither raised versus sunken ground nor, for "strongest", which size. The choice is saved in share links (`ramp`, `mts`). Checks: `node tests/mstp-palette.test.mjs <url>`, covering WebGL and the CPU fallback. Renders are in /workspace/lidar-cvat/mstp-palette/.
+
+### Water level (trial, 10 Nov 2026; not yet on production)
+
+**2D map, full screen only.** Under "LiDAR full screen" there is a "Water level (trial)" tick box with a slider. Every LiDAR cell below the chosen level is shaded blue; deeper cells, over the first 3 m, get a darker blue. This happens in the final shader on WebGL, and in the draw loop on the CPU fallback. Moving the slider redraws without recomputing the visualisation. The slider spans the heights in view, sampled on a 56 × 56 grid (40 × 40 on phones). The readout gives the level in m OD, the share of the view under water and the range of ground heights. Share links carry `wat=1&wl=<m OD>`.
+This is a level, not a flood model: any cell below the level fills, including hollows that are not connected to the river.
+
+**3D view.** The water sheet from the 3D extras is kept. It starts at the map's level when water is on, is saved in GLB as "water level N m OD" only when shown, and is never in STL.
+
+**Test method.** River Avon by Durrington (SU 1490 4250, 51.18154, −1.78821, z16), in full screen. Raise the level from about 72 to 82 m OD: the floodplain should fill first and the readout should rise. Automated: `node tests/water.test.mjs <url>` (desktop, phone and CPU fallback, share-link round trip, 3D start level) and `node tests/view3d.test.mjs <url>`. Renders are in /workspace/lidar-cvat/water-2d/.
