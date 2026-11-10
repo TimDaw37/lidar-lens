@@ -214,6 +214,9 @@ body:has(#card[style*="block"]) #modes{display:none}
  <label for="op">LiDAR opacity over aerial <span class="v" id="opv"></span></label><input type="range" id="op" min="0" max="1" step="0.05" title="See the aerial photo through the LiDAR">
  <label for="ls">Lens size <span class="v" id="lsv"></span></label><input type="range" id="ls" min="150" max="600" step="10" title="Lens diameter in pixels">
  <div class="row" style="margin-top:6px"><label style="margin:0" title="LiDAR over the whole map (F)"><input type="checkbox" id="fs"> LiDAR full screen</label></div>
+ <div id="waterbox" hidden style="margin-top:4px"><label style="margin:0" title="Water level (trial): shade in blue every LiDAR cell lower than the level chosen, over the whole view (full screen only). A simple level, not a flood model: low ground cut off from the rest also fills."><input type="checkbox" id="wat"> Water level (trial)</label>
+  <label for="wl">Level <span class="v" id="wlv"></span></label><input type="range" id="wl" min="0" max="100" step="0.1" title="Water level, metres above sea level (Ordnance Datum), across the range of heights in view" disabled>
+  <div id="wlread" style="font-size:12px;color:#374151"></div></div>
  <button id="lensreset" title="Recentre lens: put it back in the middle (C)" aria-label="Recentre lens">Recentre lens</button>
  </details>
  <details class="sec" open><summary>Tools</summary>

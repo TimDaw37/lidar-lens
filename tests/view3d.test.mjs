@@ -39,6 +39,14 @@ if(await p.$('#v3dao')){await p.selectOption('#v3ddrape','clay');await p.waitFor
   await p.check('#v3dao');await p.waitForTimeout(800);const c1=await px();const ao=await p.evaluate(()=>{const v=window.__view3d._v(),c=v.top.geometry.getAttribute('color');let lo=1;if(c)for(let i=0;i<c.count;i++)lo=Math.min(lo,c.getX(i));return {has:!!c,lo,ms:v.aoMs,mat:v.top.material.name}});
   ok('soft shading: picture changes',c1.url!==c0.url);ok('soft shading: darkens some ground',ao.has&&ao.lo<0.95,JSON.stringify(ao));console.log('TIME soft shading build:',(ao.ms||0).toFixed(0),'ms');
   await p.uncheck('#v3dao');await p.selectOption('#v3ddrape','lens');}
+// water sheet (trial)
+if(await p.$('#v3dwat')){await p.check('#v3dwat');await p.evaluate(()=>{const w=document.getElementById('v3dwl');w.value='500';w.dispatchEvent(new Event('input'))});await p.waitForTimeout(800);
+  const w=await p.evaluate(()=>new Promise(res=>{const v=window.__view3d._v();new LL3D.GLTFExporter().parse(v.group,j=>res({label:document.getElementById('v3dwatv').textContent,names:(j.nodes||[]).map(n=>n.name)}),e=>res({err:String(e)}),{binary:false})}));
+  const pct=+((w.label||'').match(/\((\d+)% under\)/)||[])[1];
+  ok('water: label in m OD with share under water',/m OD/.test(w.label)&&pct>0&&pct<100,w.label);ok('water: in GLB as its own object',(w.names||[]).some(n=>/^water level .* m OD$/.test(n)),JSON.stringify(w.names));
+  await p.uncheck('#v3dwat');await p.waitForTimeout(300);
+  const w2=await p.evaluate(()=>new Promise(res=>{new LL3D.GLTFExporter().parse(window.__view3d._v().group,j=>res((j.nodes||[]).map(n=>n.name)),e=>res([String(e)]),{binary:false})}));
+  ok('water off: not in GLB (and STL never has it)',!w2.some(n=>/^water/.test(n)),JSON.stringify(w2))}
 ok('no JS errors',!errs.length,errs[0]||'');await ctx.close();
 // without WebGL 2: a message, no dialog, no errors
 const c2=await b.newContext();await c2.addInitScript(`(()=>{const g=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(t,...a){if(t==='webgl2')return null;return g.call(this,t,...a)}})()`);
