@@ -2,7 +2,8 @@
 // Building site/ with scripts/build_site.mjs and gb/config.js must reproduce the
 // assets on https://lidarlens.sarsen.org (checked 8 Nov 2026):
 //   assets/app.4131826f.js  (View from here, sky dome, Sky buttons and the press-and-hold pop-up removed: on live-test 10 Nov 2026,
-//                            promoted to production and Wiltshire the same day, main 183c590; see gb/README.md "What is live".)
+//                            promoted to production and Wiltshire the same day, main 183c590; the inside-the-dome release later that day changed only
+//                            the separate view3d/viewshed/sky3d scripts, not this bundle; see gb/README.md "What is live".)
 //   assets/app.6c9e6941.css
 //   assets/compat.912d81c4.js
 // The config file bytes must stay gb/config.js. The build names that copy
