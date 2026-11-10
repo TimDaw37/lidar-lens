@@ -1,9 +1,8 @@
 // Regression gate for the live Great Britain viewer.
 // Building site/ with scripts/build_site.mjs and gb/config.js must reproduce the
 // assets on https://lidarlens.sarsen.org (checked 8 Nov 2026):
-//   assets/app.4131826f.js  (View from here / sky dome trial with the press-and-hold pop-up removed, 10 Nov 2026: an intended change, so the
-//                            hashes were updated in the same commit. Production and Wiltshire stay on app.4131826f.js until it is
-//                            approved; see gb/README.md "What is live".)
+//   assets/app.4131826f.js  (View from here, sky dome, Sky buttons and the press-and-hold pop-up removed: on live-test 10 Nov 2026,
+//                            promoted to production and Wiltshire the same day, main 183c590; see gb/README.md "What is live".)
 //   assets/app.6c9e6941.css
 //   assets/compat.912d81c4.js
 // The config file bytes must stay gb/config.js. The build names that copy
