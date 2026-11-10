@@ -161,6 +161,7 @@ function eyeAt(ve){const vs=V.skyVs,g=model.geo,p=map.project(vs.ll,g.zt);ve=ve=
 function lightSky(){if(!V)return;const k=V.skySun;if(!k){V.sun.intensity=2.9;V.hemi.intensity=0.45;return}
   const d=sunDir(k[0],Math.max(2,k[1])),R=model.diam;V.sun.position.set(d[0]*R*1.5,d[1]*R*1.5,d[2]*R*1.5);V.sun.intensity=2.9*Math.max(0.02,Math.min(1,(k[1]+1.5)/9));V.hemi.intensity=0.45*(0.2+0.8*k[2]);
   $('v3daz').disabled=$('v3del').disabled=true;$('v3dsun').classList.add('off');$('v3dsunnote').textContent='Sun set by the sky'}
+let domeFromLink=false;
 async function skyOn(){if(!V||V.sky||V.skyBusy)return;V.skyBusy=true;status('Working out the skyline…');
   try{const VS=window.__viewshed;if(!VS)throw new Error('View from here is not part of this build');
     const g=model.geo,inLens=s=>{const p=map.project(s.ll,g.zt);return Math.hypot(p.x-g.pc.x,p.y-g.pc.y)*g.mpp<model.diam*0.45};
@@ -171,8 +172,9 @@ async function skyOn(){if(!V||V.sky||V.skyBusy)return;V.skyBusy=true;status('Wor
     V.sky=SK.create({T,scene:V.scene,camera:V.camera,controls:V.controls,canvas:V.renderer.domElement,stage:$('v3dstage'),host:$('v3dsky'),vs,diam:model.diam,eyeAt,
       setSun:(az,alt,day)=>{if(V!==mine)return;V.skySun=az==null?null:[az,alt,day];if(az==null)applyLook();else lightSky()},
       setVE:v=>{if(V!==mine)return;const e=$('v3dve');if(v==null){e.disabled=false;if(V.veWas!=null){e.value=V.veWas;V.veWas=null}}else{V.veWas=e.value;e.value=String(v);e.disabled=true}applyLook()},
-      dirty:()=>{if(V===mine)V.dirty=true},resetCam});
-    status('');applyLook()}
+      dirty:()=>{if(V===mine)V.dirty=true},resetCam,changed:()=>{LZ.saveHashSoon&&LZ.saveHashSoon()}});
+    status('');applyLook();
+    if(!domeFromLink&&LZ.H0&&LZ.H0.dome==='in'&&V.sky.inside){domeFromLink=true;V.sky.inside(true)}}   // dome=in in a share link: open inside the dome (once)
   catch(e){console.warn('sky dome',e);$('v3dskyon').checked=false;syncSkyBtn();status('The sky could not be added: '+(e&&e.message||e),true);setTimeout(()=>{const w=$('v3dwait');if(w.classList.contains('err')&&/^The sky/.test(w.textContent))status('')},5000)}
   finally{if(V)V.skyBusy=false}}
 function syncSkyBtn(){const c=$('v3dskyon'),b=$('v3dskybtn');if(!b)return;b.setAttribute('aria-pressed',c.checked?'true':'false');b.innerHTML=c.checked?'&#9733; Sky dome on':'&#9733; Sky dome'}
@@ -285,7 +287,7 @@ $('v3dskybtn').onclick=()=>{const c=$('v3dskyon');c.checked=!c.checked;c.dispatc
 $('v3dx').addEventListener('click',hide);
 ['v3dve','v3daz','v3del','v3ddrape','v3dshadow','v3dwl'].forEach(id=>$(id).addEventListener('input',applyLook));$('v3dao').addEventListener('change',applyLook);$('v3dwat').addEventListener('change',applyLook);$('v3dshadow').addEventListener('change',applyLook);
 $('v3ddrape').addEventListener('change',applyLook);$('v3dana').addEventListener('change',()=>{if(V)V.dirty=true});
-$('v3dreset').addEventListener('click',resetCam);
+$('v3dreset').addEventListener('click',()=>{if(V&&V.sky&&V.sky.state().inside)V.sky.inside(false);else resetCam()});
 $('v3dglb').addEventListener('click',saveGLB);$('v3dstl').addEventListener('click',saveSTL);
 window.addEventListener('resize',()=>{if(open)sizeView()});
 // while open, keys belong to the 3D view: Esc closes it, and the map's shortcuts stay quiet

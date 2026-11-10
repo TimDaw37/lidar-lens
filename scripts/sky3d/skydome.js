@@ -35,7 +35,7 @@ const HTML = '<div class="grp" role="group" aria-label="When"><span class="gl">W
   '<div class="grp" role="group" aria-label="Find a rising or setting"><span class="gl">Find</span><span class="seg">' +
   '<button id="skysr" title="Seek the Sun rising over the skyline on this day">Sunrise</button><button id="skyss" title="Seek the Sun setting behind the skyline on this day">Sunset</button>' +
   '<button id="skymr" title="Seek the Moon rising over the skyline">Moonrise</button><button id="skyms" title="Seek the Moon setting behind the skyline">Moonset</button></span>' +
-  '<span class="sp"></span><button id="skystand" title="Stand at the viewpoint, eyes 1.5 m above the ground. Drag to look round, scroll to zoom.">Stand at the viewpoint</button></div>' +
+  '<span class="sp"></span><span class="seg"><button id="skyinside" aria-pressed="false" title="Go inside the dome: the ground drops to the foot of the screen and the sky fills the view. Drag to look round, scroll to move in or out.">Inside the dome</button><button id="skystand" title="Stand at the viewpoint, eyes 1.5 m above the ground. Drag to look round, scroll to zoom.">Stand at the viewpoint</button></span></div>' +
   '<p id="skyread" aria-live="off"></p>' +
   '<details id="skymore"><summary>Paths, key and options</summary><div class="grp">' +
   '<label title="Paths of the Sun at the solstices and equinoxes, and of the Moon at its major and minor standstill limits, for the year shown"><input type="checkbox" id="skyarcs" checked> Solstice and standstill paths</label>' +
@@ -54,7 +54,7 @@ export function create(ctx) {
   const root = new T.Group(); root.name = 'sky dome'; ctx.scene.add(root);
   const disposables = [], keep = o => { disposables.push(o); return o; };
   const now = new Date(), d0 = A.doyOf(now);
-  const st = { year: now.getUTCFullYear(), doy: d0.doy, minute: Math.round(d0.minute), playing: false, standing: false, yaw: 50, pitch: 2, fov: 50, sun: null, moon: null };
+  const st = { year: now.getUTCFullYear(), doy: d0.doy, minute: Math.round(d0.minute), playing: false, standing: false, inside: false, yaw: 50, pitch: 2, fov: 50, sun: null, moon: null };
 
   // ---- sky: a sphere seen from inside, coloured by the Sun's height ----
   const skyGeo = keep(new T.SphereGeometry(Rd, 48, 24, 0, Math.PI * 2, 0, Math.PI * 0.72)), skyCol = new Float32Array(skyGeo.attributes.position.count * 3);
@@ -171,9 +171,38 @@ export function create(ctx) {
   const cam = ctx.camera, saved = { near: cam.near, far: cam.far, fov: cam.fov };
   function aim() { if (!st.standing) return; const e = ctx.eyeAt(1); cam.position.set(e[0], e[1], e[2]); cam.rotation.order = 'YXZ'; cam.rotation.set(st.pitch * D2R, -st.yaw * D2R, 0); cam.fov = st.fov; cam.near = 0.25; cam.far = Rd * 3; cam.updateProjectionMatrix();
     const y = ((st.yaw % 360) + 360) % 360; look.textContent = 'Looking ' + String(Math.round(y) % 360).padStart(3, '0') + '° (' + PTS[Math.round(y / 22.5) % 16] + '), ' + (st.pitch >= 0 ? 'up ' : 'down ') + Math.abs(st.pitch).toFixed(0) + '° · view ' + Math.round(st.fov) + '° wide'; ctx.dirty(); }
-  function stand(on) { if (on === st.standing) return; st.standing = on; $('skystand').classList.toggle('on', on); $('skystand').textContent = on ? 'Back to the block' : 'Stand at the viewpoint'; look.hidden = !on; ctx.controls.enabled = !on; ctx.setVE(on ? 1 : null); place();
+  function stand(on) { if (on === st.standing) return; if (on && st.inside) inside(false); st.standing = on; $('skystand').classList.toggle('on', on); $('skystand').textContent = on ? 'Back to the block' : 'Stand at the viewpoint'; look.hidden = !on; ctx.controls.enabled = !on; ctx.setVE(on ? 1 : null); place();
     if (on) { if (st.sun && st.sun.app > -6) { st.yaw = st.sun.az; st.pitch = clamp(st.sun.app, 0, 50); } aim(); }
     else { cam.near = saved.near; cam.far = saved.far; cam.fov = saved.fov; cam.rotation.order = 'XYZ'; cam.updateProjectionMatrix(); ctx.resetCam(); } }
+  // ---- inside the dome: the orbit camera goes in under the dome, low down, looking up and out over the block ----
+  // The camera starts a fifth of the dome's radius above the eye, looking slightly up, so the block sits at the foot of
+  // the screen and the sky fills the rest; it can neither leave the dome nor sink under the ground, so the bowl under the
+  // dome is never seen.
+  const ctl = ctx.controls, insideT = new T.Vector3(), IN_H = 0.3;   // the camera circles a point 0.3 dome radii above the eye
+  let keepCtl = null;
+  function frameInside() {
+    const c = root.position, H = Rd * IN_H, R0 = Rd * 0.754;
+    insideT.set(c.x, c.y + H, c.z); ctl.target.copy(insideT);
+    // start looking the way the Sun is (or north-east), camera on the far side, about eye height
+    const az = (st.sun && st.sun.app > -6 ? st.sun.az : 50) * D2R, el = -Math.asin(0.08 / 0.754);
+    cam.position.set(c.x - Math.sin(az) * Math.cos(el) * R0, c.y + H + Math.sin(el) * R0, c.z + Math.cos(az) * Math.cos(el) * R0);
+    ctl.update(); ctx.dirty();
+  }
+  function inside(on) {
+    on = !!on; if (on === st.inside) return;
+    if (on && st.standing) stand(false);
+    st.inside = on; const b = $('skyinside'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+    if (on) {
+      keepCtl = { pan: ctl.enablePan, min: ctl.minDistance, max: ctl.maxDistance, minP: ctl.minPolarAngle, maxP: ctl.maxPolarAngle, fov: cam.fov };
+      ctl.enablePan = false; ctl.minDistance = Rd * 0.3; ctl.maxDistance = Rd * 0.8;   // with the polar limits: never more than 0.99 dome radii from the eye, never below 0.05 above it
+      ctl.minPolarAngle = 1.05; ctl.maxPolarAngle = Math.PI / 2 + Math.asin(0.25 / 0.8);   // camera stays above the ground and under the dome
+      cam.fov = 62; cam.updateProjectionMatrix(); frameInside();
+    } else if (keepCtl) {
+      ctl.enablePan = keepCtl.pan; ctl.minDistance = keepCtl.min; ctl.maxDistance = keepCtl.max; ctl.minPolarAngle = keepCtl.minP; ctl.maxPolarAngle = keepCtl.maxP; cam.fov = keepCtl.fov; cam.updateProjectionMatrix(); keepCtl = null;
+      if (!st.standing) ctx.resetCam();
+    }
+    if (ctx.changed) ctx.changed();
+  }
   let drag = null; const cv = ctx.canvas;
   const onDown = e => { if (!st.standing) return; drag = { x: e.clientX, y: e.clientY, yaw: st.yaw, pitch: st.pitch }; try { cv.setPointerCapture(e.pointerId); } catch (x) { } };
   const onMove = e => { if (!drag || !st.standing) return; const k = st.fov / (cv.clientHeight || 600); st.yaw = drag.yaw - (e.clientX - drag.x) * k; st.pitch = clamp(drag.pitch + (e.clientY - drag.y) * k, -60, 89); aim(); };
@@ -182,7 +211,7 @@ export function create(ctx) {
   cv.addEventListener('pointerdown', onDown); cv.addEventListener('pointermove', onMove); cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', onUp); cv.addEventListener('wheel', onWheel, { passive: false });
 
   /** Put the dome round the eye; called when the height exaggeration changes. */
-  function place() { const e = ctx.eyeAt(st.standing ? 1 : null); root.position.set(e[0], e[1], e[2]); sun.lookAt(root.position); moon.lookAt(root.position); if (st.standing) aim(); ctx.dirty(); }
+  function place() { const e = ctx.eyeAt(st.standing ? 1 : null); root.position.set(e[0], e[1], e[2]); sun.lookAt(root.position); moon.lookAt(root.position); if (st.standing) aim(); else if (st.inside) { const d = cam.position.clone().sub(insideT); insideT.set(root.position.x, root.position.y + Rd * IN_H, root.position.z); ctl.target.copy(insideT); cam.position.copy(insideT).add(d); ctl.update(); } ctx.dirty(); }
 
   // ---- controls ----
   const on = (id, ev, f) => $(id).addEventListener(ev, f);
@@ -190,7 +219,7 @@ export function create(ctx) {
   on('skyyr', 'change', () => set({ year: readYear() })); on('skyera', 'change', () => set({ year: readYear() }));
   on('skyday', 'input', () => set({ doy: +$('skyday').value })); on('skytime', 'input', () => set({ minute: +$('skytime').value }));
   on('skygo', 'change', () => { const v = $('skygo').value; $('skygo').value = ''; if (!v) return; if (v === 'today') { const n = new Date(), d = A.doyOf(n); set({ year: n.getUTCFullYear(), doy: d.doy, minute: Math.round(d.minute) }); return; } const s = A.seasons(st.year, obs)[v]; if (s) set({ doy: s.doy }); });
-  on('skyarcs', 'change', update); on('skystand', 'click', () => stand(!st.standing));
+  on('skyarcs', 'change', update); on('skystand', 'click', () => stand(!st.standing)); on('skyinside', 'click', () => inside(!st.inside));
   on('skysr', 'click', () => seekTo('Sun', true)); on('skyss', 'click', () => seekTo('Sun', false)); on('skymr', 'click', () => seekTo('Moon', true)); on('skyms', 'click', () => seekTo('Moon', false));
   const setPlay = p => { st.playing = p; $('skyplay').classList.toggle('on', p); $('skyplay').textContent = p ? 'Pause' : 'Play'; last = 0; ctx.dirty(); };
   on('skyplay', 'click', () => setPlay(!st.playing));
@@ -200,9 +229,9 @@ export function create(ctx) {
 
   place(); syncInputs(); update();
   return {
-    frame, place, update, set, seek: seekTo, stand, state: () => st, root,
+    frame, place, update, set, seek: seekTo, stand, inside, state: () => st, root,
     heading: () => st.standing ? st.yaw : null,
-    dispose() { setPlay(false); if (st.standing) stand(false); cv.removeEventListener('pointerdown', onDown); cv.removeEventListener('pointermove', onMove); cv.removeEventListener('pointerup', onUp); cv.removeEventListener('pointercancel', onUp); cv.removeEventListener('wheel', onWheel);
+    dispose() { setPlay(false); if (st.standing) stand(false); if (st.inside) inside(false); cv.removeEventListener('pointerdown', onDown); cv.removeEventListener('pointermove', onMove); cv.removeEventListener('pointerup', onUp); cv.removeEventListener('pointercancel', onUp); cv.removeEventListener('wheel', onWheel);
       drop(arcs); drop(today); ctx.scene.remove(root); disposables.forEach(d => d.dispose && d.dispose()); host.innerHTML = ''; host.hidden = true; look.hidden = true; ctx.setSun(null); ctx.dirty(); },
   };
 }

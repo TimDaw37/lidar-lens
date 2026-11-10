@@ -215,7 +215,7 @@ map.on('mousemove',e=>{if(cur&&LZ.tool()!=='viewfrom')readout(rayOf(e.latlng))})
   c.addEventListener('pointermove',at);c.addEventListener('pointerdown',at)}
 window.addEventListener('resize',()=>{if(cur)drawChart(null)});
 // share link: vp=lat,lng
-{const prev=window.__lensHashExtra;window.__lensHashExtra=function(p){if(prev)prev(p);if(cur)p.set('vp',cur.ll.lat.toFixed(5)+','+cur.ll.lng.toFixed(5));const V3=window.__view3d,c=$('v3dskyon');if(V3&&V3.isOpen&&V3.isOpen()&&c&&c.checked)p.set('sky',1)}}
+{const prev=window.__lensHashExtra;window.__lensHashExtra=function(p){if(prev)prev(p);if(cur)p.set('vp',cur.ll.lat.toFixed(5)+','+cur.ll.lng.toFixed(5));const V3=window.__view3d,c=$('v3dskyon');if(V3&&V3.isOpen&&V3.isOpen()&&c&&c.checked){p.set('sky',1);const k=V3.sky&&V3.sky();if(k&&k.state&&k.state().inside)p.set('dome','in')}}}
 const api={run,clear:()=>{clear();setBtn(false)},sweep,raster,RANGE,EYE,
   state:()=>cur?{ll:cur.ll,gridRef:cur.gr,z0:cur.S.z0,eye:cur.S.eye,k:cur.S.k,range:cur.S.range,step:STEP,alt:cur.S.alt,dist:cur.S.dist,hgt:cur.S.hgt,flag:cur.S.flag,seenKm2:cur.seenKm2,groundKm2:cur.groundKm2,_S:cur.S,_rast:cur.rast}:null};
 window.__viewshed=api;
