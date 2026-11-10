@@ -34,7 +34,7 @@ for(const m of MODES){
   }
   // share link round trip with non-default settings
   // non-default settings for this mode (sliders by id, plus a ramp), then a share link round trip
-  const TW={11:{ramp:'redrel',set:{rad:15}},12:{set:{ld0:6,ld1:25,ldh:2.5}},13:{ramp:'rdbu',set:{mf1:40,mx:1}},14:{set:{mtl:1.4}}}[m]||{set:{}};
+  const TW={11:{ramp:'redrel',set:{rad:15}},12:{set:{ld0:6,ld1:25,ldh:2.5}},13:{ramp:'rdbu',set:{mf1:40,mx:1}},14:{ramp:'viridis',set:{mtl:1.4,mts:3}}}[m]||{set:{}};
   if(TW.ramp)await p.selectOption('#ramp',TW.ramp);
   await p.evaluate(set=>{for(const [k,v] of Object.entries(set)){const r=document.getElementById(k);r.value=String(v);r.dispatchEvent(new Event('input'))}},TW.set);await p.waitForTimeout(1500);
   const keys=['mode','ramp','ct','gm'].concat(Object.keys(TW.set));
