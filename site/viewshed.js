@@ -32,7 +32,12 @@ if(!$('vfhcss')){const st=document.createElement('style');st.id='vfhcss';st.text
 if(!$('vfh')){const t=document.createElement('template');t.innerHTML=BOX;document.body.appendChild(t.content.firstElementChild)}
 if(!$('viewfrom')){const pr=$('profile');if(pr){const b=document.createElement('button');b.id='viewfrom';b.setAttribute('aria-pressed','false');
   b.title='Click a spot to see the ground and skyline visible from there, at eye height (E)';b.textContent='View from here (off)';pr.insertAdjacentElement('afterend',b)}}
-{const kt=document.querySelector('#help table.keys');if(kt&&!/View from here/.test(kt.textContent)){const tr=document.createElement('tr');tr.innerHTML='<td>E</td><td>View from here on/off</td>';kt.appendChild(tr)}}
+{const kt=document.querySelector('#help table.keys');if(kt&&!/View from here/.test(kt.textContent)){const tr=document.createElement('tr');tr.innerHTML='<td>E</td><td>View from here on/off</td>';kt.appendChild(tr);if(window.__view3d){const t2=document.createElement('tr');t2.innerHTML='<td>K</td><td>Sky dome: Sun, Moon and stars from a spot</td>';kt.appendChild(t2)}}}
+// Sky: its own button at the top of Tools, the main way into the sky dome. With a viewpoint it opens the 3D view with the
+// dome; without one it asks for a spot, works out the view from there, then opens the dome.
+if(window.__view3d&&!$('skybtn')){const t=$('whatis')||$('profile');if(t){const b=document.createElement('button');b.id='skybtn';b.setAttribute('aria-pressed','false');
+  b.title='Sky dome: stand at a spot and see its real skyline with the Sun, Moon and stars for any date from 4500 BC, in the 3D view (K)';b.innerHTML='&#9733; Sky: Sun, Moon and stars from a spot';t.insertAdjacentElement('beforebegin',b)}}
+if(!$('skycss')){const st=document.createElement('style');st.id='skycss';st.textContent='#skybtn{background:#1e3a8a;color:#fff;border-color:#1e3a8a;font-weight:600}#skybtn.on{background:#fbbf24;color:#1f2937;border-color:#b45309}';document.head.appendChild(st)}
 const btn=$('viewfrom'),box=$('vfh');if(!btn||!box)return;
 
 // ---------- a pane above the lens for the overlay and skyline (the lens canvas sits over the map's own panes) ----------
@@ -185,29 +190,38 @@ async function run(ll){ll=L.latLng(ll);ensurePane();clear(true);const seq=runSeq
   setBtn(LZ.tool()==='viewfrom');LZ.saveHashSoon&&LZ.saveHashSoon();document.dispatchEvent(new CustomEvent('viewshed',{detail:api.state()}));return api.state()}
 
 // ---------- tool wiring ----------
+let skyAfter=false;const skyBtn=$('skybtn');
+function setSkyBtn(on){if(!skyBtn)return;skyBtn.classList.toggle('on',on);skyBtn.setAttribute('aria-pressed',on);skyBtn.innerHTML=on?'&#9733; Sky: click a spot to stand at':'&#9733; Sky: Sun, Moon and stars from a spot'}
 function setBtn(on){btn.classList.toggle('on',on);btn.setAttribute('aria-pressed',on);btn.textContent=on?'View from here ON: click a spot':cur||busy?'View from here (shown)':'View from here (off)'}
-LZ.toolHooks.viewfrom={on(){setBtn(true);LZ.msg('View from here ON: click the spot to stand on (inside or outside the lens). Esc or the button turns it off.',4000)},off(){setBtn(false)}};
+LZ.toolHooks.viewfrom={on(){setBtn(true);if(!skyAfter)LZ.msg('View from here ON: click the spot to stand on (inside or outside the lens). Esc or the button turns it off.',4000)},off(){setBtn(false);skyAfter=false;setSkyBtn(false)}};
 btn.onclick=()=>LZ.setTool('viewfrom');
-map.on('click',e=>{if(LZ.tool()!=='viewfrom')return;if(window.__lensEatClick&&Date.now()<window.__lensEatClick)return;LZ.setTool(null);run(e.latlng).then(()=>setBtn(false));setBtn(false)});
+map.on('click',e=>{if(LZ.tool()!=='viewfrom')return;if(window.__lensEatClick&&Date.now()<window.__lensEatClick)return;const sky=skyAfter;LZ.setTool(null);run(e.latlng).then(v=>{setBtn(false);if(sky&&v)openSky()});setBtn(false)});
 // with the 3D view present: move the map so the viewpoint is under the lens, then open the block with its sky dome
+async function openSky(){if(!cur||!window.__view3d)return;const st=LZ.lensState(),pt=map.latLngToContainerPoint(cur.ll);if(!st.fs)map.panBy([pt.x-st.c[0],pt.y-st.c[1]],{animate:false});
+  for(let k=0;k<25;k++){await sleep(160);if($('loading').hidden)break}return window.__view3d.show({sky:true})}
 if(window.__view3d){const b=document.createElement('button');b.id='vfh3d';b.textContent='3D view with sky';b.title='Open the 3D view of the lens, centred on this viewpoint, with the skyline, Sun, Moon and stars';$('vfhextra').appendChild(b);
-  b.onclick=async()=>{if(!cur)return;const st=LZ.lensState(),pt=map.latLngToContainerPoint(cur.ll);if(!st.fs)map.panBy([pt.x-st.c[0],pt.y-st.c[1]],{animate:false});
-    for(let k=0;k<25;k++){await sleep(160);if($('loading').hidden)break}window.__view3d.show({sky:true})}}
+  b.onclick=()=>openSky()}
+function skyStart(){if(!window.__view3d)return;if(window.__view3d.isOpen&&window.__view3d.isOpen())return;if(busy)return;
+  if(cur){openSky();return}
+  skyAfter=true;if(LZ.tool()!=='viewfrom')LZ.setTool('viewfrom');skyAfter=true;setSkyBtn(true);LZ.msg('Sky: click a spot to stand at (inside or outside the lens). Esc turns it off.',5000)}
+if(skyBtn)skyBtn.onclick=()=>{if(skyAfter&&LZ.tool()==='viewfrom'){LZ.setTool(null);return}skyStart()};
 $('vfhx').onclick=()=>{clear();setBtn(false)};$('vfhpick').onclick=()=>{if(LZ.tool()!=='viewfrom')LZ.setTool('viewfrom')};$('vfhshade').onchange=drawOverlays;
-document.addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey||(e.key!=='e'&&e.key!=='E'))return;const t=e.target;
+document.addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey||!/^[eEkK]$/.test(e.key))return;const t=e.target;
   if(t&&(t.tagName==='INPUT'&&t.type!=='checkbox'&&t.type!=='range'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable))return;
-  if(window.__view3d&&window.__view3d.isOpen&&window.__view3d.isOpen())return;LZ.setTool('viewfrom')});
+  if(window.__view3d&&window.__view3d.isOpen&&window.__view3d.isOpen())return;if(/k/i.test(e.key))skyStart();else LZ.setTool('viewfrom')});
 const rayOf=ll=>{const r=cur.S.rings[0],p=map.project(ll,r.z);let b=Math.atan2(p.x-r.vx,r.vy-p.y)/D2R;if(b<0)b+=360;return Math.round(b/STEP)%NRAY};
 map.on('mousemove',e=>{if(cur&&LZ.tool()!=='viewfrom')readout(rayOf(e.latlng))});
 {const c=$('vfhc'),at=e=>{if(!cur||!cur.chart)return;const r=c.getBoundingClientRect(),x=e.clientX-r.left,ch=cur.chart;readout(Math.max(0,Math.min(NRAY-1,Math.round((x-ch.L0)/(ch.w-ch.L0-4)*NRAY))))};
   c.addEventListener('pointermove',at);c.addEventListener('pointerdown',at)}
 window.addEventListener('resize',()=>{if(cur)drawChart(null)});
 // share link: vp=lat,lng
-{const prev=window.__lensHashExtra;window.__lensHashExtra=function(p){if(prev)prev(p);if(cur)p.set('vp',cur.ll.lat.toFixed(5)+','+cur.ll.lng.toFixed(5))}}
+{const prev=window.__lensHashExtra;window.__lensHashExtra=function(p){if(prev)prev(p);if(cur)p.set('vp',cur.ll.lat.toFixed(5)+','+cur.ll.lng.toFixed(5));const V3=window.__view3d,c=$('v3dskyon');if(V3&&V3.isOpen&&V3.isOpen()&&c&&c.checked)p.set('sky',1)}}
 const api={run,clear:()=>{clear();setBtn(false)},sweep,raster,RANGE,EYE,
   state:()=>cur?{ll:cur.ll,gridRef:cur.gr,z0:cur.S.z0,eye:cur.S.eye,k:cur.S.k,range:cur.S.range,step:STEP,alt:cur.S.alt,dist:cur.S.dist,hgt:cur.S.hgt,flag:cur.S.flag,seenKm2:cur.seenKm2,groundKm2:cur.groundKm2,_S:cur.S,_rast:cur.rast}:null};
 window.__viewshed=api;
 {const v=LZ.H0&&LZ.H0.vp,m=v&&String(v).match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
-  if(m){const go=()=>run([+m[1],+m[2]]).then(()=>setBtn(false));const sw=navigator.serviceWorker;
-    if(LC.live&&sw&&!sw.controller)sw.ready.then(()=>setTimeout(go,800),go);else setTimeout(go,800)}}
+  const wantSky=LZ.H0&&LZ.H0.sky==='1'&&!!window.__view3d;
+  if(m){const go=()=>run([+m[1],+m[2]]).then(v=>{setBtn(false);if(wantSky&&v)openSky()});const sw=navigator.serviceWorker;
+    if(LC.live&&sw&&!sw.controller)sw.ready.then(()=>setTimeout(go,800),go);else setTimeout(go,800)}
+  else if(wantSky){const go=async()=>{for(let k=0;k<60;k++){await sleep(250);if($('loading').hidden&&k>3)break}window.__view3d.show({sky:true})};go()}}   // sky=1 with no viewpoint: the dome from the lens centre
 })();

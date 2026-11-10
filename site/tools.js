@@ -414,16 +414,7 @@ function loadPhotos(el,lat,lng){if(!el)return;el.replaceChildren();const wait=do
   if(photoCache.has(key)){show(photoCache.get(key));return}
   fetch(((window.LENS_CONFIG&&LENS_CONFIG.geographApi)||'api/geograph')+'?lat='+encodeURIComponent(lat)+'&lng='+encodeURIComponent(lng)).then(r=>{const ct=r.headers.get('content-type')||'';if(!r.ok||ct.indexOf('json')<0)return {photos:[],reason:r.status===404?'off':'fail'};return r.json()}).catch(()=>({photos:[],reason:'fail'}))
     .then(data=>{photoCache.set(key,data);show(data)})}
-function openPlace(ll){window.__lensEatClick=Date.now()+700;const [E,N]=ll2en(ll.lat,ll.lng),gr=gridRef(E,N)||'';
-  const html='<b>'+esc(gr||'Outside the OS grid')+'</b><br><small>'+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small><br>'+lookLink('',gr)+'<div class="photostrip"></div>';
-  L.popup({maxWidth:320,className:'placepop'}).setLatLng(ll).setContent(html).openOn(map);
-  setTimeout(()=>{const el=document.querySelector('.leaflet-popup .photostrip');if(el)loadPhotos(el,ll.lat,ll.lng)},0)}
-(function longPress(){let timer=null,xy=null;const box=map.getContainer();
-  const ignore=e=>e.target.closest&&e.target.closest('#lens .g,#lens .h,#lens svg,.leaflet-control,.leaflet-popup,a,button,input,label');
-  box.addEventListener('pointerdown',e=>{if(e.button>0||!e.isPrimary||ignore(e))return;xy=[e.clientX,e.clientY];const ll=map.mouseEventToLatLng(e);clearTimeout(timer);timer=setTimeout(()=>{timer=null;xy=null;openPlace(ll)},560)},true);
-  box.addEventListener('pointermove',e=>{if(!xy)return;if(Math.hypot(e.clientX-xy[0],e.clientY-xy[1])>12){clearTimeout(timer);timer=null;xy=null}},true);
-  const up=()=>{clearTimeout(timer);timer=null;xy=null};box.addEventListener('pointerup',up,true);box.addEventListener('pointercancel',up,true);
-  box.addEventListener('contextmenu',e=>{if(ignore(e))return;e.preventDefault();openPlace(map.mouseEventToLatLng(e))})})();
+// (10 Nov 2026) the press-and-hold / right-click place pop-up (grid ref and Geograph photos) was removed at Tim's request; What's here? (W) is unchanged.
 const CTX_NAMES={building:'a building',wood:'woodland',water:'mapped water',stream:'a stream/drain',road:'a road',track:'a track/path',fieldedge:'a field edge',settled:'a settlement/farmyard',rail:'railway',embankment:'a mapped embankment'};
 async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L.circleMarker(ll,{radius:6,color:'#facc15',weight:3,fill:false,interactive:false}).addTo(map);
   const [E,N]=ll2en(ll.lat,ll.lng);const gr0=gridRef(E,N);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gr0)+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small><br>'+lookLink('',gr0)+'</div><div class="bd"><div class="photostrip"></div>Looking at the LiDAR and records…</div>';
