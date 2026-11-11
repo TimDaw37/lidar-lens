@@ -12,6 +12,7 @@ const histIds=[...($('hist')?$('hist').options:[])].map(o=>o.value).filter(Boole
 const VIEWS={hs:{label:'Hillshade',title:'Hillshade (single sun), the LiDAR over the whole screen',mode:0},
   vat:{label:'VAT',title:'Combined VAT (Kokalj and Somrak), the LiDAR over the whole screen',mode:10},
   old:{label:'Old map',title:'The old Ordnance Survey map (six-inch, 1888–1913) over the aerial photo',old:true}};
+VIEWS.air={label:'Aerial',title:'The aerial photo on its own, with no LiDAR over it: good for finding your way',air:true};
 if(!histIds.length)delete VIEWS.old;
 const PTS=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 
@@ -33,15 +34,16 @@ const CSS=
 '@media (max-width:700px){#fld{padding:8px 8px calc(8px + env(safe-area-inset-bottom))}#fld .row,#fldgps,#fldcmp{margin-top:6px!important}#fld .row{gap:6px}#fldread{min-height:56px}}'+
 '#fldbig{flex-wrap:wrap;row-gap:0}#fld #fldbig.lite{font-size:24px}'+
 '#fldbig.nodeg #flddir small{display:none}@media (max-width:440px){#fldbig{font-size:34px}#fld #fldclr{min-width:92px;padding:0 10px}}'+
-'@media (max-width:390px){#flddir small{display:none}#fldbig{font-size:32px;gap:8px}#fldbig small{font-size:18px}#fldarr{width:34px;height:34px}#fld #fldclr{min-width:84px;padding:0 8px}#fld button{font-size:16px;padding:0 4px;white-space:nowrap}#fld .row button svg,#fld .ico{display:none}}'+
+'@media (max-width:390px){#flddir small{display:none}#fldbig{font-size:32px;gap:8px}#fldbig small{font-size:18px}#fldarr{width:34px;height:34px}#fld #fldclr{min-width:84px;padding:0 8px}#fld button{font-size:16px;padding:0 4px;white-space:nowrap}#fld .row button svg,#fld .ico{display:none}#fld #fldviews{gap:5px}#fld #fldviews button{font-size:15px;padding:0 2px;min-height:50px}}'+
 'body.field #fieldsw{flex:0 0 auto!important}body.field #goto #fieldsw button{position:static!important;top:auto!important;height:auto!important;min-height:52px!important;border-radius:0!important;padding:0 10px!important;font-size:16px!important}'+
-'.ph #fieldsw{margin-left:auto;margin-right:8px}'+
-'#fieldgo{display:none;position:absolute;z-index:1001;right:10px;top:var(--fgtop,100px)}#fieldgo #fieldsw{box-shadow:0 2px 6px rgba(0,0,0,.4)}#fieldgo #fieldsw button{min-height:48px}'+
+'.ph #fieldsw{margin-left:auto;margin-right:8px}.ph h1{margin-right:12px!important;white-space:nowrap}.ph #fieldsw button{min-width:60px}'+   // a clear gap after "Controls" whatever the font
+'#fieldgo{display:none;position:absolute;z-index:1001;right:var(--fgright,10px);top:var(--fgtop,100px)}#fieldgo #fieldsw{box-shadow:0 2px 6px rgba(0,0,0,.4)}#fieldgo #fieldsw button{min-height:48px}'+
 '@media (max-width:700px),(max-height:500px) and (pointer:coarse){#fieldgo{display:block}}'+
 '#fld{position:absolute;z-index:1500;left:0;right:0;bottom:0;padding:10px 10px calc(10px + env(safe-area-inset-bottom));box-sizing:border-box;background:rgba(17,17,17,.95);color:#fff;font:16px system-ui,sans-serif;border-radius:14px 14px 0 0;box-shadow:0 -2px 12px rgba(0,0,0,.5)}'+
 '#fld[hidden]{display:none}'+
 '@media (min-width:701px){#fld{left:10px;right:auto;bottom:10px;width:440px;border-radius:14px}}'+
 '#fld .row{display:flex;gap:8px;margin-top:8px}#fld button{flex:1;margin:0;width:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:56px;font:700 18px system-ui,sans-serif;border:2px solid #fff;border-radius:10px;background:#fff;color:#111;cursor:pointer;padding:0 6px}'+
+'#fldviews button{min-height:50px;font-size:17px;padding:0 4px;white-space:nowrap}'+   // four view buttons in one row, still cold-finger sized
 '#fld button.on,#fld button[aria-pressed=true]{background:#f59e0b;border-color:#f59e0b;color:#111}'+
 '#fld #fldwi{flex:1.6;background:#facc15;border-color:#facc15;font-size:20px}#fld #fldwi.on{background:#f59e0b;border-color:#f59e0b}'+
 '#fldread{display:flex;align-items:center;gap:10px;min-height:64px}#fldread .t{flex:1;min-width:0}'+
@@ -51,6 +53,7 @@ const CSS=
 '#fld #fldclr{flex:none;width:auto;min-width:104px;padding:0 12px;background:transparent;color:#fff;border:2px solid #fff;font-size:18px}'+
 '#fld #flddone{display:flex;width:100%;margin-top:8px;min-height:64px;font-size:20px;background:#16a34a;border-color:#16a34a;color:#fff}'+
 '#fld [hidden],#fld[hidden]{display:none!important}'+
+'body.field #titlebox{z-index:1002}'+   // an open search-results list sits over the big zoom buttons, so every result can be tapped
 'body.field .leaflet-control-zoom{display:block!important;position:fixed!important;right:10px;top:var(--fldtop,90px);margin:0!important;z-index:1000;border:2px solid #111!important;border-radius:10px!important;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.4)}'+
 'body.field .leaflet-control-zoom a{width:56px!important;height:56px!important;line-height:54px!important;font-size:30px!important;color:#111!important;background:#fff!important}'+
 '#fldcmp{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:15px;line-height:1.3}#fldcmp span{flex:1}#fld #fldcmpb{flex:none;width:auto;padding:0 14px}'+
@@ -66,11 +69,22 @@ const sw=document.createElement('div');sw.id='fieldsw';sw.setAttribute('role','g
 sw.innerHTML='<button type="button" data-ui="field" title="Field mode: a simple screen for finding a monument outdoors, with your GPS position and a target">Field</button><button type="button" data-ui="research" title="Lab: the full research view, with all the visualisations and tools">Lab</button>';
 const go=document.createElement('div');go.id='fieldgo';document.body.appendChild(go);
 const ph=document.querySelector('#panel .ph');
+const R=e=>e&&e.getBoundingClientRect(),hit=(a,b,m)=>a&&b&&a.width&&b.width&&a.left<b.right+m&&b.left<a.right+m&&a.top<b.bottom+m&&b.top<a.bottom+m;
 function placeSwitch(){const f=on;if(f){const g=$('goto');if(g&&sw.parentNode!==g)g.appendChild(sw)}
-  else if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches||!ph){if(sw.parentNode!==go)go.appendChild(sw);const tb=$('titlebox');if(tb){const r=tb.getBoundingClientRect();go.style.setProperty('--fgtop',Math.round(r.bottom+10)+'px')}}
+  else if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches||!ph){
+    // floating under the search bar; kept at least 8 px clear of the Controls button, and moved into the panel header
+    // when an open side panel (a phone on its side) would sit under it
+    const pn=$('panel'),open=pn&&!pn.classList.contains('hide')&&ph&&R(ph).width>=250;
+    if(sw.parentNode!==go)go.appendChild(sw);
+    const tb=$('titlebox');go.style.setProperty('--fgtop',Math.round((tb?R(tb).bottom:0)+10)+'px');go.style.setProperty('--fgright','10px');
+    if(open&&hit(R(sw),R(pn),0)){ph.insertBefore(sw,$('helpbtn'))}
+    else{const t=R($('toggle'));if(hit(R(sw),t,8)){const sr=R(sw);
+      if(t.height>120||t.bottom+8+sr.height>innerHeight)go.style.setProperty('--fgright',Math.round(innerWidth-t.left+8)+'px');   // a tall side button: sit to its left
+      else go.style.setProperty('--fgtop',Math.round(Math.max(t.bottom,tb?R(tb).bottom:0)+10)+'px')}}}
   else if(sw.parentNode!==ph)ph.insertBefore(sw,$('helpbtn'));
   sw.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.ui==='field')===f)))}
 sw.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;setField(b.dataset.ui==='field',true)});
+{const pn=$('panel');if(pn&&window.MutationObserver)new MutationObserver(()=>requestAnimationFrame(placeSwitch)).observe(pn,{attributes:true,attributeFilter:['class']})}
 
 // ---- the bottom sheet ----
 const fld=document.createElement('div');fld.id='fld';fld.hidden=true;fld.setAttribute('role','region');fld.setAttribute('aria-label','Field mode');
@@ -101,8 +115,9 @@ const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 // ---- view: hillshade / VAT over the whole screen, or the old map with the LiDAR put away ----
 function selVal(id,v,ev){const e=$(id);if(!e)return;if(String(e.value)!==String(v)){e.value=String(v);e.dispatchEvent(new Event(ev||'change',{bubbles:true}))}}
 function setChk(id,v){const e=$(id);if(e&&e.checked!==v){e.checked=v;e.dispatchEvent(new Event('change',{bubbles:true}))}}
-function applyView(){const v=VIEWS[view]||VIEWS.hs;document.body.classList.toggle('fold',!!v.old);
-  if(v.old){selVal('hist',histIds[0])}   // Old map: the LiDAR is put away (body.fold) and the old map shown; full screen and the visualisation are kept for coming back
+function applyView(){const v=VIEWS[view]||VIEWS.hs;document.body.classList.toggle('fold',!!(v.old||v.air));
+  if(v.old){selVal('hist',histIds[0])}
+  else if(v.air){selVal('hist','')}   // Aerial: the LiDAR put away (body.fold) and no old map, so the aerial base shows; full screen and the visualisation are kept for coming back   // Old map: the LiDAR is put away (body.fold) and the old map shown; full screen and the visualisation are kept for coming back
   else{selVal('hist','');setChk('fs',true);selVal('mode',v.mode);selVal('mode',v.mode,'input')}
   fld.querySelectorAll('#fldviews button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===view)));LZ.requestRender&&LZ.requestRender()}
 function setView(k){if(!VIEWS[k])return;view=k;store({view});applyView();LZ.saveHashSoon&&LZ.saveHashSoon()}

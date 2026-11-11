@@ -1,4 +1,4 @@
-// Field mode (trial, 11 Nov 2026): Field/Research switch, remembered target, GPS position with distance and bearing, three views, big buttons.
+// Field mode (trial, 11 Nov 2026): Field/Research switch, remembered target, GPS position with distance and bearing, three views (four from release 6, with Aerial), big buttons; the view buttons are at least 48 px high, the rest 52.
 // Usage (from tests/): node field.test.mjs <site URL> [dist folder]
 import {openSite} from './open.mjs';
 const BASE=(process.argv[2]||'').replace(/\/?$/,'/');if(!/^https?:/.test(BASE)){console.error('give the site URL');process.exit(2)}
@@ -6,7 +6,7 @@ const DIST=process.argv[3];let pass=0,fail=0;const ok=(n,c,i='')=>{c?pass++:fail
 const SH='#c=51.1789%2C-1.8262%2C16&l=51.1789%2C-1.8262';const STN=[51.17886,-1.82623];
 const st=p=>p.evaluate(()=>window.__field.state());
 const vis=(p,sel)=>p.evaluate(s=>{const e=document.querySelector(s);if(!e)return false;const c=getComputedStyle(e),r=e.getBoundingClientRect();return c.display!=='none'&&c.visibility!=='hidden'&&r.width>0&&r.height>0},sel);
-const minTarget=p=>p.evaluate(()=>{const bad=[];document.querySelectorAll('#fld button,#fieldsw button,#gotoq').forEach(e=>{const r=e.getBoundingClientRect(),c=getComputedStyle(e);if(c.display==='none'||e.closest('[hidden]')||!r.width)return;if(r.height<52||r.width<56)bad.push((e.id||e.textContent.trim().slice(0,12))+' '+Math.round(r.width)+'x'+Math.round(r.height))});
+const minTarget=p=>p.evaluate(()=>{const bad=[];document.querySelectorAll('#fld button,#fieldsw button,#gotoq').forEach(e=>{const r=e.getBoundingClientRect(),c=getComputedStyle(e);if(c.display==='none'||e.closest('[hidden]')||!r.width)return;if(r.height<(e.closest('#fldviews')?48:52)||r.width<56)bad.push((e.id||e.textContent.trim().slice(0,12))+' '+Math.round(r.width)+'x'+Math.round(r.height))});
   const sw=document.getElementById('fieldsw').getBoundingClientRect(),q=document.getElementById('gotoq').getBoundingClientRect();if(sw.right>innerWidth+0.5||sw.left<q.right-0.5)bad.push('switch overlaps/overflows');
   [...document.querySelectorAll('#fld button')].forEach(e=>{if(e.offsetParent&&e.scrollWidth>e.clientWidth+1)bad.push('text overflows '+e.id)});return bad});
 
@@ -18,7 +18,7 @@ const minTarget=p=>p.evaluate(()=>{const bad=[];document.querySelectorAll('#fld 
   await p.click('#fieldsw button[data-ui=field]');await p.waitForTimeout(1200);
   ok('switch turns Field mode on',(await st(p)).on&&await p.evaluate(()=>document.body.classList.contains('field')));
   ok('panel and research chrome are hidden',!(await vis(p,'#panel'))&&!(await vis(p,'#modestrip'))&&!(await vis(p,'#titlebox h1')));
-  ok('field sheet shown with readout and three views',await vis(p,'#fld')&&(await p.evaluate(()=>document.querySelectorAll('#fldviews button').length))===3);
+  ok('field sheet shown with readout and four views (Aerial added in release 6)',await vis(p,'#fld')&&(await p.evaluate(()=>document.querySelectorAll('#fldviews button').length))===4);
   ok('Hillshade view: mode 0, LiDAR full screen',await p.evaluate(()=>document.getElementById('mode').value==='0'&&document.getElementById('fs').checked));
   ok('the link carries ui=field',/[#&]ui=field/.test(await p.evaluate(()=>{window.__lens.saveHashSoon&&window.__lens.saveHashSoon();return new Promise(r=>setTimeout(()=>r(location.hash),900))})));
   await p.click('#fldviews button[data-v=vat]');await p.waitForTimeout(800);
