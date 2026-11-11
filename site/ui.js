@@ -97,6 +97,7 @@ const REPO=LC.repoUrl||'https://github.com/TimDaw37/lidar-lens';const rl='<a hre
 help.insertAdjacentHTML('beforeend','<p style="margin-top:10px">Open source: the code and a step-by-step protocol to build your own LiDAR Lens for another area are on '+rl+'.</p>');
 $('about').insertAdjacentHTML('beforeend','<br><br>Code and replication protocol: '+rl+'.');
 if(map.attributionControl)map.attributionControl.addAttribution('<a href="'+REPO+'" target="_blank" rel="noopener noreferrer">LiDAR Lens code</a>');
+document.querySelectorAll('#panel details.sec').forEach(d=>{d.dataset.deskOpen=d.open?'1':'0'});   // the sections a desktop opens (layoutWatch below)
 if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches){const sheet=matchMedia('(max-width:700px) and (pointer:coarse)').matches;document.querySelectorAll('#panel details.sec').forEach(d=>{const name=d.querySelector('summary').textContent;d.open=sheet?/Visualisation/.test(name):/Tools/.test(name)})}
 if(matchMedia('(pointer:coarse)').matches){const p=document.querySelector('#help p');if(p)p.innerHTML=p.innerHTML.replace('Drag its rim or top grip to move it; drag the white dot to resize.','Drag the grip to move the lens and the white dot to resize. Drag a finger around the rim to turn the sun.')}
 if(!LC.private){const t=$('privtag');if(t)t.remove()}
@@ -115,3 +116,18 @@ LZ.ui={showHelp,mark};})();
     const Z=window.__lens;if(Z&&Z.map)Z.map.invalidateSize();if(Z&&Z.placeLens)Z.placeLens()}
   const later=()=>{clearTimeout(t);t=setTimeout(fix,250)};
   if(vv){vv.addEventListener('resize',later);vv.addEventListener('scroll',later)}window.addEventListener('scroll',later,{passive:true});document.addEventListener('touchend',e=>{if(!e.touches||!e.touches.length)later()},{passive:true})})();
+// Phone or desktop layout follows the screen. CSS media queries switch most of it at once, but script sets a few things
+// when the page loads: the panel hidden on a phone, which panel sections are open, and where the lens sits. If the page
+// loaded while the viewport was not yet the phone's real width (Chrome prerendering a page or restoring a tab, a page
+// opened in the background, a rotation or a folding screen), those stayed in the other layout, so the phone showed the
+// desktop's open panel and lens position under phone styling. Now they are set again whenever the layout changes.
+(function layoutWatch(){const LZ=window.__lens;if(!LZ||!LZ.map)return;const $=id=>document.getElementById(id);
+  const mPh=matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)'),mSh=matchMedia('(max-width:700px) and (pointer:coarse)');
+  let key=mPh.matches+'/'+mSh.matches;
+  function apply(){const k=mPh.matches+'/'+mSh.matches;if(k===key)return;key=k;const field=document.body.classList.contains('field');
+    const p=$('panel');if(p&&!field)p.classList.toggle('hide',mPh.matches);
+    document.querySelectorAll('#panel details.sec').forEach(d=>{const n=d.querySelector('summary').textContent;d.open=mPh.matches?(mSh.matches?/Visualisation/.test(n):/Tools/.test(n)):d.dataset.deskOpen==='1'});
+    LZ.map.invalidateSize();if(LZ.resetLens)LZ.resetLens();document.dispatchEvent(new CustomEvent('lenslayout',{detail:{phone:mPh.matches}}))}
+  const on=(m,f)=>m.addEventListener?m.addEventListener('change',f):m.addListener(f);on(mPh,apply);on(mSh,apply);
+  window.addEventListener('resize',apply);document.addEventListener('visibilitychange',apply);document.addEventListener('prerenderingchange',apply);
+  LZ.layoutKey=()=>key})();
