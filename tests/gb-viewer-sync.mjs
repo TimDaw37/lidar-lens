@@ -1,9 +1,9 @@
 // Regression gate for the live Great Britain viewer.
 // Building site/ with scripts/build_site.mjs and gb/config.js must reproduce the
-// assets on https://lidarlens.sarsen.org (checked 8 Nov 2026):
+// assets on https://lidarlens.sarsen.org (checked 8 Nov 2026; release 6 checked 11 Nov 2026):
 //   assets/app.1d944f95.js  (release 6: per-view looks and softened defaults in lens.js, the view reset button; trial on live-test
-//                            11 Nov 2026 (pt2112u). Until it is promoted, production still serves app.f072dc8d.js and app.6c9e6941.css.)
-//   Before: assets/app.f072dc8d.js  (field mode, the phone-layout fix, the clicked-spot ring, the home-screen shortcut and the sky dome quote: trial on live-test 11 Nov 2026 (pt2094u), promoted with this commit;
+//                            11 Nov 2026 (pt2112u), promoted to production and Wiltshire 11 Nov 2026 (pt2117u) with field go-to-target.)
+//   Before: assets/app.f072dc8d.js  (release 5: field mode, the phone-layout fix, the clicked-spot ring, the home-screen shortcut and the sky dome quote, live 11 Nov 2026;
 //                            the main bundle changed only for layoutWatch in ui.js, the lensgoto event and the pin release in tools.js and setLensC in lens.js.
 //                            Before that: app.4131826f.js, main 183c590 .. 4e5c38d.)
 //   assets/app.a852a2b4.css (release 6: the view reset button; before: app.6c9e6941.css)
@@ -96,7 +96,7 @@ try {
   }
   console.log('live-sw.js (gb/make_sw.mjs) and nhle_places.json (gb/places.json) match production');
   if (html.includes('config.198ea3a0.js')) fail('build renamed the config to the live MD5 filename; that step is not in this source');
-  console.log('gb viewer source reproduces app.1d944f95.js, app.a852a2b4.css (release 6, live-test) and compat.912d81c4.js');
+  console.log('gb viewer source reproduces app.1d944f95.js, app.a852a2b4.css (release 6, live on production) and compat.912d81c4.js');
   console.log('config bytes match gb/config.js; build filename is config.93c04c53.js (SHA-256), production serves this build as-is since 9 Nov 2026');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
