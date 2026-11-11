@@ -65,6 +65,28 @@ Visualisation 12, "Local dominance" (key L), after Hesse (2016). An observer sta
 
 Test: open the viewer at Normanton Down (SU 115 413), mode 12. Each barrow, including the low ploughed ones, should be a bright spot. Automated: `node tests/modes.test.mjs <url> 12`.
 
+## Field mode (trial on live-test 11 Nov 2026)
+
+A Field / Lab switch (Lab is the full research view): in the panel header on desktop, floating at the top right on a phone, beside the search box in field mode. The choice is remembered on the device (localStorage `lidarlens.field.v1`) and carried in links: `ui=field`, or `ui=research` / `ui=lab` (`mode` is already the visualisation number). A link without `ui=` follows the device's last choice.
+
+Field mode (`site/field.js`, a separate deferred asset `assets/field.<hash>.js`) hides the research panel and chrome and shows a bottom sheet built for cold fingers and gloves: every control at least 56 px, high contrast, one-handed at 360–420 px wide, also usable on desktop.
+
+- Target: tap ◎ Target then the map, or search for a place or grid reference. It is remembered across reloads and carried in links as `tgt=lat,lng`.
+- Done: a labelled ✓ Done button beside the readout clears the target. Within 25 m of it (or the GPS accuracy, up to 50 m) a full-width green "✓ Done: clear target" button is offered instead. Clearing collapses the readout so only the buttons remain, and stops the map re-framing: it stays where it is, with your GPS dot.
+- Your position: GPS (`watchPosition`, high accuracy) as a blue dot with its accuracy circle, on the same map as the target (red ring).
+- Readout: distance and bearing to the target in large text with an arrow, updated live. The map stays north-up. With a compass (`deviceorientationabsolute` on Android, `webkitCompassHeading` on iOS after a tap on "Use compass", which iOS needs for its permission prompt) the arrow turns with the phone so it points the way to go; without one, or if permission is refused, it points from north on the map and the readout says so. The numeric bearing is shown (true bearing; the compass is magnetic, about 1° different in southern England, deliberately not corrected). On narrow phones (≤390 px), or whenever distance, arrow and direction would not fit on one line, the degrees are dropped so the readout stays on one line.
+- Framing: you and the target are kept in view together, clear of the search bar and sheet. If they are too far apart to show both above zoom 12, it centres on you at zoom 15. Panning stops following; Recentre resumes it.
+- Views: Hillshade (mode 0, LiDAR full screen), VAT (Combined VAT, mode 10, full screen) and Old map (LiDAR put away, the first old map over the aerial).
+- What is it?: the What's here card for the target, or for your position if there is no target.
+- GPS blocked, unavailable or no fix: a banner explains and offers Retry; the map and target still work.
+- Leaving field mode restores the research visualisation, full-screen setting, old map and background that were in use.
+
+Tests: `tests/field.test.mjs` (desktop, 360 and 420 px phones with simulated GPS, GPS denied) and `tests/layout-flip.test.mjs`.
+
+## Phone or desktop layout at load (fixed 11 Nov 2026)
+
+The CSS layout follows the viewport live, but the panel (hidden on phones), the open sections and the lens position were set once by JS at load. A page that started while the viewport was wide or not yet final (Chrome prerender, a restored or background tab, rotation, folding screens) kept the desktop state under phone CSS, so a phone sometimes opened with the panel and every section open and the lens off-centre. `ui.js` now re-applies that state whenever the phone or sheet media query changes.
+
 ## What is live (10 Nov 2026, after the sky dome "inside the dome" release)
 
 Every live viewer is an exact build of this tree, with no hand-edited pages (full-file comparison of every built file against all four hosts, 10 Nov 2026):

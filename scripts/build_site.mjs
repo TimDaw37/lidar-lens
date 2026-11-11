@@ -40,6 +40,10 @@ else html=html.replace(/\n?<script src="view3d\.js"><\/script>/,'');
 if(fs.existsSync(SITE+'/viewshed.js')){const v=(await esbuild.transform(fs.readFileSync(SITE+'/viewshed.js','utf8'),{loader:'js',minify:true,target:TARGET,supported:{destructuring:true},legalComments:'inline'})).code;
   const vName='viewshed.'+hash(v)+'.js';fs.writeFileSync(OUT+'/assets/'+vName,v);html=html.replace('<script src="viewshed.js"></script>','<script defer src="assets/'+vName+'"></script>')}
 else html=html.replace(/\n?<script src="viewshed\.js"><\/script>/,'');
+// Field mode (site/field.js): the same arrangement again, so research mode's bundle is not touched by it.
+if(fs.existsSync(SITE+'/field.js')){const v=(await esbuild.transform(fs.readFileSync(SITE+'/field.js','utf8'),{loader:'js',minify:true,target:TARGET,supported:{destructuring:true},legalComments:'inline'})).code;
+  const vName='field.'+hash(v)+'.js';fs.writeFileSync(OUT+'/assets/'+vName,v);html=html.replace('<script src="field.js"></script>','<script defer src="assets/'+vName+'"></script>')}
+else html=html.replace(/\n?<script src="field\.js"><\/script>/,'');
 html=html.replace(/<script src="compat\.js"><\/script>\s*<script src="config\.js"><\/script>[\s\S]*?<script src="models\.js"><\/script>/,
   '<script src="assets/'+compatName+'"></script>\n<script defer src="config.js"></script>\n<script defer src="assets/'+jsName+'"></script>');
 let pre='';if(cfg){const c=fs.readFileSync(cfg,'utf8');const m=c.match(/url:\s*'(https:\/\/[^/'{]+)/);if(m)pre='<link rel="preconnect" href="'+m[1]+'">\n';

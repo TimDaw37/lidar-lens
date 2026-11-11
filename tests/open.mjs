@@ -2,9 +2,9 @@
 // With a second argument (a dist/ folder from scripts/build_site.mjs) the page and its assets/ come from that folder while
 // tiles and records still come from the live site, so a build can be tested before it is deployed.
 import {chromium} from 'playwright';import fs from 'node:fs';import path from 'node:path';
-export async function openSite(BASE,dist,viewport){
+export async function openSite(BASE,dist,viewport,ctxOpts){
   const b=await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader'],proxy:process.env.HTTPS_PROXY?{server:process.env.HTTPS_PROXY}:undefined});
-  const ctx=await b.newContext({viewport:viewport||{width:1300,height:900}});
+  const ctx=await b.newContext(Object.assign({viewport:viewport||{width:1300,height:900}},ctxOpts||{}));   // ctxOpts: e.g. isMobile, hasTouch, geolocation + permissions (field test)
   if(dist){dist=path.resolve(dist)+'/';await ctx.route(u=>u.href.startsWith(BASE),async r=>{const u=new URL(r.request().url());let f=null;
     if(u.pathname==='/'||u.pathname==='/index.html')f=dist+'index.html';else if(u.pathname.startsWith('/assets/')&&fs.existsSync(dist+u.pathname.slice(1)))f=dist+u.pathname.slice(1);
     if(!f)return r.continue();const live=await r.fetch().catch(()=>null),h=live?live.headers():{};delete h['content-length'];delete h['content-encoding'];

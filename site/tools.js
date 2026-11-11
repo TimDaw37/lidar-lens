@@ -47,7 +47,7 @@ const gores=$('gores');let lastNom=0,gotoMk=null;const geoCache=new Map();
 function showRes(items){gores.innerHTML='';items.forEach(it=>{const d=document.createElement('div');if(it.err){d.className='err';d.textContent=it.err}else{d.textContent=it.label;d.onclick=()=>{goto(it.lat,it.lng,it.z,it.name||it.label);gores.innerHTML=''}}gores.appendChild(d)})}
 function goto(lat,lng,z,label){if(typeof closeCard==='function')closeCard();map.setView([lat,lng],Math.max(map.getZoom(),z||16));if(gotoMk)map.removeLayer(gotoMk);
   gotoMk=L.circleMarker([lat,lng],{radius:7,color:'#2563eb',weight:3,fill:false,interactive:false}).addTo(map);setTimeout(()=>{if(gotoMk){map.removeLayer(gotoMk);gotoMk=null}},8000);
-  if(label)msg('Go to: '+label,2500)}
+  if(label)msg('Go to: '+label,2500);document.dispatchEvent(new CustomEvent('lensgoto',{detail:{lat,lng,label:label||''}}))}   // field mode takes a search result as its target
 function parseLatLng(q){const t=q.trim().toUpperCase().replace(/°/g,' ');const m=t.match(/^(-?\d+(?:\.\d+)?)\s*([NS])?\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*([EW])?$/);if(!m)return null;
   let a=+m[1],b=+m[3];if(m[2]==='S')a=-a;if(m[4]==='W')b=-b;return [a,b,!!(m[2]||m[4])]}
 async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
