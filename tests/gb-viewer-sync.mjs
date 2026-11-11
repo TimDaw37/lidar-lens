@@ -1,10 +1,12 @@
 // Regression gate for the live Great Britain viewer.
 // Building site/ with scripts/build_site.mjs and gb/config.js must reproduce the
 // assets on https://lidarlens.sarsen.org (checked 8 Nov 2026):
-//   assets/app.f072dc8d.js  (field mode, the phone-layout fix, the clicked-spot ring, the home-screen shortcut and the sky dome quote: trial on live-test 11 Nov 2026 (pt2094u), promoted with this commit;
+//   assets/app.1d944f95.js  (release 6: per-view looks and softened defaults in lens.js, the view reset button; trial on live-test
+//                            11 Nov 2026 (pt2112u). Until it is promoted, production still serves app.f072dc8d.js and app.6c9e6941.css.)
+//   Before: assets/app.f072dc8d.js  (field mode, the phone-layout fix, the clicked-spot ring, the home-screen shortcut and the sky dome quote: trial on live-test 11 Nov 2026 (pt2094u), promoted with this commit;
 //                            the main bundle changed only for layoutWatch in ui.js, the lensgoto event and the pin release in tools.js and setLensC in lens.js.
 //                            Before that: app.4131826f.js, main 183c590 .. 4e5c38d.)
-//   assets/app.6c9e6941.css
+//   assets/app.a852a2b4.css (release 6: the view reset button; before: app.6c9e6941.css)
 //   assets/compat.912d81c4.js
 // The config file bytes must stay gb/config.js. The build names that copy
 // assets/config.93c04c53.js (SHA-256 prefix). The page before 9 Nov 2026 asked for
@@ -24,8 +26,8 @@ const sha = b => crypto.createHash('sha256').update(b).digest('hex');
 const fail = m => { console.error(m); process.exit(1); };
 
 const EXPECT = {
-  'assets/app.f072dc8d.js': 'f072dc8d1440b7f13a64c13c41bd665d02a55d5bddd66986a7c2e98ed8749d33',
-  'assets/app.6c9e6941.css': '6c9e6941eddcec400c0cd23d302cc71ee01e4e33a46c3416a2b05f7cc8db098f',
+  'assets/app.1d944f95.js': '1d944f9552f18f7a645805c1a6cee747a29c69cd5e4a3df3a0e627e6d2fc9a04',
+  'assets/app.a852a2b4.css': 'a852a2b4704f5f327b251bd5f745b2bb2b3e2f3b5f0bf0c6ac759ce04df55f70',
   'assets/compat.912d81c4.js': '912d81c41e1699925ff6e4861a318a4d7c89c21decb126ac4fd301da43c3452c',
 };
 const CONFIG_SHA = '93c04c532fac284fde98bb6853d1b1c0d5adafca5da76b8e3fcf3650f98de5c2';
@@ -70,7 +72,7 @@ try {
   const builtCfg = fs.readFileSync(path.join(tmp, 'dist', 'assets', 'config.93c04c53.js'));
   if (!builtCfg.equals(cfgBytes)) fail('built config bytes differ from gb/config.js');
   const html = fs.readFileSync(path.join(tmp, 'dist', 'index.html'), 'utf8');
-  for (const name of ['assets/compat.912d81c4.js', 'assets/config.93c04c53.js', 'assets/app.f072dc8d.js', 'assets/app.6c9e6941.css']) {
+  for (const name of ['assets/compat.912d81c4.js', 'assets/config.93c04c53.js', 'assets/app.1d944f95.js', 'assets/app.a852a2b4.css']) {
     if (!html.includes(name)) fail('built index.html does not reference ' + name);
   }
   // 3D view: must stay a separate, additive script (the main bundle above must not change because of it)
@@ -94,7 +96,7 @@ try {
   }
   console.log('live-sw.js (gb/make_sw.mjs) and nhle_places.json (gb/places.json) match production');
   if (html.includes('config.198ea3a0.js')) fail('build renamed the config to the live MD5 filename; that step is not in this source');
-  console.log('gb viewer source reproduces live app.f072dc8d.js, app.6c9e6941.css and compat.912d81c4.js');
+  console.log('gb viewer source reproduces app.1d944f95.js, app.a852a2b4.css (release 6, live-test) and compat.912d81c4.js');
   console.log('config bytes match gb/config.js; build filename is config.93c04c53.js (SHA-256), production serves this build as-is since 9 Nov 2026');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
