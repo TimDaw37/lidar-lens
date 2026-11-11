@@ -87,6 +87,10 @@ Tests: `tests/field.test.mjs` (desktop, 360 and 420 px phones with simulated GPS
 
 The CSS layout follows the viewport live, but the panel (hidden on phones), the open sections and the lens position were set once by JS at load. A page that started while the viewport was wide or not yet final (Chrome prerender, a restored or background tab, rotation, folding screens) kept the desktop state under phone CSS, so a phone sometimes opened with the panel and every section open and the lens off-centre. `ui.js` now re-applies that state whenever the phone or sheet media query changes.
 
+## Clicked-spot ring (changed 11 Nov 2026)
+
+A click on the map (no tool on) pins the position readout there and draws a small red ring. It used to stay until Esc. It is now released, ring and all, as soon as the map is dragged or zoomed, or when the What's here card it marks is closed. A What's here click draws no red ring at all: its yellow ring marks the spot while the card is open; in field mode a tap does not pin at all (the field target ring is separate and stays until Done). Sharing a point is unaffected: `l=` is the lens position, not this ring. `tests/pin.test.mjs`.
+
 ## What is live (10 Nov 2026, after the sky dome "inside the dome" release)
 
 Every live viewer is an exact build of this tree, with no hand-edited pages (full-file comparison of every built file against all four hosts, 10 Nov 2026):

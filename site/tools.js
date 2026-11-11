@@ -114,10 +114,13 @@ function updWhere(ll,src){wPos=ll;wSrc=src;const f=fmtPos(ll);$('wlab').textCont
 // show the cursor position for a real mouse/pen; touch devices show the map centre instead
 // Pin: a click on the map (with no tool on) fixes the readout there, so the pointer can go to Copy without moving it.
 // Clicking again moves the pin; Esc or clicking the 'Pinned' label releases it.
-let pinned=false,pinMk=null;
-function pin(ll){pinned=true;updWhere(ll,'Pinned');if(!pinMk)pinMk=L.circleMarker(ll,{radius:6,color:'#d00',weight:2,fill:false,interactive:false}).addTo(map);else pinMk.setLatLng(ll);$('wlab').title='Click to release the pin (or press Esc)';$('wlab').style.cursor='pointer'}
+let pinned=false,pinMk=null,pinAt=0;
+function pin(ll,noRing){pinned=true;pinAt=Date.now();updWhere(ll,'Pinned');   // noRing: a What's here click, whose yellow ring already marks the spot
+  if(noRing){if(pinMk){map.removeLayer(pinMk);pinMk=null}}else if(!pinMk)pinMk=L.circleMarker(ll,{radius:6,color:'#d00',weight:2,fill:false,interactive:false}).addTo(map);else pinMk.setLatLng(ll);$('wlab').title='Click to release the pin (or press Esc)';$('wlab').style.cursor='pointer'}
 function unpin(){if(!pinned)return;pinned=false;if(pinMk){map.removeLayer(pinMk);pinMk=null}$('wlab').title='';$('wlab').style.cursor='';updWhere(map.getCenter(),'Centre')}
-map.on('click',e=>{if(LZ.tool&&LZ.tool()){if(LZ.tool()==='whatis')pin(e.latlng);return}pin(e.latlng)});   // a What's here? click also pins that spot, so Copy copies it
+map.on('click',e=>{if(document.body.classList.contains('field'))return;if(LZ.tool&&LZ.tool()){if(LZ.tool()==='whatis')pin(e.latlng,true);return}pin(e.latlng)});   // field mode has no readout to pin
+// The red pin ring must not linger (11 Nov 2026): moving the map, or closing the What's here card it marks, releases the pin.
+map.on('dragstart zoomstart',()=>{if(pinned&&Date.now()-pinAt>400)unpin()});   // a What's here? click also pins that spot, so Copy copies it
 $('wlab').addEventListener('click',unpin);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&pinned&&!(LZ.tool&&LZ.tool()))unpin()});
 LZ.pin=pin;LZ.unpin=unpin;
@@ -361,7 +364,7 @@ function describe(a){if(a.nodata)return 'No LiDAR data here (outside the tile co
   if(a.sign<0&&a.rim>Math.max(0.12,0.2*a.H)&&a.rimFrac>=0.55)parts.push('raised rim on '+Math.round(a.rimFrac*100)+'% of sides');
   if(a.regSlope>=3)parts.push('on ground sloping '+a.regSlope.toFixed(0)+'° to the '+compass(a.regAspect));
   return parts.join('; ')+'.'}
-function closeCard(){card.style.display='none';if(wiMk){map.removeLayer(wiMk);wiMk=null}}
+function closeCard(){card.style.display='none';if(wiMk){map.removeLayer(wiMk);wiMk=null;if(LZ.unpin)LZ.unpin()}}
 // Look here up: one link to Google AI Mode. Short sentence only (place name and OS grid ref), so Google does not treat it as a suspicious query.
 function plainBit(s,max){s=String(s||'').replace(/[’]/g,"'").replace(/[^A-Za-z0-9 '’-]+/g,' ').replace(/\s+/g,' ').trim();if(s.length>max)s=s.slice(0,max).replace(/\s+\S*$/,'').trim();return s}
 function lookHref(name,gr){let n=plainBit(name,60);if(/^(this spot|this place|this site)$/i.test(n))n='';const g=plainBit(String(gr||'').replace(/\s+/g,' '),18);
