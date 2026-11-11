@@ -24,7 +24,7 @@ const minTarget=p=>p.evaluate(()=>{const bad=[];document.querySelectorAll('#fld 
   await p.click('#fldviews button[data-v=vat]');await p.waitForTimeout(800);
   ok('VAT view: Combined VAT (mode 10), full screen',await p.evaluate(()=>document.getElementById('mode').value==='10'&&document.getElementById('fs').checked));
   await p.click('#fldviews button[data-v=old]');await p.waitForTimeout(800);
-  ok('Old map view: LiDAR put away, an old map chosen',await p.evaluate(()=>!document.getElementById('fs').checked&&document.getElementById('hist').value!==''&&document.body.classList.contains('fold')));
+  ok('Old map view: LiDAR put away, an old map chosen',await p.evaluate(()=>document.getElementById('hist').value!==''&&document.body.classList.contains('fold')));
   await p.click('#fldviews button[data-v=hs]');await p.waitForTimeout(600);
   ok('no target yet: the readout is collapsed so the map is uncluttered',!(await vis(p,'#fldread'))&&await vis(p,'#fldtgt'));
   // target by tapping the map
@@ -32,7 +32,7 @@ const minTarget=p=>p.evaluate(()=>{const bad=[];document.querySelectorAll('#fld 
   const pt=await p.evaluate(ll=>{const m=window.__lens.map,r=m.getContainer().getBoundingClientRect(),q=m.latLngToContainerPoint(ll);return [r.left+q.x,r.top+q.y]},STN);
   await p.mouse.click(pt[0],pt[1]);await p.waitForTimeout(600);
   {const s=await st(p);ok('tapping the map sets the target there',s.target&&Math.abs(s.target.lat-STN[0])<3e-4&&Math.abs(s.target.lng-STN[1])<3e-4&&!s.picking,JSON.stringify(s.target))}
-  ok('target marker drawn above the LiDAR (its pane stacks over the #gl canvas and lens)',await p.evaluate(()=>{const e=document.querySelector('.fldtgt');if(!e)return false;const pane=e.closest('.leaflet-pane,[class*=pane]')||e.parentElement,z=+getComputedStyle(pane).zIndex,r=e.getBoundingClientRect();return z>460&&r.width>=40&&getComputedStyle(e).display!=='none'}));
+  ok('target marker drawn above the LiDAR (its pane stacks over the #gl canvas and lens)',await p.evaluate(()=>{const e=document.querySelector('.fldtgt');if(!e)return false;const pane=e.closest('#fldclip')||e.closest('.leaflet-pane,[class*=pane]')||e.parentElement,z=+getComputedStyle(pane).zIndex,r=e.getBoundingClientRect();return z>460&&r.width>=40&&getComputedStyle(e).display!=='none'}));
   ok('link carries tgt=',/[#&]tgt=51\.17/.test(await p.evaluate(()=>{window.__lens.saveHashSoon();return new Promise(r=>setTimeout(()=>r(location.hash),900))})));
   // search sets the target
   await p.fill('#gotoq','SU 1224 4219');await p.press('#gotoq','Enter');await p.waitForTimeout(1500);

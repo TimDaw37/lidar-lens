@@ -7,8 +7,9 @@ export async function openSite(BASE,dist,viewport,ctxOpts){
   const ctx=await b.newContext(Object.assign({viewport:viewport||{width:1300,height:900}},ctxOpts||{}));   // ctxOpts: e.g. isMobile, hasTouch, geolocation + permissions (field test)
   if(dist){dist=path.resolve(dist)+'/';await ctx.route(u=>u.href.startsWith(BASE),async r=>{const u=new URL(r.request().url());let f=null;
     if(u.pathname==='/'||u.pathname==='/index.html')f=dist+'index.html';else if(u.pathname.startsWith('/assets/')&&fs.existsSync(dist+u.pathname.slice(1)))f=dist+u.pathname.slice(1);
+    else if(/^\/[\w.-]+\.(webmanifest|png|ico|svg)$/.test(u.pathname)&&fs.existsSync(dist+u.pathname.slice(1)))f=dist+u.pathname.slice(1);   // manifest and icons at the root
     if(!f)return r.continue();const live=await r.fetch().catch(()=>null),h=live?live.headers():{};delete h['content-length'];delete h['content-encoding'];
-    r.fulfill({status:200,headers:{...h,'content-type':f.endsWith('.html')?'text/html; charset=utf-8':f.endsWith('.css')?'text/css':'text/javascript; charset=utf-8'},body:fs.readFileSync(f)})})}
+    r.fulfill({status:200,headers:{...h,'content-type':f.endsWith('.html')?'text/html; charset=utf-8':f.endsWith('.css')?'text/css':f.endsWith('.webmanifest')?'application/manifest+json':f.endsWith('.png')?'image/png':f.endsWith('.svg')?'image/svg+xml':f.endsWith('.ico')?'image/x-icon':'text/javascript; charset=utf-8'},body:fs.readFileSync(f)})})}
   const p=await ctx.newPage(),errs=[];p.on('pageerror',e=>errs.push(e.message));
   const open=async hash=>{await p.goto(BASE+hash,{waitUntil:'load'});await p.waitForTimeout(2500);
     if(await p.evaluate(()=>!!(navigator.serviceWorker&&navigator.serviceWorker.controller))){await p.goto('about:blank');await p.goto(BASE+hash,{waitUntil:'load'})}

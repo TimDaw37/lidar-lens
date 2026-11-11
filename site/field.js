@@ -19,6 +19,7 @@ const CSS=
 'body.field #panel,body.field #toggle,body.field #modes,body.field #where,body.field #prof,body.field #mcard,body.field #vfh,body.field #titlebox h1,body.field #titlebox .sub,body.field #titlebox .xlinks,'+
 'body.field #myloc,body.field #gps,body.field #goto button[type=submit],body.field .leaflet-control-layers,body.field #lens .g,body.field #lens .h,body.field #fieldgo{display:none!important}'+
 'body.field.fold #lens,body.field.fold #gl{display:none!important}'+
+'body.field #lens{display:none!important}'+   // the LiDAR is full screen in field mode; the (invisible) lens disc sits on the target and must not widen the page
 'body.field #titlebox{width:min(460px,calc(100vw - 20px));box-sizing:border-box;padding:8px;border-radius:12px}'+
 'body.field #goto{display:flex!important;gap:8px;align-items:stretch;margin:0;width:100%}'+
 'body.field #gotoq{flex:1;min-width:0;width:auto!important;font-size:18px!important;min-height:56px!important;height:56px;box-sizing:border-box;padding:0 12px!important;border:2px solid #111!important;border-radius:10px!important;background:#fff;color:#111}'+
@@ -28,7 +29,8 @@ const CSS=
 '#fieldsw button{margin:0;width:auto;min-width:70px;padding:0 10px;border:0;border-radius:0;background:#fff;color:#111;font:700 15px system-ui,sans-serif;cursor:pointer;min-height:40px}'+
 '#fieldsw button[aria-pressed=true]{background:#111;color:#fff}'+
 'body.field #fieldsw button{min-height:52px;font-size:16px;min-width:76px}'+
-'#fldbig{flex-wrap:wrap;row-gap:0}'+
+'@media (max-width:700px){#fld{padding:8px 8px calc(8px + env(safe-area-inset-bottom))}#fld .row,#fldgps,#fldcmp{margin-top:6px!important}#fld .row{gap:6px}#fldread{min-height:56px}}'+
+'#fldbig{flex-wrap:wrap;row-gap:0}#fld #fldbig.lite{font-size:24px}'+
 '#fldbig.nodeg #flddir small{display:none}@media (max-width:440px){#fldbig{font-size:34px}#fld #fldclr{min-width:92px;padding:0 10px}}'+
 '@media (max-width:390px){#flddir small{display:none}#fldbig{font-size:32px;gap:8px}#fldbig small{font-size:18px}#fldarr{width:34px;height:34px}#fld #fldclr{min-width:84px;padding:0 8px}#fld button{font-size:16px;padding:0 4px;white-space:nowrap}#fld .row button svg,#fld .ico{display:none}}'+
 'body.field #fieldsw{flex:0 0 auto!important}body.field #goto #fieldsw button{position:static!important;top:auto!important;height:auto!important;min-height:52px!important;border-radius:0!important;padding:0 10px!important;font-size:16px!important}'+
@@ -48,8 +50,10 @@ const CSS=
 '#fld #fldclr{flex:none;width:auto;min-width:104px;padding:0 12px;background:transparent;color:#fff;border:2px solid #fff;font-size:18px}'+
 '#fld #flddone{display:flex;width:100%;margin-top:8px;min-height:64px;font-size:20px;background:#16a34a;border-color:#16a34a;color:#fff}'+
 '#fld [hidden],#fld[hidden]{display:none!important}'+
+'body.field .leaflet-control-zoom{display:block!important;position:fixed!important;right:10px;top:var(--fldtop,90px);margin:0!important;z-index:1000;border:2px solid #111!important;border-radius:10px!important;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.4)}'+
+'body.field .leaflet-control-zoom a{width:56px!important;height:56px!important;line-height:54px!important;font-size:30px!important;color:#111!important;background:#fff!important}'+
 '#fldcmp{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:15px;line-height:1.3}#fldcmp span{flex:1}#fld #fldcmpb{flex:none;width:auto;padding:0 14px}'+
-'#fldgps{margin-top:8px;padding:8px 10px;border:2px solid #f59e0b;border-radius:10px;font-size:15px;line-height:1.35;display:flex;gap:10px;align-items:center}#fldgps[hidden]{display:none}#fldgps span{flex:1}#fld #fldretry{flex:none;width:96px}'+
+'#fldgps{margin-top:8px;padding:0 0 0 10px;border:2px solid #f59e0b;border-radius:10px;font-size:16px;font-weight:700;display:flex;gap:6px;align-items:center;min-height:56px}#fldgps[hidden]{display:none}#fldgps span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#fld #fldretry{flex:none;width:auto;padding:0 12px;min-width:80px}#fld #fldgpsx{flex:none;width:56px;min-width:56px;background:transparent;color:#fff;border:0;font-size:24px}'+
 '.fldtgt{width:44px!important;height:44px!important;margin:-22px 0 0 -22px!important;border-radius:50%;border:4px solid #dc2626;box-shadow:0 0 0 3px #fff,0 0 8px rgba(0,0,0,.6);box-sizing:border-box;background:transparent}'+
 '.fldtgt::before,.fldtgt::after{content:"";position:absolute;background:#dc2626;left:50%;top:50%;transform:translate(-50%,-50%)}.fldtgt::before{width:4px;height:60px}.fldtgt::after{width:60px;height:4px}'+
 '.fldme{width:22px!important;height:22px!important;margin:-11px 0 0 -11px!important;border-radius:50%;background:#2563eb;border:4px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6);box-sizing:border-box}';
@@ -71,7 +75,7 @@ sw.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
 const fld=document.createElement('div');fld.id='fld';fld.hidden=true;fld.setAttribute('role','region');fld.setAttribute('aria-label','Field mode');
 fld.innerHTML='<div id="fldread"><div class="t" aria-live="polite"><div id="fldbig"></div><div id="fldsub"></div></div><button id="fldclr" type="button" title="Done: clear the target and leave the map as it is, to look at the LiDAR" hidden>&#x2713; Done</button></div>'+
   '<button id="flddone" type="button" title="Clear the target and leave the map as it is, to look at the LiDAR" hidden>&#x2713; Done: clear target</button>'+
-  '<div id="fldcmp" hidden><span>Turn the arrow with your phone, so it points the way to go.</span><button id="fldcmpb" type="button">Use compass</button></div><div id="fldgps" hidden><span id="fldgpst"></span><button id="fldretry" type="button">Retry</button></div>'+
+  '<div id="fldcmp" hidden><span>Turn the arrow with your phone, so it points the way to go.</span><button id="fldcmpb" type="button">Use compass</button></div><div id="fldgps" hidden><span id="fldgpst"></span><button id="fldretry" type="button">Retry</button><button id="fldgpsx" type="button" title="Hide this note" aria-label="Hide this note">&times;</button></div>'+
   '<div class="row" id="fldviews" role="group" aria-label="View">'+Object.entries(VIEWS).map(([k,v])=>'<button type="button" data-v="'+k+'" title="'+v.title+'">'+v.label+'</button>').join('')+'</div>'+
   '<div class="row"><button id="fldtgt" type="button" title="Set the target: tap this, then tap the map (or search for a place above)"><span class="ico">&#x25CE;</span> Target</button>'+
   '<button id="fldfit" type="button" title="Recentre: show you and the target together, and keep following"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="vertical-align:-4px"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5" stroke="currentColor" stroke-width="2.5"/></svg> Recentre</button>'+
@@ -97,7 +101,8 @@ const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 function selVal(id,v,ev){const e=$(id);if(!e)return;if(String(e.value)!==String(v)){e.value=String(v);e.dispatchEvent(new Event(ev||'change',{bubbles:true}))}}
 function setChk(id,v){const e=$(id);if(e&&e.checked!==v){e.checked=v;e.dispatchEvent(new Event('change',{bubbles:true}))}}
 function applyView(){const v=VIEWS[view]||VIEWS.hs;document.body.classList.toggle('fold',!!v.old);
-  if(v.old){setChk('fs',false);selVal('hist',histIds[0])}else{selVal('hist','');setChk('fs',true);selVal('mode',v.mode);selVal('mode',v.mode,'input')}
+  if(v.old){selVal('hist',histIds[0])}   // Old map: the LiDAR is put away (body.fold) and the old map shown; full screen and the visualisation are kept for coming back
+  else{selVal('hist','');setChk('fs',true);selVal('mode',v.mode);selVal('mode',v.mode,'input')}
   fld.querySelectorAll('#fldviews button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===view)));LZ.requestRender&&LZ.requestRender()}
 function setView(k){if(!VIEWS[k])return;view=k;store({view});applyView();LZ.saveHashSoon&&LZ.saveHashSoon()}
 
@@ -107,9 +112,10 @@ function restore(r){r=r||{mode:0,fs:false,hist:''};selVal('hist',r.hist||'');set
 
 // ---- markers, in a pane above the LiDAR canvas (which sits over the map's own panes), as View from here does ----
 const PANE='fieldPane';let pane=null,svgR=null;
-function ensurePane(){if(pane)return;pane=map.createPane(PANE);const mapPane=map.getPane('mapPane');document.body.appendChild(pane);
-  Object.assign(pane.style,{zIndex:'480',pointerEvents:'none',position:'fixed',margin:'0',width:'0',height:'0',overflow:'visible'});
-  const sync=()=>{const r=map.getContainer().getBoundingClientRect();pane.style.left=r.left+'px';pane.style.top=r.top+'px';pane.style.transform=mapPane.style.transform||'none';pane.style.transformOrigin=mapPane.style.transformOrigin||'0 0'};
+function ensurePane(){if(pane)return;pane=map.createPane(PANE);const mapPane=map.getPane('mapPane'),clip=document.createElement('div');clip.id='fldclip';document.body.appendChild(clip);clip.appendChild(pane);
+  Object.assign(clip.style,{zIndex:'480',pointerEvents:'none',position:'fixed',margin:'0',overflow:'hidden'});   // clipped to the map, so markers never widen the page
+  Object.assign(pane.style,{pointerEvents:'none',position:'absolute',left:'0',top:'0',margin:'0',width:'0',height:'0',overflow:'visible'});
+  const sync=()=>{const r=map.getContainer().getBoundingClientRect();Object.assign(clip.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'});pane.style.transform=mapPane.style.transform||'none';pane.style.transformOrigin=mapPane.style.transformOrigin||'0 0'};
   sync();map.on('move zoom resize moveend zoomend zoomanim viewreset',sync);map.on('move zoom',()=>requestAnimationFrame(sync));svgR=L.svg({pane:PANE,padding:0.5})}
 function drawMarks(){ensurePane();if(!on){[tgtMk,meMk,accMk].forEach(m=>m&&map.hasLayer(m)&&map.removeLayer(m));return}
   if(target){if(!tgtMk)tgtMk=L.marker([target.lat,target.lng],{icon:L.divIcon({className:'fldtgt',iconSize:[44,44]}),interactive:false,keyboard:false,pane:PANE});tgtMk.setLatLng([target.lat,target.lng]);if(!map.hasLayer(tgtMk))tgtMk.addTo(map)}
@@ -142,34 +148,46 @@ function fitDeg(big){big.classList.remove('nodeg');const k=[...big.children].fil
 function readout(){const big=$('fldbig'),sub=$('fldsub');let near=false;
   if(target&&me){const d=distBear(me,target).d;near=d<=Math.max(NEAR,Math.min(50,acc||0))}
   $('fldread').hidden=!target&&!picking;   // no target: the sheet collapses to the buttons, so the map is uncluttered
-  $('fldclr').hidden=!target||near;$('flddone').hidden=!near;$('fldcmp').hidden=!(compass==='needperm'&&target);
-  const gpsTxt=gpsState==='ok'?'GPS ±'+Math.round(acc)+' m':gpsState==='wait'?'Finding your position…':gpsState==='denied'?'Location blocked':gpsState==='off'?'':'No GPS fix';
+  $('fldclr').hidden=!target||near;$('flddone').hidden=!near;$('fldcmp').hidden=!(compass==='needperm'&&target&&me&&gpsState==='ok'&&matchMedia('(pointer:coarse)').matches);   // a phone or tablet, with a fix
+  const noteOn=(gpsState==='denied'||gpsState==='unavail'||gpsState==='insecure'||gpsState==='timeout')&&gpsHid!==gpsState;   // said by the note line instead
+  const gpsTxt=noteOn?'':gpsState==='ok'?'GPS ±'+Math.round(acc)+' m':gpsState==='wait'?'Finding your position…':gpsState==='denied'?'Location blocked':gpsState==='off'?'':'No GPS fix';
   if(target&&me){const r=distBear(me,target);const pt=PTS[Math.round(r.b/22.5)%16];
     big.innerHTML='<span id="flddist">'+fmtD(r.d)+'</span>'+ARROW+'<span id="flddir">'+pt+' <small>'+String(Math.round(r.b)%360).padStart(3,'0')+'°</small></span>';curB=r.b;turnArrow();fitDeg(big);
     sub.innerHTML='to the target'+(target.label?' <b>'+esc(target.label)+'</b>':'')+' · '+gpsTxt+(near?' · <b>you are there</b>':'')+' · '+(heading!=null?'arrow follows your phone':'arrow: north-up map'+(compass==='none'||compass==='denied'?' (no compass)':''));big.dataset.d=r.d.toFixed(1);big.dataset.b=r.b.toFixed(1)}
-  else if(target){big.innerHTML='<span>Target set</span>';delete big.dataset.d;
+  big.classList.toggle('lite',!(target&&me));   // no distance to show: a smaller heading keeps the sheet compact
+  if(target&&me){}else if(target){big.innerHTML='<span>Target set</span>';delete big.dataset.d;
     sub.innerHTML=(target.label?'<b>'+esc(target.label)+'</b> · ':'')+esc(gr(target))+(gpsTxt?' · '+gpsTxt:'')}
   else{big.innerHTML='<span>'+(picking?'Tap the map':'No target')+'</span>';delete big.dataset.d;
     sub.innerHTML=picking?'Tap where the monument is to set the target.':'Tap <b>&#x25CE; Target</b> then the map, or search above.'+(gpsTxt?' · '+gpsTxt:'')}
   const g=$('fldgps'),gt=$('fldgpst');
-  if(gpsState==='denied'||gpsState==='unavail'||gpsState==='insecure'||gpsState==='timeout'){g.hidden=false;
-    gt.textContent=gpsState==='denied'?'Location is blocked, so your position can’t be shown. Allow location for this site in your browser’s site settings, then tap Retry. The map and target still work.':
+  if((gpsState==='denied'||gpsState==='unavail'||gpsState==='insecure'||gpsState==='timeout')&&gpsHid!==gpsState){g.hidden=false;   // one short line; the full advice is its tooltip
+    gt.textContent=gpsState==='denied'?'Location blocked':gpsState==='insecure'?'No location on this page':gpsState==='timeout'?'No GPS fix yet':'Location unavailable';
+    g.title=gpsState==='denied'?'Location is blocked, so your position can’t be shown. Allow location for this site in your browser’s site settings, then tap Retry. The map and target still work.':
       gpsState==='insecure'?'Location needs a secure (https) page or a device that supports it. The map and target still work.':
       gpsState==='timeout'?'No GPS fix yet. Try in the open with a clear view of the sky, then tap Retry.':'Your position isn’t available on this device just now. Tap Retry to try again.';
     $('fldretry').hidden=gpsState==='insecure'}else g.hidden=true;
   $('fldtgt').classList.toggle('on',picking);$('fldtgt').innerHTML=picking?'Tap map…':'<span class="ico">&#x25CE;</span> Target';$('fldfit').classList.toggle('on',!follow&&!!target);sheetH()}
-function sheetH(){document.documentElement.style.setProperty('--fldh',(on?fld.offsetHeight:0)+'px')}
+function sheetH(){const d=document.documentElement.style;d.setProperty('--fldh',(on?fld.offsetHeight:0)+'px');const tb=$('titlebox');if(tb)d.setProperty('--fldtop',Math.round(tb.getBoundingClientRect().bottom+10)+'px')}
 
 // ---- framing: you and the target together where sensible, following you until you move the map ----
 function pad(){const mr=map.getContainer().getBoundingClientRect(),tb=$('titlebox'),fr=fld.getBoundingClientRect(),desk=fr.left>5;
-  const top=(tb?tb.getBoundingClientRect().bottom-mr.top:10)+24,bot=desk?24:mr.bottom-fr.top+24,left=desk?fr.right-mr.left+24:28;return {tl:[left,top],br:[28,bot]}}
+  const top=(tb?tb.getBoundingClientRect().bottom-mr.top:10)+24,bot=desk?24:mr.bottom-fr.top+24,left=desk?fr.right-mr.left+24:28;
+  const zc=document.querySelector('.leaflet-control-zoom'),zr=zc&&getComputedStyle(zc).display!=='none'?zc.getBoundingClientRect():null,right=zr&&zr.width?mr.right-zr.left+34:28;   // keep points clear of the zoom buttons
+  return {tl:[left,top],br:[right,bot]}}
 function inView(ll){const p=pad(),pt=map.latLngToContainerPoint(ll),s=map.getSize();return pt.x>=p.tl[0]&&pt.y>=p.tl[1]&&pt.x<=s.x-p.br[0]&&pt.y<=s.y-p.br[1]}
+// centre a point in the part of the map you can see (below the search bar, above or beside the sheet), not the middle of the screen
+function lensToTarget(){if(!on||!LZ.setLensC)return;let pt;if(target)pt=map.latLngToContainerPoint([target.lat,target.lng]);
+  else{const p=pad(),s=map.getSize();pt=L.point((p.tl[0]+s.x-p.br[0])/2,(p.tl[1]+s.y-p.br[1])/2)}LZ.setLensC(pt.x,pt.y);LZ.saveHashSoon&&LZ.saveHashSoon()}
+map.on('moveend zoomend resize',()=>{if(on)lensToTarget()});
+function centreIn(ll,z){const p=pad(),s=map.getSize(),cx=(p.tl[0]+s.x-p.br[0])/2,cy=(p.tl[1]+s.y-p.br[1])/2,pt=map.project(ll,z);
+  map.setView(map.unproject(pt.add([s.x/2-cx,s.y/2-cy]),z),z,{animate:false})}
 function frame(force){if(!on)return;const pts=[me,target&&L.latLng(target.lat,target.lng)].filter(Boolean);if(!pts.length)return;const p=pad();prog++;
   try{if(pts.length===2){const b=L.latLngBounds(pts),z=map.getBoundsZoom(b,false,L.point(p.tl[0]+p.br[0],p.tl[1]+p.br[1]));
       if(z<12){if(force||!inView(me))map.setView(me,15,{animate:false})}   // too far apart to see both: stay with you; the readout points the way
       else if(force||!inView(pts[0])||!inView(pts[1])||Math.min(18,z)>map.getZoom()+1)map.fitBounds(b,{paddingTopLeft:p.tl,paddingBottomRight:p.br,maxZoom:18,animate:false})}
-    else if(force||!inView(pts[0]))map.setView(pts[0],Math.max(map.getZoom(),16),{animate:false})}
-  finally{setTimeout(()=>prog--,50)}}
+    else if(force||!inView(pts[0]))centreIn(pts[0],Math.max(map.getZoom(),16))}
+  finally{setTimeout(()=>prog--,50)}lensToTarget()}
+let fldH0=0;if(window.ResizeObserver)new ResizeObserver(()=>{if(!on)return;sheetH();const h=fld.offsetHeight;if(Math.abs(h-fldH0)>2){fldH0=h;if(follow)frame(true)}}).observe(fld);   // the sheet grew (e.g. a GPS note): keep the target in view
 map.on('dragstart',()=>{if(on&&follow){follow=false;readout()}});
 
 // ---- GPS ----
@@ -178,14 +196,15 @@ function gpsStart(){if(!on)return;if(watch!=null)return;if(!navigator.geolocatio
   watch=navigator.geolocation.watchPosition(p=>{const first=!me;me=L.latLng(p.coords.latitude,p.coords.longitude);acc=p.coords.accuracy;gpsState='ok';drawMarks();readout();if(follow||first)frame(first)},
     e=>{gpsState=e.code===1?'denied':e.code===3?(me?'ok':'timeout'):'unavail';if(e.code===1){gpsStop()}readout()},{enableHighAccuracy:true,maximumAge:5000,timeout:20000})}
 function gpsStop(){if(watch!=null){try{navigator.geolocation.clearWatch(watch)}catch(e){}watch=null}}
-$('fldretry').onclick=()=>{gpsStop();gpsState='wait';readout();gpsStart()};
+let gpsHid=null;   // the note hidden with its ✕, until the GPS state changes
+$('fldretry').onclick=()=>{gpsHid=null;gpsStop();gpsState='wait';readout();gpsStart()};
+$('fldgpsx').onclick=()=>{gpsHid=gpsState;readout()};
 
 // ---- target ----
 function setTarget(ll,label){target={lat:+(+ll.lat).toFixed(6),lng:+(+ll.lng).toFixed(6),label:label||''};store({target});picking=false;drawMarks();readout();follow=true;frame(true);LZ.saveHashSoon&&LZ.saveHashSoon()}
 $('fldtgt').onclick=()=>{picking=!picking;if(picking&&LZ.tool&&LZ.tool())LZ.setTool(null);readout()};
 function clearTarget(){target=null;follow=false;picking=false;store({target:null});drawMarks();readout();LZ.saveHashSoon&&LZ.saveHashSoon()}   // and stop re-framing: the map stays where it is, with your GPS dot
-$('fldcmpb').onclick=cmpAsk;fld.addEventListener('click',e=>{if(compass==='needperm'&&e.target.id!=='fldcmpb')cmpAsk()},true);   // any tap on the sheet may ask (iOS needs a tap)
-$('fldclr').onclick=clearTarget;$('flddone').onclick=clearTarget;
+$('fldcmpb').onclick=cmpAsk;$('fldclr').onclick=clearTarget;$('flddone').onclick=clearTarget;
 map.on('click',e=>{if(!on||!picking)return;setTarget(e.latlng,'')});
 document.addEventListener('lensgoto',e=>{if(!on||!e.detail)return;setTarget(L.latLng(e.detail.lat,e.detail.lng),e.detail.label||'')});
 $('fldfit').onclick=()=>{follow=true;frame(true);readout()};
@@ -194,6 +213,16 @@ $('fldwi').onclick=()=>{picking=false;const ll=target?L.latLng(target.lat,target
 fld.querySelector('#fldviews').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setView(b.dataset.v)});
 
 // ---- switching ----
+// Home screen: in field mode the page offers the field app (field.webmanifest: LiDAR Field, start_url ./?ui=field, field icon) and keeps
+// ?ui=field in the address, so Add to Home screen opens field mode on Android (manifest) and iOS (current URL, apple-touch-icon).
+// Lab mode puts the main manifest, icon and address back.
+const MAN0=(document.querySelector('link[rel=manifest]')||{}).getAttribute?document.querySelector('link[rel=manifest]').getAttribute('href'):null,
+  ATI0=document.querySelector('link[rel=apple-touch-icon]')?document.querySelector('link[rel=apple-touch-icon]').getAttribute('href'):null;
+function homeScreen(f){const m=document.querySelector('link[rel=manifest]'),a=document.querySelector('link[rel=apple-touch-icon]');
+  if(m&&MAN0)m.setAttribute('href',f?'field.webmanifest':MAN0);if(a&&ATI0)a.setAttribute('href',f?'field-apple-touch-icon.png':ATI0);
+  let t=document.querySelector('meta[name=apple-mobile-web-app-title]');if(!t){if(!f)return;t=document.createElement('meta');t.name='apple-mobile-web-app-title';t.dataset.orig='';document.head.appendChild(t)}if(t.dataset.orig==null)t.dataset.orig=t.content||'';
+  if(f)t.content='LiDAR Field';else if(t.dataset.orig)t.content=t.dataset.orig;else t.remove();
+  try{const u=new URL(location.href);if(f)u.searchParams.set('ui','field');else u.searchParams.delete('ui');if(u.href!==location.href)history.replaceState(history.state,'',u.pathname+u.search+u.hash)}catch(e){}}
 function setField(f,user){f=!!f;if(f===on){if(user)store({on:f});return}
   if(f){if(user)store({research:snap()});else if(!load().research)store({research:{mode:S.mode===VIEWS.hs.mode||S.mode===10?0:S.mode,fs:false,hist:''}})}
   on=f;if(user)store({on:f});
@@ -203,13 +232,15 @@ function setField(f,user){f=!!f;if(f===on){if(user)store({on:f});return}
   else{gpsStop();cmpStop();document.body.classList.remove('fold');drawMarks();restore(load().research);placeSwitch();sheetH();
     if(!matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches){const p=$('panel');if(p)p.classList.remove('hide')}
     setTimeout(()=>{map.invalidateSize();LZ.resetLens&&LZ.resetLens()},60)}
-  LZ.saveHashSoon&&LZ.saveHashSoon();document.dispatchEvent(new CustomEvent('fieldmode',{detail:{on}}))}
+  homeScreen(on);LZ.saveHashSoon&&LZ.saveHashSoon();document.dispatchEvent(new CustomEvent('fieldmode',{detail:{on}}))}
 window.addEventListener('resize',()=>{placeSwitch();if(on){sheetH();if(follow)frame(false)}});
 
 // ---- links: ui=field (and tgt=lat,lng) while in field mode ----
 {const prev=window.__lensHashExtra;window.__lensHashExtra=function(p){if(prev)prev(p);if(on){p.set('ui','field');if(target)p.set('tgt',target.lat.toFixed(6)+','+target.lng.toFixed(6))}}}
 
-window.__field={on:()=>on,set:f=>setField(f,true),state:()=>({on,view,target,me:me&&{lat:me.lat,lng:me.lng},acc,gpsState,follow,picking,compass,heading}),setTarget:(lat,lng,label)=>setTarget(L.latLng(lat,lng),label),clearTarget:()=>clearTarget(),setView,frame:()=>frame(true),distBear};
-const want=H0.ui==='field'?true:(H0.ui==='research'||H0.ui==='lab')?false:!!load().on;
+window.__field={on:()=>on,set:f=>setField(f,true),state:()=>({on,view,target,me:me&&{lat:me.lat,lng:me.lng},acc,gpsState,follow,picking,compass,heading}),setTarget:(lat,lng,label)=>setTarget(L.latLng(lat,lng),label),clearTarget:()=>clearTarget(),setView,frame:()=>frame(true),distBear,pad};
+// ?ui=field (the home-screen shortcut and the field app's start_url; a query survives where a #hash may be dropped) or #ui=field
+const QUI=(()=>{try{return new URLSearchParams(location.search).get('ui')}catch(e){return null}})(),UI=H0.ui||QUI;
+const want=UI==='field'?true:(UI==='research'||UI==='lab')?false:!!load().on;
 placeSwitch();if(want)setField(true,false);
 })();

@@ -78,7 +78,13 @@ Field mode (`site/field.js`, a separate deferred asset `assets/field.<hash>.js`)
 - Framing: you and the target are kept in view together, clear of the search bar and sheet. If they are too far apart to show both above zoom 12, it centres on you at zoom 15. Panning stops following; Recentre resumes it.
 - Views: Hillshade (mode 0, LiDAR full screen), VAT (Combined VAT, mode 10, full screen) and Old map (LiDAR put away, the first old map over the aerial).
 - What is it?: the What's here card for the target, or for your position if there is no target.
-- GPS blocked, unavailable or no fix: a banner explains and offers Retry; the map and target still work.
+- GPS blocked, unavailable or no fix: a one-line note ("Location blocked") with Retry and ✕ to hide it; the full advice is its tooltip. The map and target still work.
+- Framing centres the target (or you and the target) in the part of the map you can see: below the search bar, above the sheet (beside it on desktop) and clear of the zoom buttons. It re-centres when the sheet changes height. The sheet is kept compact on phones (about a third of a 360×760 screen with the note).
+- Zoom: big (56 px) + and − buttons at the right, under the search bar, in field mode on every device.
+- Lens: the LiDAR is full screen in field mode; the lens centre (`l=`) is kept on the target, or the centre of the visible map with no target, and recomputed on move and resize, so it is right when you go back to Lab.
+- Old map shows the old map and puts the LiDAR away without changing full screen or the visualisation; Hillshade or VAT brings the full-screen LiDAR straight back.
+- The compass offer ("Use compass") appears only on a phone or tablet with a GPS fix and a target; only that button asks for permission.
+- Home screen: the main manifest (`site.webmanifest`, start_url unchanged) has a "LiDAR Field" / "Field" shortcut to `./?ui=field` with a field icon (96 and 192 px). In field mode the page points at `field.webmanifest` (LiDAR Field app, start_url and id `./?ui=field`), uses a field apple-touch-icon and title, and keeps `?ui=field` in the address, so Add to Home screen opens field mode on Android (manifest) and iOS (which uses the address). Lab mode puts the main manifest, icon and address back. A query is used because a #hash may be dropped.
 - Leaving field mode restores the research visualisation, full-screen setting, old map and background that were in use.
 
 Tests: `tests/field.test.mjs` (desktop, 360 and 420 px phones with simulated GPS, GPS denied) and `tests/layout-flip.test.mjs`.
