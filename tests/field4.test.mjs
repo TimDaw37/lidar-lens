@@ -7,7 +7,7 @@ const DIST=process.argv[3];let pass=0,fail=0;const ok=(n,c,i='')=>{c?pass++:fail
 const ME={latitude:51.17886,longitude:-1.83},PERTH=[56.3950,-3.4370],NEAR=[51.17886,-1.82623];
 // where a point sits on screen, and the visible map between the search bar and the sheet (or beside it on a desktop)
 const at=(p,ll)=>p.evaluate(ll=>{const m=window.__lens.map,mr=m.getContainer().getBoundingClientRect(),q=m.latLngToContainerPoint(ll),tb=document.getElementById('titlebox').getBoundingClientRect(),f=document.getElementById('fld').getBoundingClientRect(),desk=f.left>5;
-  const x=mr.left+q.x,y=mr.top+q.y,zc=document.querySelector('.leaflet-control-zoom'),zr=zc&&getComputedStyle(zc).display!=='none'?zc.getBoundingClientRect():null,box={l:desk?f.right:0,t:tb.bottom,r:zr&&zr.width?zr.left:innerWidth,b:desk?innerHeight:f.top};   // clear of the zoom buttons too
+  const x=mr.left+q.x,y=mr.top+q.y,zc=document.querySelector('.leaflet-control-zoom'),zr=zc&&getComputedStyle(zc).display!=='none'?zc.getBoundingClientRect():null,box={l:desk?f.right:0,t:tb.bottom,r:desk&&zr&&zr.width?zr.left:innerWidth,b:desk?innerHeight:f.top};   // on a desktop, clear of the zoom buttons too; on a phone the middle of the screen across (release 7)
   return {x,y,box,inside:x>box.l+10&&x<box.r-10&&y>box.t+10&&y<box.b-10,cy:(box.t+box.b)/2,cx:(box.l+box.r)/2}},ll);
 const st=p=>p.evaluate(()=>window.__field.state());
 for(const [w,h,touch] of [[360,760,1],[375,812,1],[1280,800,0]]){

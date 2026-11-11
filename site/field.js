@@ -63,7 +63,19 @@ const CSS=
 '#fldgps{margin-top:8px;padding:0 0 0 10px;border:2px solid #f59e0b;border-radius:10px;font-size:16px;font-weight:700;display:flex;gap:6px;align-items:center;min-height:56px}#fldgps[hidden]{display:none}#fldgps span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#fld #fldretry{flex:none;width:auto;padding:0 12px;min-width:80px}#fld #fldgpsx{flex:none;width:56px;min-width:56px;background:transparent;color:#fff;border:0;font-size:24px}'+
 '.fldtgt{width:44px!important;height:44px!important;margin:-22px 0 0 -22px!important;border-radius:50%;border:4px solid #dc2626;box-shadow:0 0 0 3px #fff,0 0 8px rgba(0,0,0,.6);box-sizing:border-box;background:transparent}'+
 '.fldtgt::before,.fldtgt::after{content:"";position:absolute;background:#dc2626;left:50%;top:50%;transform:translate(-50%,-50%)}.fldtgt::before{width:4px;height:60px}.fldtgt::after{width:60px;height:4px}'+
-'.fldme{width:22px!important;height:22px!important;margin:-11px 0 0 -11px!important;border-radius:50%;background:#2563eb;border:4px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6);box-sizing:border-box}';
+'.fldme{width:22px!important;height:22px!important;margin:-11px 0 0 -11px!important;border-radius:50%;background:#2563eb;border:4px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.6);box-sizing:border-box}'+
+// Wide phones (release 7, Tim pt2121u): an Android phone with a small "display size" is 440-480 CSS px wide, so each CSS px is
+// physically smaller than on a 360-412 px phone and fixed px controls look small. Above 440 px text grows up to 1.2x
+// (--fs, at 480 px) and button heights up to 1.1x (--hs), so the sheet stays compact; 440 px and under are unchanged.
+'@media (min-width:441px) and (max-width:700px){body.field{--fs:clamp(1px,calc(1px + (100vw - 440px) / 200),1.2px);--hs:clamp(1px,calc(1px + (100vw - 440px) / 400),1.1px)}'+
+  '#fld button{font-size:calc(18 * var(--fs));min-height:calc(56 * var(--hs))}#fld #fldviews button{font-size:calc(17 * var(--fs));min-height:calc(50 * var(--hs))}'+
+  '#fld #fldwi{font-size:calc(20 * var(--fs))}#fld #fldclr{font-size:calc(18 * var(--fs));min-width:calc(104 * var(--fs))}#fld #flddone{font-size:calc(20 * var(--fs));min-height:calc(64 * var(--hs))}'+
+  '#fld #fldbig{font-size:calc(38 * var(--fs))}#fld #fldbig.lite{font-size:calc(24 * var(--fs))}#fld #fldbig.tight{font-size:calc(28 * var(--fs))}#fld #fldbig small{font-size:calc(22 * var(--fs))}'+
+  '#fld #fldarr{width:calc(40 * var(--fs));height:calc(40 * var(--fs))}#fld #fldbig.tight #fldarr{width:calc(30 * var(--fs));height:calc(30 * var(--fs))}'+
+  '#fld #fldsub,#fld #fldcmp{font-size:calc(15 * var(--fs))}#fld #fldgps{font-size:calc(16 * var(--fs));min-height:calc(56 * var(--hs))}#fld #fldread,#fld #fldread .t.go{min-height:calc(56 * var(--hs))}'+
+  'body.field #gotoq{font-size:calc(18 * var(--fs))!important;min-height:calc(56 * var(--hs))!important;height:calc(56 * var(--hs))}body.field #gores{font-size:calc(17 * var(--fs))}'+
+  'body.field #goto #fieldsw button{font-size:calc(16 * var(--fs))!important;min-height:calc(52 * var(--hs))!important;min-width:calc(76 * var(--fs))}'+
+  'body.field .leaflet-control-zoom a{width:calc(56 * var(--hs))!important;height:calc(56 * var(--hs))!important;line-height:calc(54 * var(--hs))!important}}';
 if(!$('fieldcss')){const st=document.createElement('style');st.id='fieldcss';st.textContent=CSS;document.head.appendChild(st)}
 
 // ---- the Field / Research switch: in the panel header on a desktop, floating under the search bar on a phone,
@@ -193,10 +205,13 @@ function readout(){const big=$('fldbig'),sub=$('fldsub');let near=false;
 function sheetH(){const d=document.documentElement.style;d.setProperty('--fldh',(on?fld.offsetHeight:0)+'px');const tb=$('titlebox');if(tb)d.setProperty('--fldtop',Math.round(tb.getBoundingClientRect().bottom+10)+'px')}
 
 // ---- framing: you and the target together where sensible, following you until you move the map ----
-function pad(){const mr=map.getContainer().getBoundingClientRect(),tb=$('titlebox'),fr=fld.getBoundingClientRect(),desk=fr.left>5;
-  const top=(tb?tb.getBoundingClientRect().bottom-mr.top:10)+24,bot=desk?24:mr.bottom-fr.top+24,left=desk?fr.right-mr.left+24:28;
+function pad(){const mr=map.getContainer().getBoundingClientRect(),tb=$('titlebox'),gf=$('goto'),fr=fld.getBoundingClientRect(),desk=fr.left>5;
+  const tbb=tb?(gf&&gf.offsetHeight?Math.min(tb.getBoundingClientRect().bottom,gf.getBoundingClientRect().bottom+8):tb.getBoundingClientRect().bottom):10;   // an open list of search results does not count
+  const top=tbb-mr.top+24,bot=desk?24:mr.bottom-fr.top+24;let left=desk?fr.right-mr.left+24:28;
   const zc=document.querySelector('.leaflet-control-zoom'),zr=zc&&getComputedStyle(zc).display!=='none'?zc.getBoundingClientRect():null,right=zr&&zr.width?mr.right-zr.left+34:28;   // keep points clear of the zoom buttons
+  if(!desk){const m=Math.max(left,right);return {tl:[m,top],br:[m,bot]}}   // phone: the same margin both sides, so the centre is the middle of the screen
   return {tl:[left,top],br:[right,bot]}}
+function vcentre(){const p=pad(),s=map.getSize();return L.point((p.tl[0]+s.x-p.br[0])/2,(p.tl[1]+s.y-p.br[1])/2)}
 function inView(ll){const p=pad(),pt=map.latLngToContainerPoint(ll),s=map.getSize();return pt.x>=p.tl[0]&&pt.y>=p.tl[1]&&pt.x<=s.x-p.br[0]&&pt.y<=s.y-p.br[1]}
 // centre a point in the part of the map you can see (below the search bar, above or beside the sheet), not the middle of the screen
 function lensToTarget(){if(!on||!LZ.setLensC)return;let pt;if(target)pt=map.latLngToContainerPoint([target.lat,target.lng]);
@@ -204,14 +219,30 @@ function lensToTarget(){if(!on||!LZ.setLensC)return;let pt;if(target)pt=map.latL
 map.on('moveend zoomend resize',()=>{if(on)lensToTarget()});
 function centreIn(ll,z){const p=pad(),s=map.getSize(),cx=(p.tl[0]+s.x-p.br[0])/2,cy=(p.tl[1]+s.y-p.br[1])/2,pt=map.project(ll,z);
   map.setView(map.unproject(pt.add([s.x/2-cx,s.y/2-cy]),z),z,{animate:false})}
-function frame(force){if(!on)return;const pts=[me,target&&L.latLng(target.lat,target.lng)].filter(Boolean);if(!pts.length)return;const p=pad();prog++;
-  try{if(pts.length===2){const b=L.latLngBounds(pts),z=map.getBoundsZoom(b,false,L.point(p.tl[0]+p.br[0],p.tl[1]+p.br[1]));
-      if(z<12){if(force||!inView(me))map.setView(me,15,{animate:false})}   // too far apart to see both: stay with you; the readout points the way
-      else if(force||!inView(pts[0])||!inView(pts[1])||Math.min(18,z)>map.getZoom()+1)map.fitBounds(b,{paddingTopLeft:p.tl,paddingBottomRight:p.br,maxZoom:18,animate:false})}
-    else if(force||!inView(pts[0]))centreIn(pts[0],Math.max(map.getZoom(),16))}
-  finally{setTimeout(()=>prog--,50)}lensToTarget()}
-let fldH0=0;if(window.ResizeObserver)new ResizeObserver(()=>{if(!on)return;sheetH();const h=fld.offsetHeight;if(Math.abs(h-fldH0)>2){fldH0=h;if(follow)frame(true)}}).observe(fld);   // the sheet grew (e.g. a GPS note): keep the target in view
-map.on('dragstart',()=>{if(on&&follow){follow=false;readout()}});
+// frame(true): open, Recentre, a new target (may change zoom). frame(false): a GPS update while following. frame('keep'): the
+// layout changed (sheet height, rotation, URL bar): put the same thing back in the middle at the same zoom.
+// Far apart (both would need zoom < 12): you, in the middle of the visible map. Near: both, their midpoint in the middle.
+let anchor=null;   // what Go to target put in the middle; kept there through layout changes and the zoom buttons until the map is moved by hand
+const prg=f=>{prog++;try{f()}finally{setTimeout(()=>prog--,50)}};
+function mid(a,b){const z=map.getZoom();return map.unproject(map.project(a,z).add(map.project(b,z)).divideBy(2),z)}
+function frame(force){if(!on)return;const pts=[me,target&&L.latLng(target.lat,target.lng)].filter(Boolean);if(!pts.length)return;const p=pad(),hard=force===true;
+  prg(()=>{if(pts.length===2){const b=L.latLngBounds(pts),z=map.getBoundsZoom(b,false,L.point(p.tl[0]+p.br[0],p.tl[1]+p.br[1]));
+      if(z<12)centreIn(me,hard?15:map.getZoom());   // too far apart to see both: you, in the middle; the readout points the way
+      else if(hard||!inView(pts[0])||!inView(pts[1])||(force===false&&Math.min(18,z)>map.getZoom()+1))map.fitBounds(b,{paddingTopLeft:p.tl,paddingBottomRight:p.br,maxZoom:18,animate:false});
+      else centreIn(mid(pts[0],pts[1]),map.getZoom())}
+    else centreIn(pts[0],hard?Math.max(map.getZoom(),16):map.getZoom())});
+  lensToTarget()}
+function recentre(){if(!on)return;if(follow)frame('keep');else if(anchor){prg(()=>centreIn(anchor,map.getZoom()));lensToTarget()}}
+let rcT=null;const recentreSoon=()=>{clearTimeout(rcT);rcT=setTimeout(recentre,120)};
+map.on('resize',()=>{if(on)recentreSoon()});
+if(window.visualViewport)visualViewport.addEventListener('resize',()=>{if(on){map.invalidateSize();recentreSoon()}});
+map.on('zoomstart',()=>{if(on&&!prog)anchor=null});   // a pinch or wheel zoom moves the map by hand
+// the + and − buttons zoom about the middle of the visible map (Leaflet's own zoom about the middle of the screen, under the sheet)
+{const zc=document.querySelector('.leaflet-control-zoom');if(zc)zc.addEventListener('click',e=>{if(!on)return;const a=e.target.closest&&e.target.closest('a');if(!a)return;
+  const d=a.classList.contains('leaflet-control-zoom-in')?1:a.classList.contains('leaflet-control-zoom-out')?-1:0;if(!d)return;e.preventDefault();e.stopPropagation();
+  const z=Math.max(map.getMinZoom(),Math.min(map.getMaxZoom(),map.getZoom()+d));if(z!==map.getZoom())prg(()=>map.setZoomAround(vcentre(),z,{animate:false}))},true)}
+let fldH0=0;if(window.ResizeObserver)new ResizeObserver(()=>{if(!on)return;sheetH();const h=fld.offsetHeight;if(Math.abs(h-fldH0)>2){fldH0=h;recentre()}}).observe(fld);   // the sheet changed height (fonts, a GPS note): keep the same thing in the middle
+map.on('dragstart',()=>{if(!on)return;anchor=null;if(follow){follow=false;readout()}});
 
 // ---- GPS ----
 function gpsStart(){if(!on)return;if(watch!=null)return;if(!navigator.geolocation||!window.isSecureContext){gpsState='insecure';readout();return}
@@ -224,16 +255,16 @@ $('fldretry').onclick=()=>{gpsHid=null;gpsStop();gpsState='wait';readout();gpsSt
 $('fldgpsx').onclick=()=>{gpsHid=gpsState;readout()};
 
 // ---- target ----
-function setTarget(ll,label){target={lat:+(+ll.lat).toFixed(6),lng:+(+ll.lng).toFixed(6),label:label||''};store({target});picking=false;drawMarks();readout();follow=true;frame(true);LZ.saveHashSoon&&LZ.saveHashSoon()}
+function setTarget(ll,label){target={lat:+(+ll.lat).toFixed(6),lng:+(+ll.lng).toFixed(6),label:label||''};store({target});picking=false;drawMarks();readout();follow=true;anchor=null;frame(true);LZ.saveHashSoon&&LZ.saveHashSoon()}
 $('fldtgt').onclick=()=>{picking=!picking;if(picking&&LZ.tool&&LZ.tool())LZ.setTool(null);readout()};
-function clearTarget(){target=null;follow=false;picking=false;store({target:null});drawMarks();readout();LZ.saveHashSoon&&LZ.saveHashSoon()}   // and stop re-framing: the map stays where it is, with your GPS dot
+function clearTarget(){target=null;follow=false;anchor=null;picking=false;store({target:null});drawMarks();readout();LZ.saveHashSoon&&LZ.saveHashSoon()}   // and stop re-framing: the map stays where it is, with your GPS dot
 $('fldcmpb').onclick=cmpAsk;$('fldclr').onclick=clearTarget;$('flddone').onclick=clearTarget;
 map.on('click',e=>{if(!on||!picking)return;setTarget(e.latlng,'')});
 document.addEventListener('lensgoto',e=>{if(!on||!e.detail)return;setTarget(L.latLng(e.detail.lat,e.detail.lng),e.detail.label||'')});
-$('fldfit').onclick=()=>{follow=true;frame(true);readout()};
+$('fldfit').onclick=()=>{follow=true;anchor=null;frame(true);readout()};
 // tap the distance/bearing readout: show the target, however far away, in the part of the map you can see. Following stops,
 // so GPS updates don't pull the map back; Recentre (⌖) brings you back and starts following again.
-function goTarget(){if(!on||!target)return;follow=false;prog++;try{centreIn(L.latLng(target.lat,target.lng),Math.max(map.getZoom(),16))}finally{setTimeout(()=>prog--,50)}lensToTarget();readout()}
+function goTarget(){if(!on||!target)return;follow=false;anchor=L.latLng(target.lat,target.lng);prg(()=>centreIn(anchor,Math.max(map.getZoom(),16)));lensToTarget();readout()}
 {const t=fld.querySelector('#fldread .t');t.addEventListener('click',()=>{if(t.classList.contains('go'))goTarget()});
   t.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&t.classList.contains('go')){e.preventDefault();goTarget()}})}
 $('fldwi').onclick=()=>{picking=false;const ll=target?L.latLng(target.lat,target.lng):me;
@@ -261,12 +292,12 @@ function setField(f,user){f=!!f;if(f===on){if(user)store({on:f});return}
     if(!matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches){const p=$('panel');if(p)p.classList.remove('hide')}
     setTimeout(()=>{map.invalidateSize();LZ.resetLens&&LZ.resetLens()},60)}
   homeScreen(on);LZ.saveHashSoon&&LZ.saveHashSoon();document.dispatchEvent(new CustomEvent('fieldmode',{detail:{on}}))}
-window.addEventListener('resize',()=>{placeSwitch();if(on){sheetH();if(follow)frame(false)}});
+window.addEventListener('resize',()=>{placeSwitch();if(on){sheetH();recentreSoon()}});
 
 // ---- links: ui=field (and tgt=lat,lng) while in field mode ----
 {const prev=window.__lensHashExtra;window.__lensHashExtra=function(p){if(prev)prev(p);if(on){p.set('ui','field');if(target)p.set('tgt',target.lat.toFixed(6)+','+target.lng.toFixed(6))}}}
 
-window.__field={on:()=>on,set:f=>setField(f,true),goTarget:()=>goTarget(),state:()=>({on,view,target,me:me&&{lat:me.lat,lng:me.lng},acc,gpsState,follow,picking,compass,heading}),setTarget:(lat,lng,label)=>setTarget(L.latLng(lat,lng),label),clearTarget:()=>clearTarget(),setView,frame:()=>frame(true),distBear,pad};
+window.__field={on:()=>on,set:f=>setField(f,true),goTarget:()=>goTarget(),state:()=>({on,view,target,me:me&&{lat:me.lat,lng:me.lng},acc,gpsState,follow,picking,compass,heading}),setTarget:(lat,lng,label)=>setTarget(L.latLng(lat,lng),label),clearTarget:()=>clearTarget(),setView,frame:()=>frame(true),distBear,pad,vcentre:()=>vcentre(),anchor:()=>anchor};
 // ?ui=field (the home-screen shortcut and the field app's start_url; a query survives where a #hash may be dropped) or #ui=field
 const QUI=(()=>{try{return new URLSearchParams(location.search).get('ui')}catch(e){return null}})(),UI=H0.ui||QUI;
 const want=UI==='field'?true:(UI==='research'||UI==='lab')?false:!!load().on;
