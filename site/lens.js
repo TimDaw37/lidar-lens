@@ -88,14 +88,18 @@ const redRel=()=>isOD(S.mode)&&S.ramp==='redrel';   // optional: openness differ
 // published blend settings (Relief Visualization Toolbox, Apache 2.0); no RVT code is copied. VAT = hillshade, then slope (luminosity 50%), positive openness (overlay 50%),
 // sky-view factor (multiply 25%); 'general' and 'flat' terrain settings, then CVAT = 50% general over flat. Fixed sun 315°, true heights.
 const isCVAT=m=>m===10;
-// Per-mode starting look: Combined VAT opens a touch more contrasty and darker in the mid-tones than RVT's plain 0–1 scale.
-// Applied when a mode is chosen while Contrast and Gamma are still at the previous mode's starting values, so a user's own setting is kept.
+// Per-mode starting look (MODE_LOOK below): each view's own Contrast and Gamma the first time it is opened; see viewSet for
+// how a user's own setting is kept per view.
 const MODE_LEGEND={10:'Lighter: level or raised, open ground. Darker: steep slopes, ditches and hollows.',
   11:'Lighter: ridges, banks and rims. Darker: ditches, hollows and valleys. Mid grey: level ground or even slopes.',
   13:'Lighter: raised features in the chosen size range (banks, mounds). Darker: sunken ones (ditches, hollows). Mid grey: no relief at that scale.',
   14:'Red: stands out at the broad scale (50–500 m); green: medium (5–50 m); blue: small (1–5 m). Colours add, so white stands out at every scale and black at none.',
   12:'Lighter: points that look down on their surroundings (mounds, banks, rises). Darker: hollows, ditches and ground below higher ground.'};
-const MODE_LOOK={10:{ct:1.15,gm:1.15}};const lookOf=m=>MODE_LOOK[m]||{ct:1,gm:1};
+// Release 6 (11 Nov 2026): defaults reviewed at four sites (Stonehenge downland, Avebury, Savernake woodland, Boscastle coast),
+// measuring mean brightness and the share of the screen clipped to black or white (release6-defaults/ on the box). Views that
+// opened too dark or clipped heavily were softened: Contrast below 1 widens the 2–98% stretch, Gamma below 1 lifts the mid-tones
+// (above 1 darkens). Combined VAT keeps a touch of Tim's 9 Nov punch (Contrast 1.1) with neutral Gamma.
+const MODE_LOOK={0:{ct:0.85,gm:0.85},1:{ct:0.6,gm:1.2},2:{ct:0.85,gm:1},4:{ct:0.85,gm:1},8:{ct:0.85,gm:1},9:{ct:0.85,gm:1},10:{ct:1.1,gm:1},11:{ct:0.85,gm:0.85},12:{ct:0.85,gm:1},13:{ct:0.9,gm:0.85},14:{ct:1,gm:0.8}};const lookOf=m=>MODE_LOOK[m]||{ct:1,gm:1};
 const CVAT_R1=10,CVAT_R2=20;   // horizon radii in metres: RVT general 10 px, flat 20 px on a 1 m DTM
 function phoneLike(){return matchMedia('(pointer:coarse)').matches||matchMedia('(max-width:700px)').matches}
 function horizonN(){const p=phoneLike();if(R&&String(R.kind).indexOf('Canvas')===0)return p?{nd:8,ns:6}:{nd:12,ns:10};return p?{nd:8,ns:6}:{nd:16,ns:14}}
@@ -115,6 +119,15 @@ if(H0.ct===undefined&&H0.gm===undefined){const L0=lookOf(S.mode);S.ct=L0.ct;S.gm
 if(H0.ramp)S.ramp=H0.ramp; else S.ramp=MODE_RAMP[S.mode];
 if(H0.auto!==undefined)S.auto=H0.auto==='1'; if(H0.va!==undefined)S.va=H0.va==='1';if(H0.wat!==undefined)S.wat=H0.wat==='1';if(H0.wl!==undefined&&!isNaN(+H0.wl))S.wl=+H0.wl;if(H0.msh!==undefined)S.msh=H0.msh==='1'; if(H0.fs!==undefined)S.fs=H0.fs==='1'; if(H0.sm!==undefined)S.sm=H0.sm==='1'; if(H0.base)S.base=H0.base;
 const manual={}; // per-mode display range when auto contrast is off
+// Each view keeps its own look (release 6, Tim 11 Nov 2026): Contrast, Gamma, colour ramp and auto contrast are remembered per
+// visualisation for this visit. A view opens with its own default the first time and with the user's own setting when they come
+// back to it, so a tweak made for one view no longer carries over into the next. Sun, vertical exaggeration, radius, opacity and
+// lens size stay shared. Share links still set the look of the view they open in.
+const viewSet={};
+const viewDef=m=>({ct:lookOf(m).ct,gm:lookOf(m).gm,ramp:MODE_RAMP[m],auto:DEF.auto,va:DEF.va});
+function keepView(m){viewSet[m]={ct:S.ct,gm:S.gm,ramp:S.ramp,auto:S.auto,va:S.va}}
+function loadView(m){Object.assign(S,viewSet[m]||viewDef(m))}
+function atViewDef(){const d=viewDef(S.mode);return Math.abs(S.ct-d.ct)<1e-6&&Math.abs(S.gm-d.gm)<1e-6&&S.ramp===d.ramp&&(isCVAT(S.mode)?S.va===d.va:S.auto===d.auto)&&!manual[S.mode]}
 if(H0.mlo!==undefined&&H0.mhi!==undefined&&isFinite(+H0.mlo)&&isFinite(+H0.mhi))manual[S.mode]=[+H0.mlo,+H0.mhi];
 let start=CFG.start; if(H0.c){const p=H0.c.split(',').map(Number); if(p.length===3&&p.every(isFinite))start={lat:p[0],lng:p[1],z:p[2]}}
 // ---------- map ----------
@@ -588,9 +601,10 @@ function syncUI(){ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$
   const sv=(id,p,v)=>{const e=$(id);if(e)e[p]=v};sv('ramp','value',S.ramp);sv('auto','checked',isCVAT(S.mode)?S.va:S.auto);sv('fs','checked',S.fs);sv('wat','checked',S.wat);if($('waterbox'))$('waterbox').hidden=!S.fs;sv('msh','checked',S.msh);sv('sm','checked',S.sm);sv('azv','textContent',Math.round(S.az)+'°');drawDial();
   $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))&&!isCVAT(S.mode)?'':'none';if($('ve'))$('ve').disabled=trueHeights(S.mode);document.querySelectorAll('#modeparams .mp').forEach(b=>{b.hidden=+b.dataset.m!==S.mode});
   $('ramp').disabled=S.mode===5||S.mode===6;{const ro=document.querySelector('#ramp option[value="redrel"]');if(ro){ro.hidden=ro.disabled=!isOD(S.mode)}}{const so=document.querySelector('#ramp option[value="scales"]');if(so){so.hidden=so.disabled=!isMSTP(S.mode)}}if($('mts'))$('mts').disabled=mstpRGB();if($('ct'))$('ct').disabled=!S.auto&&!isCVAT(S.mode);const man=$('manrange');if(man)man.hidden=!!S.auto||isCVAT(S.mode);
+  {const vr=$('viewreset');if(vr)vr.disabled=atViewDef()}
   const lg=$('modelegend');if(lg){const t=MODE_LEGEND[S.mode];lg.textContent=isMSTP(S.mode)?mstpLegend():(t||'');lg.hidden=!t}
   if(!S.auto&&!isCVAT(S.mode)&&$('rlo')&&document.activeElement!==$('rlo')&&document.activeElement!==$('rhi')){const b=manual[S.mode]||MODE_RANGE[S.mode]||[0,1];$('rlo').value=b[0];$('rhi').value=b[1]}}
-ctl.forEach(([k,u,f])=>{const e=$(k);const on=()=>{const pm=S.mode;S[k]=f(e.value);if(k==='mode'){S.ramp=MODE_RAMP[S.mode];const a=lookOf(pm),b=lookOf(S.mode);if(S.mode!==pm&&Math.abs(S.ct-a.ct)<1e-6&&Math.abs(S.gm-a.gm)<1e-6){S.ct=b.ct;S.gm=b.gm}}if(k==='ls')placeLens();if(MP.some(q=>q[0]===k))scheduleMosaic();syncUI();requestRender();saveHashSoon()};e.addEventListener('input',on);e.addEventListener('change',on)});
+ctl.forEach(([k,u,f])=>{const e=$(k);const on=()=>{const pm=S.mode;S[k]=f(e.value);if(k==='mode'&&S.mode!==pm){keepView(pm);loadView(S.mode)}if(k==='ls')placeLens();if(MP.some(q=>q[0]===k))scheduleMosaic();syncUI();requestRender();saveHashSoon()};e.addEventListener('input',on);e.addEventListener('change',on)});
 $('ramp').onchange=e=>{S.ramp=e.target.value;if(isMSTP(S.mode))syncUI();requestRender();saveHashSoon()};
 if($('msh'))$('msh').onchange=e=>{S.msh=e.target.checked;requestRender();saveHashSoon()};
 $('auto').onchange=e=>{if(isCVAT(S.mode)){S.va=e.target.checked;syncUI();requestRender();saveHashSoon();return}S.auto=e.target.checked;if(!S.auto){const b=lastStretch||MODE_RANGE[S.mode]||[0,1];manual[S.mode]=[b[0],b[1]]}syncUI();requestRender();saveHashSoon()};
@@ -600,10 +614,12 @@ $('fs').onchange=e=>{S.fs=e.target.checked;$('waterbox').hidden=!S.fs;placeLens(
 $('wat').onchange=e=>{S.wat=e.target.checked;$('wl').disabled=!S.wat;if(!S.wat){$('wlv').textContent='';$('wlread').textContent=''}waterH=null;requestRender();saveHashSoon()};
 $('wl').oninput=e=>{S.wl=+e.target.value;drawOnly=true;requestRender();saveHashSoon()};
 $('sm').onchange=e=>{S.sm=e.target.checked;setSM(S.sm);saveHashSoon()};
-function resetDefaults(){clearTimeout(hT);const keep={base:S.base,sm:S.sm};Object.assign(S,DEF,keep);S.ramp=MODE_RAMP[S.mode];for(const k of Object.keys(manual))delete manual[k];
+function resetDefaults(){clearTimeout(hT);const keep={base:S.base,sm:S.sm};Object.assign(S,DEF,keep);S.ramp=MODE_RAMP[S.mode];S.ct=lookOf(S.mode).ct;S.gm=lookOf(S.mode).gm;for(const k of Object.keys(manual))delete manual[k];for(const k of Object.keys(viewSet))delete viewSet[k];
   const [w,h]=mapSize();S.ls=Math.min(DEF.ls,Math.max(150,Math.min(w,h)-40));lensC=defaultLensC();placeLens();syncUI();requestRender();
   try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}suppressHash=true;setTimeout(()=>{suppressHash=false},400);msg('Settings reset to defaults',1800)}
 $('reset').onclick=resetDefaults;window.__lens.reset=resetDefaults;
+function resetView(){delete viewSet[S.mode];delete manual[S.mode];loadView(S.mode);syncUI();requestRender();saveHashSoon()}
+if($('viewreset'))$('viewreset').onclick=resetView;window.__lens.resetView=resetView;window.__lens.viewState=()=>({mode:S.mode,ct:S.ct,gm:S.gm,ramp:S.ramp,auto:S.auto,va:S.va,atDefault:atViewDef(),kept:Object.keys(viewSet).map(Number)});
 $('toggle').onclick=()=>{$('panel').classList.toggle('hide');placeLens();requestRender()};
 // sun dial
 const dial=$('dial'),dx=dial.getContext('2d')||new Proxy({},{get:()=>()=>{},set:()=>true});

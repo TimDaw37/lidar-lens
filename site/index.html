@@ -74,6 +74,7 @@ html,body{margin:0;height:100%;touch-action:pan-x pan-y;overscroll-behavior:none
 @media (max-width:700px),(max-height:500px) and (pointer:coarse){#myloc{display:none}#gps{background:#eff6ff;border-color:#2563eb;color:#1e3a8a;font-weight:700;min-width:40px}#titlebox .xlinks{margin:0 0 4px}#goto input,#goto button{min-height:44px;font-size:16px}#goto button{min-width:44px}#titlebox{width:min(290px,calc(100vw - 110px));padding:5px 7px}#titlebox h1{font-size:13px}#card{left:6px;right:6px;width:auto;top:auto;bottom:6px;max-height:62%}#where{font-size:11px}.leaflet-control-attribution{font-size:9px;max-width:70vw}#panel{width:min(270px,calc(100% - 20px));max-height:55%;top:auto;bottom:24px;right:10px}#panel.hide{display:none}#toggle{display:block}#prof{bottom:auto;top:56px;height:140px}}
 
 #panel .ph{display:flex;align-items:center;justify-content:space-between}#panel .ph h1{margin:0}
+#panel #viewreset{width:auto;font-size:12px;padding:2px 8px;margin:4px 0 2px}#panel #viewreset:disabled{opacity:.45;cursor:default}
 #panel button.q{width:28px;height:28px;padding:0;border-radius:50%;font-weight:700;margin:0;flex:none}
 #panel details.sec{border-top:1px solid #e5e7eb;margin-top:6px;padding-top:4px}#panel details.sec>summary{font-weight:600;cursor:pointer;padding:4px 0;font-size:13px}
 #swatches{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}#swatches button{flex:1 0 30%;height:16px;min-width:0;padding:0;margin:0;border:2px solid transparent;border-radius:3px;cursor:pointer}#swatches button.sel{border-color:#111}
@@ -211,6 +212,7 @@ body:has(#card[style*="block"]) #modes{display:none}
  </div>
  <label for="ct">Contrast <span class="v" id="ctv"></span></label><input type="range" id="ct" min="0.25" max="5" step="0.05" title="Contrast">
  <label for="gm">Gamma <span class="v" id="gmv"></span></label><input type="range" id="gm" min="0.3" max="3" step="0.05" title="Brightens or darkens mid-tones">
+ <button type="button" id="viewreset" title="Put Contrast, Gamma, colour ramp and auto contrast back to this view's own defaults (other views keep their settings)">&#x21BA; Default look for this view</button>
  <label for="op">LiDAR opacity over aerial <span class="v" id="opv"></span></label><input type="range" id="op" min="0" max="1" step="0.05" title="See the aerial photo through the LiDAR">
  <label for="ls">Lens size <span class="v" id="lsv"></span></label><input type="range" id="ls" min="150" max="600" step="10" title="Lens diameter in pixels">
  <div class="row" style="margin-top:6px"><label style="margin:0" title="LiDAR over the whole map (F)"><input type="checkbox" id="fs"> LiDAR full screen</label></div>
