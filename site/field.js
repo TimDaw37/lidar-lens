@@ -33,6 +33,7 @@ const CSS=
 'body.field #fieldsw button{min-height:52px;font-size:16px;min-width:76px}'+
 '@media (max-width:700px){#fld{padding:8px 8px calc(8px + env(safe-area-inset-bottom))}#fld .row,#fldgps,#fldcmp{margin-top:6px!important}#fld .row{gap:6px}#fldread{min-height:56px}}'+
 '#fldbig{flex-wrap:wrap;row-gap:0}#fld #fldbig.lite{font-size:24px}'+
+'#fld #fldbig.tight{font-size:28px;gap:6px}#fld #fldbig.tight #fldarr{width:30px;height:30px}'+
 '#fldbig.nodeg #flddir small{display:none}@media (max-width:440px){#fldbig{font-size:34px}#fld #fldclr{min-width:92px;padding:0 10px}}'+
 '@media (max-width:390px){#flddir small{display:none}#fldbig{font-size:32px;gap:8px}#fldbig small{font-size:18px}#fldarr{width:34px;height:34px}#fld #fldclr{min-width:84px;padding:0 8px}#fld button{font-size:16px;padding:0 4px;white-space:nowrap}#fld .row button svg,#fld .ico{display:none}#fld #fldviews{gap:5px}#fld #fldviews button{font-size:15px;padding:0 2px;min-height:50px}}'+
 'body.field #fieldsw{flex:0 0 auto!important}body.field #goto #fieldsw button{position:static!important;top:auto!important;height:auto!important;min-height:52px!important;border-radius:0!important;padding:0 10px!important;font-size:16px!important}'+
@@ -47,6 +48,8 @@ const CSS=
 '#fld button.on,#fld button[aria-pressed=true]{background:#f59e0b;border-color:#f59e0b;color:#111}'+
 '#fld #fldwi{flex:1.6;background:#facc15;border-color:#facc15;font-size:20px}#fld #fldwi.on{background:#f59e0b;border-color:#f59e0b}'+
 '#fldread{display:flex;align-items:center;gap:10px;min-height:64px}#fldread .t{flex:1;min-width:0}'+
+'#fldread .t.go{position:relative;align-self:stretch;display:flex;flex-direction:column;justify-content:center;min-height:56px;box-sizing:border-box;padding:2px 14px 2px 8px;margin:0 -10px 0 -8px;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28);cursor:pointer;-webkit-tap-highlight-color:transparent}'+   // tap the readout to see the target
+'#fldread .t.go::after{content:"\\203A";position:absolute;right:3px;top:50%;transform:translateY(-52%);font:700 26px system-ui,sans-serif;opacity:.7}#fldread .t.go #fldbig:not(.tight){column-gap:8px}#fldread .t.go:active{background:rgba(255,255,255,.14)}#fldread .t.go:focus-visible{outline:3px solid #f59e0b}'+
 '#fldbig{display:flex;align-items:center;gap:10px;font-weight:800;font-size:38px;line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap}'+
 '#fldbig small{font-size:22px;font-weight:700}#fldarr{width:40px;height:40px;flex:none;transition:transform .3s}#fldarr.cmp{transition:none}'+
 '#fldsub{font-size:15px;color:#e5e7eb;margin-top:3px;line-height:1.3}#fldsub b{color:#fff}'+
@@ -93,7 +96,7 @@ fld.innerHTML='<div id="fldread"><div class="t" aria-live="polite"><div id="fldb
   '<div id="fldcmp" hidden><span>Turn the arrow with your phone, so it points the way to go.</span><button id="fldcmpb" type="button">Use compass</button></div><div id="fldgps" hidden><span id="fldgpst"></span><button id="fldretry" type="button">Retry</button><button id="fldgpsx" type="button" title="Hide this note" aria-label="Hide this note">&times;</button></div>'+
   '<div class="row" id="fldviews" role="group" aria-label="View">'+Object.entries(VIEWS).map(([k,v])=>'<button type="button" data-v="'+k+'" title="'+v.title+'">'+v.label+'</button>').join('')+'</div>'+
   '<div class="row"><button id="fldtgt" type="button" title="Set the target: tap this, then tap the map (or search for a place above)"><span class="ico">&#x25CE;</span> Target</button>'+
-  '<button id="fldfit" type="button" title="Recentre: show you and the target together, and keep following"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="vertical-align:-4px"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5" stroke="currentColor" stroke-width="2.5"/></svg> Recentre</button>'+
+  '<button id="fldfit" type="button" title="Recentre: back to where you are (with the target too when it is near), and keep following"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="vertical-align:-4px"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5" stroke="currentColor" stroke-width="2.5"/></svg> Recentre</button>'+
   '<button id="fldwi" type="button" title="What is it? Records and a best guess for the target (or where you are)">What is it?</button></div>';
 document.body.appendChild(fld);
 L.DomEvent.disableClickPropagation(fld);L.DomEvent.disableScrollPropagation(fld);
@@ -160,7 +163,8 @@ function cmpStart(){if(compass==='denied')return;if(typeof DeviceOrientationEven
   needAsk=typeof DeviceOrientationEvent.requestPermission==='function';cmpListen()}
 function cmpAsk(){if(compass!=='needperm')return;DeviceOrientationEvent.requestPermission().then(r=>{if(r==='granted'){cmpStop();needAsk=false;cmpListen()}else{compass='denied'}readout()},()=>{compass='denied';readout()})}
 // keep the readout on one line: if distance, arrow and direction would wrap, drop the degrees (always on narrow phones, via CSS)
-function fitDeg(big){big.classList.remove('nodeg');const k=[...big.children].filter(e=>e.offsetWidth);if(k.length>1&&k[k.length-1].offsetTop>k[0].offsetTop+4)big.classList.add('nodeg')}
+function fitDeg(big){big.classList.remove('nodeg','tight');const k=[...big.children].filter(e=>e.offsetWidth),wraps=()=>k.length>1&&k[k.length-1].offsetTop>k[0].offsetTop+4;
+  if(wraps())big.classList.add('nodeg');if(wraps())big.classList.add('tight')}   // still two lines (e.g. "589 km N" at 360 px): a size smaller
 function readout(){const big=$('fldbig'),sub=$('fldsub');let near=false;
   if(target&&me){const d=distBear(me,target).d;near=d<=Math.max(NEAR,Math.min(50,acc||0))}
   $('fldread').hidden=!target&&!picking;   // no target: the sheet collapses to the buttons, so the map is uncluttered
@@ -182,7 +186,10 @@ function readout(){const big=$('fldbig'),sub=$('fldsub');let near=false;
       gpsState==='insecure'?'Location needs a secure (https) page or a device that supports it. The map and target still work.':
       gpsState==='timeout'?'No GPS fix yet. Try in the open with a clear view of the sky, then tap Retry.':'Your position isn’t available on this device just now. Tap Retry to try again.';
     $('fldretry').hidden=gpsState==='insecure'}else g.hidden=true;
-  $('fldtgt').classList.toggle('on',picking);$('fldtgt').innerHTML=picking?'Tap map…':'<span class="ico">&#x25CE;</span> Target';$('fldfit').classList.toggle('on',!follow&&!!target);sheetH()}
+  $('fldtgt').classList.toggle('on',picking);$('fldtgt').innerHTML=picking?'Tap map…':'<span class="ico">&#x25CE;</span> Target';$('fldfit').classList.toggle('on',!follow&&!!target);
+  {const t=fld.querySelector('#fldread .t'),go=!!target&&!picking;t.classList.toggle('go',go);if(go){t.tabIndex=0;t.title='Tap to show the target on the map (Recentre brings you back)'}else{t.removeAttribute('tabindex');t.removeAttribute('title')}
+    if(!t._ro&&window.ResizeObserver){let lw=0;t._ro=new ResizeObserver(()=>{const w=t.clientWidth;if(w&&w!==lw){lw=w;fitDeg($('fldbig'))}});t._ro.observe(t)}}   // refit when the sheet settles or rotates
+  sheetH()}
 function sheetH(){const d=document.documentElement.style;d.setProperty('--fldh',(on?fld.offsetHeight:0)+'px');const tb=$('titlebox');if(tb)d.setProperty('--fldtop',Math.round(tb.getBoundingClientRect().bottom+10)+'px')}
 
 // ---- framing: you and the target together where sensible, following you until you move the map ----
@@ -224,6 +231,11 @@ $('fldcmpb').onclick=cmpAsk;$('fldclr').onclick=clearTarget;$('flddone').onclick
 map.on('click',e=>{if(!on||!picking)return;setTarget(e.latlng,'')});
 document.addEventListener('lensgoto',e=>{if(!on||!e.detail)return;setTarget(L.latLng(e.detail.lat,e.detail.lng),e.detail.label||'')});
 $('fldfit').onclick=()=>{follow=true;frame(true);readout()};
+// tap the distance/bearing readout: show the target, however far away, in the part of the map you can see. Following stops,
+// so GPS updates don't pull the map back; Recentre (⌖) brings you back and starts following again.
+function goTarget(){if(!on||!target)return;follow=false;prog++;try{centreIn(L.latLng(target.lat,target.lng),Math.max(map.getZoom(),16))}finally{setTimeout(()=>prog--,50)}lensToTarget();readout()}
+{const t=fld.querySelector('#fldread .t');t.addEventListener('click',()=>{if(t.classList.contains('go'))goTarget()});
+  t.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&t.classList.contains('go')){e.preventDefault();goTarget()}})}
 $('fldwi').onclick=()=>{picking=false;const ll=target?L.latLng(target.lat,target.lng):me;
   if(ll&&LZ.whatIs){if(LZ.tool&&LZ.tool())LZ.setTool(null);LZ.whatIs(ll)}else if(LZ.setTool){LZ.setTool(LZ.tool&&LZ.tool()==='whatis'?null:'whatis')}readout()};
 fld.querySelector('#fldviews').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setView(b.dataset.v)});
@@ -254,7 +266,7 @@ window.addEventListener('resize',()=>{placeSwitch();if(on){sheetH();if(follow)fr
 // ---- links: ui=field (and tgt=lat,lng) while in field mode ----
 {const prev=window.__lensHashExtra;window.__lensHashExtra=function(p){if(prev)prev(p);if(on){p.set('ui','field');if(target)p.set('tgt',target.lat.toFixed(6)+','+target.lng.toFixed(6))}}}
 
-window.__field={on:()=>on,set:f=>setField(f,true),state:()=>({on,view,target,me:me&&{lat:me.lat,lng:me.lng},acc,gpsState,follow,picking,compass,heading}),setTarget:(lat,lng,label)=>setTarget(L.latLng(lat,lng),label),clearTarget:()=>clearTarget(),setView,frame:()=>frame(true),distBear,pad};
+window.__field={on:()=>on,set:f=>setField(f,true),goTarget:()=>goTarget(),state:()=>({on,view,target,me:me&&{lat:me.lat,lng:me.lng},acc,gpsState,follow,picking,compass,heading}),setTarget:(lat,lng,label)=>setTarget(L.latLng(lat,lng),label),clearTarget:()=>clearTarget(),setView,frame:()=>frame(true),distBear,pad};
 // ?ui=field (the home-screen shortcut and the field app's start_url; a query survives where a #hash may be dropped) or #ui=field
 const QUI=(()=>{try{return new URLSearchParams(location.search).get('ui')}catch(e){return null}})(),UI=H0.ui||QUI;
 const want=UI==='field'?true:(UI==='research'||UI==='lab')?false:!!load().on;
