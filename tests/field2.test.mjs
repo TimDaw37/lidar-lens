@@ -81,4 +81,13 @@ if(DIST){const rd=f=>JSON.parse(fs.readFileSync(path.join(DIST,f),'utf8'));let m
   ok('no JS errors (home screen)',errs.length===0,errs.join(' | ').slice(0,200));await b.close()}
 {const {b,p,open}=await openSite(BASE,DIST,{width:1300,height:900});await open('#c=51.1789%2C-1.8262%2C16');
   ok('Lab page (main app) keeps site.webmanifest and its own address',await p.evaluate(()=>document.querySelector('link[rel=manifest]').getAttribute('href')==='site.webmanifest'&&!location.search));await b.close()}
+// 7. Wiltshire's 3D-model boxes (yellow rectangles over Stonehenge and elsewhere) must not catch a tap meant to set the target
+{const {b,p,open,errs}=await openSite(BASE,DIST,{width:1300,height:900});await open('#c=51.1789%2C-1.8262%2C15&ui=field');await p.waitForTimeout(1500);
+  ok('3D-model boxes and pins hidden in field mode',await p.evaluate(()=>[...document.querySelectorAll('.mbox,.mpin')].every(e=>getComputedStyle(e).display==='none')));
+  await p.click('#fldtgt');const ll=[51.1800,-1.8300];
+  const pt=await p.evaluate(ll=>{const m=window.__lens.map,r=m.getContainer().getBoundingClientRect(),q=m.latLngToContainerPoint(ll);return [r.left+q.x,r.top+q.y]},ll);
+  await p.mouse.click(pt[0],pt[1]);await p.waitForTimeout(600);
+  const t=await p.evaluate(()=>window.__field.state().target);
+  ok('a tap inside a 3D-model box sets the target',t&&Math.abs(t.lat-ll[0])<3e-4&&Math.abs(t.lng-ll[1])<3e-4,JSON.stringify(t));
+  ok('no JS errors (model boxes)',errs.length===0,errs.join(' | ').slice(0,200));await b.close()}
 console.log(pass+' passed, '+fail+' failed');process.exit(fail?1:0);

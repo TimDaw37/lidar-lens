@@ -5,6 +5,8 @@ const BASE=(process.argv[2]||'').replace(/\/?$/,'/');if(!/^https?:/.test(BASE)){
 let pass=0,fail=0;const ok=(n,c,i='')=>{c?pass++:fail++;console.log((c?'PASS ':'FAIL ')+n+(i?' '+i:''))};
 const {b,p,errs,open}=await openSite(BASE,process.argv[3]);
 const SH='#c=51.1789%2C-1.8262%2C16&l=51.1789%2C-1.8262&ui=research';await open(SH);
+// Wiltshire's 3D-model boxes cover Stonehenge and open their own card on a click; switch that layer off so the click reaches the map
+await p.evaluate(()=>{const c=document.getElementById('mshow');if(c&&c.checked){c.checked=false;c.dispatchEvent(new Event('change'))}});
 const ring=c=>p.evaluate(c=>[...document.querySelectorAll('.leaflet-pane path')].filter(e=>e.getAttribute('stroke')===c).length,c);
 const red=()=>p.evaluate(()=>[...document.querySelectorAll('.leaflet-overlay-pane path,.leaflet-pane path')].filter(e=>e.getAttribute('stroke')==='#d00').length);
 const at=ll=>p.evaluate(ll=>{const m=window.__lens.map,r=m.getContainer().getBoundingClientRect(),q=m.latLngToContainerPoint(ll);return [r.left+q.x,r.top+q.y]},ll);
