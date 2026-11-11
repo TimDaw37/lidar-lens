@@ -60,13 +60,26 @@ async function decode(blob){if(!dcan){dcan=document.createElement('canvas');dcan
   dctx.clearRect(0,0,256,256);dctx.drawImage(im,0,0);if(url)URL.revokeObjectURL(url);if(im.close)im.close();
   return dctx.getImageData(0,0,256,256).data}
 // One tile as RGBA, or null where there is none. The live worker answers 503 while its downloads are queued behind the lens.
-async function getTile(z,x,y,q,run){const u=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)+(q||'');
-  for(let t=0;t<6;t++){if(run.dead)return null;let r=null;try{r=await fetch(u,CFG.xo?{mode:'cors'}:undefined)}catch(e){r=null}
-    if(r&&r.ok){try{return await decode(await r.blob())}catch(e){return null}}
-    if(r&&r.status!==503&&r.status!==429)return null;await sleep(1500)}
+// Every tile has a deadline (TILE_MS, both live-worker steps together; TRY_MS per request): a request that never answers
+// is given up and that tile counts as no data, like the sea or a missing tile, so the sweep always runs.
+const TILE_MS=20000,TRY_MS=9000;
+async function getTile(z,x,y,q,run,until){const u=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)+(q||'');
+  const late=()=>{run.slow=(run.slow||0)+1;return null};
+  for(let t=0;t<6;t++){if(run.dead)return null;const left=until-Date.now();if(left<=0)return late();
+    const ac=window.AbortController?new AbortController():null,ms=Math.min(TRY_MS,left);let hung=false;
+    const tm=setTimeout(()=>{hung=true;if(ac)ac.abort()},ms);
+    // without AbortController (very old browsers) a race stands in for the abort
+    const lim=p=>ac?p:Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
+    const o=ac?{signal:ac.signal}:{};if(CFG.xo)o.mode='cors';
+    let r=null;try{r=await lim(fetch(u,o))}catch(e){r=null}
+    if(r&&r.ok&&!hung){try{const d=await decode(await lim(r.blob()));clearTimeout(tm);return d}catch(e){clearTimeout(tm);return hung?late():null}}
+    clearTimeout(tm);
+    if(hung)continue;   // that request hung: ask again while the tile's time lasts
+    if(r&&r.status!==503&&r.status!==429)return null;await sleep(Math.min(1500,Math.max(0,until-Date.now())))}
   return null}
 // On new ground the live worker first answers zoom 16-17 with a 4 m tile and makes the 1 m tile behind it; asking again gets the fine one.
-async function tileFor(z,x,y,run){if(LC.live&&z>=16){await getTile(z,x,y,'',run);return getTile(z,x,y,'?fine=1',run)}return getTile(z,x,y,'',run)}
+async function tileFor(z,x,y,run){const until=Date.now()+TILE_MS;
+  if(LC.live&&z>=16){await getTile(z,x,y,'',run,until);if(Date.now()>=until)return null;return getTile(z,x,y,'?fine=1',run,until)}return getTile(z,x,y,'',run,until)}
 async function loadRings(ll,run,onProgress){
   const defs=RINGS.map(([z,from,to,step])=>{z=Math.min(z,CFG.maxz);const mpp=mppAt(ll.lat,z),p=map.project(ll,z),pad=to/mpp+3;
     const x0=Math.floor((p.x-pad)/256),x1=Math.floor((p.x+pad)/256),y0=Math.floor((p.y-pad)/256),y1=Math.floor((p.y+pad)/256);
@@ -172,7 +185,7 @@ function summary(){const S=cur.S;let seen=0,all=0,open=0,none=0,dmin=Infinity,dm
   const gr=cur.gr?cur.gr+', ':'';cur.seenKm2=seen/1e6;cur.groundKm2=all/1e6;
   $('vfhgr').textContent=cur.gr||'';$('vfhsum').textContent='Eye '+(S.z0+S.eye).toFixed(1)+' m OD · '+(seen/1e6).toFixed(2)+' km² in view ('+(all?Math.round(100*seen/all):0)+'% of '+(all/1e6).toFixed(0)+' km² within '+fmtD(S.range)+') · skyline '+(dmax?fmtD(dmin)+'–'+fmtD(dmax)+' away':'not found');$('vfhsum').title='Ground '+S.z0.toFixed(1)+' m, eye '+(S.z0+S.eye).toFixed(1)+' m above datum. Ground in view: '+(seen/1e6).toFixed(2)+' km² of the '+(all/1e6).toFixed(0)+' km² with LiDAR within '+fmtD(S.range)+'.';
   const deg=n=>Math.round(n*STEP)+'°';
-  $('vfhwarn').textContent=(open?'⚠ Skyline uncertain on '+deg(open)+' (amber on the chart). ':'')+(none?'No ground data on '+deg(none)+'.':'');$('vfhwarn').title=open?'On '+deg(open)+' of the compass the skyline is in the last tenth of the range or the LiDAR stops short: higher ground further off may form the true skyline.':''}
+  $('vfhwarn').textContent=(open?'⚠ Skyline uncertain on '+deg(open)+' (amber on the chart). ':'')+(none?'No ground data on '+deg(none)+'.':'')+(cur.slow?(none?' ':'')+cur.slow+' tile'+(cur.slow>1?'s':'')+' did not arrive in time and count as no data.':'');$('vfhwarn').title=open?'On '+deg(open)+' of the compass the skyline is in the last tenth of the range or the LiDAR stops short: higher ground further off may form the true skyline.':''}
 function clear(keepTool){runSeq++;if(busy)busy.dead=true;busy=null;if(cur){cur.imgs.forEach(l=>map.removeLayer(l));(cur.lines||[]).forEach(l=>map.removeLayer(l))}cur=null;box.hidden=true;
   $('vfhread').textContent='';LZ.saveHashSoon&&LZ.saveHashSoon();document.dispatchEvent(new CustomEvent('viewshed',{detail:null}));if(!keepTool&&LZ.tool()==='viewfrom')LZ.setTool(null)}
 
@@ -184,7 +197,7 @@ async function run(ll){ll=L.latLng(ll);ensurePane();clear(true);const seq=runSeq
   const S=sweep(rings);
   if(!S){LZ.msg('View from here: there is no LiDAR height at that spot',4500);return null}
   const rast=rings.map((r,i)=>raster(S,i));let gr='';try{const en=LZ.osgb.ll2en(ll.lat,ll.lng);gr=LZ.osgb.gridRef(en[0],en[1],8)}catch(e){}
-  cur={ll,S,rast,imgs:[],lines:[],gr};LZ.msg('',0);
+  cur={ll,S,rast,imgs:[],lines:[],gr,slow:job.slow||0};LZ.msg('',0);
   box.hidden=false;box.style.bottom=$('prof')&&$('prof').style.display==='block'?'264px':'';
   drawOverlays();drawSkyline();summary();drawChart(null);$('vfhread').textContent='Move over the map or the chart to read the skyline on any bearing.';
   setBtn(LZ.tool()==='viewfrom');LZ.saveHashSoon&&LZ.saveHashSoon();document.dispatchEvent(new CustomEvent('viewshed',{detail:api.state()}));return api.state()}
@@ -217,7 +230,7 @@ window.addEventListener('resize',()=>{if(cur)drawChart(null)});
 // share link: vp=lat,lng
 {const prev=window.__lensHashExtra;window.__lensHashExtra=function(p){if(prev)prev(p);if(cur)p.set('vp',cur.ll.lat.toFixed(5)+','+cur.ll.lng.toFixed(5));const V3=window.__view3d,c=$('v3dskyon');if(V3&&V3.isOpen&&V3.isOpen()&&c&&c.checked){p.set('sky',1);const k=V3.sky&&V3.sky(),s=k&&k.state&&k.state();if(s&&!s.inside&&!s.standing)p.set('dome','out')}}}
 const api={run,clear:()=>{clear();setBtn(false)},sweep,raster,RANGE,EYE,
-  state:()=>cur?{ll:cur.ll,gridRef:cur.gr,z0:cur.S.z0,eye:cur.S.eye,k:cur.S.k,range:cur.S.range,step:STEP,alt:cur.S.alt,dist:cur.S.dist,hgt:cur.S.hgt,flag:cur.S.flag,seenKm2:cur.seenKm2,groundKm2:cur.groundKm2,_S:cur.S,_rast:cur.rast}:null};
+  state:()=>cur?{ll:cur.ll,gridRef:cur.gr,z0:cur.S.z0,eye:cur.S.eye,k:cur.S.k,range:cur.S.range,step:STEP,alt:cur.S.alt,dist:cur.S.dist,hgt:cur.S.hgt,flag:cur.S.flag,seenKm2:cur.seenKm2,groundKm2:cur.groundKm2,slowTiles:cur.slow,_S:cur.S,_rast:cur.rast}:null};
 window.__viewshed=api;
 {const v=LZ.H0&&LZ.H0.vp,m=v&&String(v).match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
   const wantSky=LZ.H0&&LZ.H0.sky==='1'&&!!window.__view3d;
