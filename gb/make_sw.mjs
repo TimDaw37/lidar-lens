@@ -6,6 +6,26 @@
 // test relay and a "live TEST" header. Checked 10 Nov 2026: output is byte-identical to the live-sw.js served by production and
 // live-test.
 import fs from 'node:fs';import path from 'node:path';
+// ewLow: zoom 8-12 tiles that cross the Scotland / England border get both pipelines (the Scottish overview and the England/Wales
+// tile), each filling the other's empty pixels; other tiles go to the country under their centre as before (route1). Zoom 6-7 come from a
+// small all-GB overview (gbov/), so the whole of GB on screen is a few dozen tiles, not hundreds of zoom 8 ones
+const EWLOW=`
+function straddles(z, x, y) { const n = 2 ** z; let s = 0; for (let j = 0; j <= 4; j++) for (let i = 0; i <= 4; i++) s += inScot(tile2lat(y + j / 4, n), tile2lng(x + i / 4, n)) ? 1 : 0; return s > 0 && s < 25 }
+async function ewPart(z, x, y, ev) { if (z < MINZ) { const r = await fetch(new URL(\`ewov/\${z}/\${x}/\${y}.png\`, self.registration.scope)); return r.ok ? r : none() } return tile(z, x, y, ev) }
+async function scPart(z, x, y) { const r = await fetch(new URL(\`terrain/\${z}/\${x}/\${y}.webp\`, self.registration.scope)); return r.ok ? r : none() }
+async function ewPx(res) { if (!res || res.status !== 200) return null; const bm = await createImageBitmap(await res.clone().blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+  const cv = new OffscreenCanvas(256, 256), g = cv.getContext('2d', { willReadFrequently: true }); g.drawImage(bm, 0, 0); if (bm.close) bm.close(); return g.getImageData(0, 0, 256, 256) }
+async function route(z, x, y, ev) {
+  if (z < 8) { if (z < 6) return none(); try { const r = await fetch(new URL(\`gbov/\${z}/\${x}/\${y}.png\`, self.registration.scope)); return r.ok ? r : none() } catch (e) { return busy() } }   // zoom 6-7: all-GB overview (gb/make_gbov.py)
+  if (z > 12 || !straddles(z, x, y)) return route1(z, x, y, ev);
+  const [a, b] = await Promise.all([scPart(z, x, y).catch(() => null), ewPart(z, x, y, ev).catch(() => null)]);
+  const A = await ewPx(a).catch(() => null), B = await ewPx(b).catch(() => null);
+  if (!A || !B) return A ? a : B ? b : (b && b.status === 503 ? b : none());
+  const d = A.data, e = B.data; for (let i = 0; i < d.length; i += 4) if (d[i + 3] < 128 && e[i + 3] >= 128) { d[i] = e[i]; d[i + 1] = e[i + 1]; d[i + 2] = e[i + 2]; d[i + 3] = 255 }
+  const cv = new OffscreenCanvas(256, 256); cv.getContext('2d').putImageData(A, 0, 0);
+  return new Response(await cv.convertToBlob({ type: 'image/png' }), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400', 'X-Live': 'border' } });
+}
+`;
 export default function makeSW(cfgPath){
   const ROOT=path.resolve(path.dirname(new URL(import.meta.url).pathname),'..'),rd=f=>fs.readFileSync(path.join(ROOT,f),'utf8');
   const test=/live-test/.test(path.basename(cfgPath));let e=rd('site/live-sw.js');
@@ -28,4 +48,12 @@ export default function makeSW(cfgPath){
   // GEM-15 fallback (gb/gem15-route.js): only for a config with a `fallback` block (production and live-test); others are unchanged
   if(/\n\s*fallback\s*:\s*\{/.test(fs.readFileSync(cfgPath,'utf8'))){const a='e.respondWith(route(+m[1], +m[2], +m[3], e))';if(out.split(a).length!==2)throw new Error('make_sw: route call not found');
     out=out.replace(a,()=>'e.respondWith(GEM.route(+m[1], +m[2], +m[3], e))')+rd('gb/gem15-route.js')}
+  // England and Wales zoomed out (config `ewLow`, live TEST): live tiles from zoom ewLow.minzoom (64 m blocks, the coarsest the relay
+  // makes) and, below that, a small overview built once from the same blocks (gb/ewov/, served at ewov/{z}/{x}/{y}.png)
+  const ew=fs.readFileSync(cfgPath,'utf8').match(/\n\s*ewLow\s*:\s*\{\s*minzoom\s*:\s*(\d+)/);
+  if(ew){const mz=+ew[1],a='const MINZ = 13, MAXZ = 17;',b='  return tile(z, x, y, ev);\n}',r0='async function route(z, x, y, ev) {';
+    if(out.split(a).length!==2||out.split(b).length!==2||out.split(r0).length!==2)throw new Error('make_sw: ewLow anchors not found');
+    out=out.replace(a,()=>'const MINZ = '+mz+', MAXZ = 17;   // ewLow: England and Wales live from zoom '+mz+' (was 13)')
+      .replace(b,()=>'  if (z < MINZ) { if (z < 8) return none(); try { return await ewPart(z, x, y, ev) } catch (e) { return busy() } }   // ewLow overview\n'+b)
+      .replace(r0,()=>'async function route1(z, x, y, ev) {')+EWLOW}
   return out}
