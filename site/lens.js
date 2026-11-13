@@ -250,9 +250,10 @@ const SW_WAIT=!!(LC.live&&('serviceWorker' in navigator)&&!navigator.serviceWork
 function tileRange(z){const p1=map.project(CFG.bounds[1],z),p0=map.project(CFG.bounds[0],z);
   return {x0:Math.floor(Math.min(p0.x,p1.x)/256),x1:Math.floor(Math.max(p0.x,p1.x)/256),y0:Math.floor(Math.min(p0.y,p1.y)/256),y1:Math.floor(Math.max(p0.y,p1.y)/256)}}
 // GEM-15 marker (blue = 2 mod 4) read from the tile itself, so the note and credit also show when the tile comes from a cache and the worker sends no message
-let gemCv=null;function gemScan(k,img){if(typeof FB==='undefined'||!FB||FB.has(k))return;try{if(!gemCv){gemCv=document.createElement('canvas');gemCv.width=gemCv.height=256}
-  const g=gemCv.getContext('2d',{willReadFrequently:true});g.clearRect(0,0,256,256);g.drawImage(img,0,0);const d=g.getImageData(0,0,256,256).data;
-  for(let i=0;i<d.length;i+=4)if(d[i+3]>=128&&(d[i+2]&3)===2){FB.add(k);fbCheck();return}}catch(e){}}
+let gemCv=null;function gemScan(k,img){if(typeof FB==='undefined'||!FB||FB.get(k))return;try{if(!gemCv){gemCv=document.createElement('canvas');gemCv.width=gemCv.height=256}
+  const g=gemCv.getContext('2d',{willReadFrequently:true});g.clearRect(0,0,256,256);g.drawImage(img,0,0);const d=g.getImageData(0,0,256,256).data;let c=null;
+  for(let i=0;i<d.length;i+=4)if(d[i+3]>=128&&(d[i+2]&3)===2){const p=i>>2;(c||(c=new Uint16Array(256)))[((p>>12)<<4)|((p&255)>>4)]++}   // GEM-15 pixel counts in 16x16 cells of 16 px
+  if(c){FB.set(k,c);fbCheck()}else if(FB.has(k)){FB.set(k,new Uint16Array(256));fbCheck()}}catch(e){}}
 function getTile(z,x,y,cb){if(SW_WAIT)return null;const k=z+'/'+x+'/'+y;let t=tileCache.get(k);
   if(t){if(t.ok)return t.img; if(!t.failed&&cb)t.cbs.push(cb); return null}
   const img=new Image();if(CFG.xo)img.crossOrigin=CFG.xo;t={img,ok:false,failed:false,cbs:cb?[cb]:[]};tileCache.set(k,t);img.decoding='async';
@@ -527,15 +528,20 @@ function pokeLens(){const w=lensWait;if(!w)return;for(const [z,x,y] of w.tiles)i
 let lastFocus='';
 // GEM-15 fallback (LC.fallback {label, attribution, about}): tiles the live worker filled from a coarse non-LiDAR model where no open
 // LiDAR exists. The lens tones those pixels sepia (FIN shader) and, while any lens tile holds them, a note says so and the credit shows.
-var FB=new Set(),fbOn=false;   // var: placeLens may run before this line
+var FB=new Map(),fbOn=false,fbA=0;   // var: placeLens may run before this line. tile key -> GEM-15 pixel counts in 16x16 cells (gemScan), or null = told by the worker, not read yet
 if(LC.fallback){const st=document.createElement('style');st.textContent='#fbnote{position:absolute;z-index:1001;left:50%;bottom:58px;transform:translateX(-50%);background:rgba(58,34,4,.88);color:#ffe0b0;border:1px solid #f0a030;padding:4px 10px;border-radius:6px;font:12px/1.35 system-ui,sans-serif;max-width:min(92vw,560px);text-align:center;pointer-events:none}#fbnote[hidden]{display:none}#fbnote .fs{display:none}@media (max-width:700px),(max-height:500px){#fbnote{bottom:150px;font-size:11.5px;padding:3px 8px}#fbnote .fl{display:none}#fbnote .fs{display:inline}}html[data-fb="1"] #lens:not(.fs){box-shadow:0 0 0 2px #f0a030,0 0 0 4px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.5)}';document.head.appendChild(st)}
-function fbCheck(){if(!LC.fallback||!FB)return;const w=MZ;let on=false;
-  if(w&&lensC)for(let j=0;j<w.ny&&!on;j++)for(let i=0;i<w.nx&&!on;i++){const x=w.x0+i,y=w.y0+j;if(FB.has(w.zt+'/'+x+'/'+y)&&(S.fs||tileInLens(w.zt,x,y)))on=true}
+function fbIn(zt,x,y,c){if(S.fs||!lensC)return true;if(!c)return tileInLens(zt,x,y);   // GEM-15 inside the lens circle (not in the tiles fetched around it), and more than a sliver at the rim
+  const sc=Math.pow(2,map.getZoom()-zt),tl=map.containerPointToLayerPoint([0,0]).add(map.getPixelOrigin()),r=S.ls/2,cs=16*sc;   // (t2183u: Lerwick)
+  for(let q=0;q<256;q++)if(c[q]){const x0=(x*256+(q&15)*16-tl.x)*sc,y0=(y*256+(q>>4)*16-tl.y)*sc;
+    if(Math.hypot(x0+cs/2-lensC[0],y0+cs/2-lensC[1])<=r&&(fbA+=c[q]*sc*sc)>=Math.max(300,r*r*0.016))return true}   // cell centre in the lens; about 0.5% of the lens area
+  return false}
+function fbCheck(){if(!LC.fallback||!FB)return;const w=MZ;let on=false;fbA=0;
+  if(w&&lensC)for(let j=0;j<w.ny&&!on;j++)for(let i=0;i<w.nx&&!on;i++){const x=w.x0+i,y=w.y0+j,k=w.zt+'/'+x+'/'+y;if(FB.has(k)&&fbIn(w.zt,x,y,FB.get(k)))on=true}
   if(on===fbOn)return;fbOn=on;let el=$('fbnote');
   if(!el){el=document.createElement('div');el.id='fbnote';el.setAttribute('role','status');el.innerHTML='<span class="fl">'+LC.fallback.label+'</span><span class="fs">'+(LC.fallback.short||LC.fallback.label)+'</span>';document.body.appendChild(el)}
   el.hidden=!on;document.documentElement.dataset.fb=on?'1':'';
   if(LC.fallback.attribution){if(on)map.attributionControl.addAttribution(LC.fallback.attribution);else map.attributionControl.removeAttribution(LC.fallback.attribution)}}
-if(LC.live&&navigator.serviceWorker)navigator.serviceWorker.addEventListener('message',e=>{const d=e.data||{};if(d.fb&&LC.fallback){FB.add(d.fb);fbCheck()}
+if(LC.live&&navigator.serviceWorker)navigator.serviceWorker.addEventListener('message',e=>{const d=e.data||{};if(d.fb&&LC.fallback){if(!FB.has(d.fb)){FB.set(d.fb,null);const t=tileCache.get(d.fb);if(t&&t.ok)gemScan(d.fb,t.img)}fbCheck()}
   if(d.drop){const t=tileCache.get(d.drop);if(t&&!t.ok){tileCache.delete(d.drop);scheduleMosaic()}}
   if(d.refine){const t=tileCache.get(d.refine);if(!t)return;const [z,x,y]=d.refine.split('/'),im=new Image();if(CFG.xo)im.crossOrigin=CFG.xo;im.decoding='async';
     im.onload=()=>{t.img=im;t.ok=true;t.failed=false;scheduleMosaic()};im.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)+'?fine=1'}});

@@ -1,7 +1,11 @@
 // Regression gate for the live Great Britain viewer.
 // Building site/ with scripts/build_site.mjs and gb/config.js must reproduce the
 // assets on https://lidarlens.sarsen.org (checked 8 Nov 2026; releases 6 and 7 checked 11 Nov 2026; GEM-15 release 13 Nov 2026):
-//   assets/app.173dce26.js  (GEM-15 release, 13 Nov 2026 (pt2177u): GEM-15 fallback terrain in the LiDAR gaps, sepia in the lens, GEM-15 height estimates,
+//   assets/app.e8f10448.js  (zoom-out and territorial-sea release, 13 Nov 2026 (t2183u): England/Wales live from zoom 11 with a zoom 8-10 overview,
+//                            a zoom 6-7 all-GB overview, GEM-15 clipped to the 12 nm territorial sea of Scotland, the Isle of Man and the Channel Islands
+//                            (median line), the RAF Fylingdales gap filled with GEM-15, GeoNames town search, the 'Not LiDAR here' note only for GEM-15
+//                            inside the lens; as trialled on live-test (t2178u, t2180u, t2182u); config.abc55743.js, live-sw.js and towns.json change with it.)
+//   Before: assets/app.173dce26.js  (GEM-15 release, 13 Nov 2026 (pt2177u): GEM-15 fallback terrain in the LiDAR gaps, sepia in the lens, GEM-15 height estimates,
 //                            island records, map/layer/grid coverage notes and island search, as trialled on live-test (pt2175u, t2176u);
 //                            config.1b3453eb.js and live-sw.js (with gb/gem15-route.js) change with it.)
 //   Before: assets/app.1d944f95.js  (release 6: per-view looks and softened defaults in lens.js, the view reset button; trial on live-test
@@ -30,11 +34,11 @@ const sha = b => crypto.createHash('sha256').update(b).digest('hex');
 const fail = m => { console.error(m); process.exit(1); };
 
 const EXPECT = {
-  'assets/app.173dce26.js': '173dce26fdb4a7d881ab1063c3d97f407e1439ef8a122cd4a58759e654c12d6e',
+  'assets/app.e8f10448.js': 'e8f10448160f04f003869cc674b2e4a73f3d2b6fa43a3132ecf9eca726d4c87d',
   'assets/app.a852a2b4.css': 'a852a2b4704f5f327b251bd5f745b2bb2b3e2f3b5f0bf0c6ac759ce04df55f70',
   'assets/compat.912d81c4.js': '912d81c41e1699925ff6e4861a318a4d7c89c21decb126ac4fd301da43c3452c',
 };
-const CONFIG_SHA = '1b3453ebe0835b8f511d497999d126735368986b9ef0cd9400b5d60335747364';   // before 13 Nov 2026: 93c04c53...
+const CONFIG_SHA = 'abc55743d51eb6e07e43be08dfc85f46402c5c0d8c3e4a4299b1ec328375be5c';   // before the 13 Nov 2026 zoom-out release: 1b3453eb..., before the GEM-15 release: 93c04c53...
 const REJECTED_CANDIDATE_SHA = 'a02cae18df35d633340bf2b1aa30d298def06752d04c317e75a6c34adc3c7301';
 
 function mustInclude(rel, needles) {
@@ -64,7 +68,7 @@ try {
   fs.cpSync(path.join(root, 'site'), path.join(tmp, 'site'), { recursive: true });
   fs.cpSync(path.join(root, 'scripts'), path.join(tmp, 'scripts'), { recursive: true });
   fs.mkdirSync(path.join(tmp, 'gb'));   // gb/config.js with what the build takes from gb/: make_sw.mjs (live-sw.js) and places.json
-  for (const f of ['config.js', 'make_sw.mjs', 'places.json', 'scot-shell.js', 'gb-route.js', 'gem15-route.js']) fs.copyFileSync(path.join(root, 'gb', f), path.join(tmp, 'gb', f));
+  for (const f of ['config.js', 'make_sw.mjs', 'places.json', 'scot-shell.js', 'gb-route.js', 'gem15-route.js', 'towns.json']) fs.copyFileSync(path.join(root, 'gb', f), path.join(tmp, 'gb', f));
   fs.cpSync(path.join(root, 'gb', 'worker', 'src'), path.join(tmp, 'gb', 'worker', 'src'), { recursive: true });
   fs.symlinkSync(path.join(root, 'node_modules'), path.join(tmp, 'node_modules'));
   const run = spawnSync(process.execPath, ['scripts/build_site.mjs', 'gb/config.js'], { cwd: tmp, encoding: 'utf8' });
@@ -73,10 +77,10 @@ try {
     const got = sha(fs.readFileSync(path.join(tmp, 'dist', rel)));
     if (got !== expect) fail(rel + ' sha256 ' + got + ' != live ' + expect);
   }
-  const builtCfg = fs.readFileSync(path.join(tmp, 'dist', 'assets', 'config.1b3453eb.js'));
+  const builtCfg = fs.readFileSync(path.join(tmp, 'dist', 'assets', 'config.abc55743.js'));
   if (!builtCfg.equals(cfgBytes)) fail('built config bytes differ from gb/config.js');
   const html = fs.readFileSync(path.join(tmp, 'dist', 'index.html'), 'utf8');
-  for (const name of ['assets/compat.912d81c4.js', 'assets/config.1b3453eb.js', 'assets/app.173dce26.js', 'assets/app.a852a2b4.css']) {
+  for (const name of ['assets/compat.912d81c4.js', 'assets/config.abc55743.js', 'assets/app.e8f10448.js', 'assets/app.a852a2b4.css']) {
     if (!html.includes(name)) fail('built index.html does not reference ' + name);
   }
   // 3D view: must stay a separate, additive script (the main bundle above must not change because of it)
@@ -94,14 +98,14 @@ try {
     console.log('field mode is additive: ' + f);
   }
   // the live-mode service worker and the monument names production serves at the site root (checked against the live files 10 Nov 2026)
-  for (const [rel, expect] of [['live-sw.js', '199d41033428ef8b1e4b8c84bcfbe690ee51f36dec2b26d8b291bbba5f1c1098'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
+  for (const [rel, expect] of [['live-sw.js', 'f4d1c89ab5cde56da6809b0f92c84f610228038d73f123f63699c433c382d99a'], ['towns.json', '9a1cc317f58cdcbb3a40bcdfe10d9276b2c6ecb11c2b5de57331d5deb2c20ab5'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
     const got = sha(fs.readFileSync(path.join(tmp, 'dist', rel)));
     if (got !== expect) fail(rel + ' sha256 ' + got + ' != live ' + expect);
   }
-  console.log('live-sw.js (gb/make_sw.mjs) and nhle_places.json (gb/places.json) match production');
+  console.log('live-sw.js (gb/make_sw.mjs), towns.json (gb/towns.json) and nhle_places.json (gb/places.json) match production');
   if (html.includes('config.198ea3a0.js')) fail('build renamed the config to the live MD5 filename; that step is not in this source');
-  console.log('gb viewer source reproduces app.173dce26.js, app.a852a2b4.css (GEM-15 release, live on production) and compat.912d81c4.js');
-  console.log('config bytes match gb/config.js; build filename is config.1b3453eb.js (SHA-256), production serves this build as-is since 13 Nov 2026');
+  console.log('gb viewer source reproduces app.e8f10448.js, app.a852a2b4.css (zoom-out and territorial-sea release, live on production) and compat.912d81c4.js');
+  console.log('config bytes match gb/config.js; build filename is config.abc55743.js (SHA-256), production serves this build as-is since 13 Nov 2026 (zoom-out release)');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

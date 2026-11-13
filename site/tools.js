@@ -71,6 +71,7 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
    if(part.length){const items=part.slice(0,8).map(f=>({lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],label:f.properties.n+' · '+(f.properties.te||''),z:f.properties.te==='Settlement'?15:16}));
      if(!hit.length&&FBK){pre=items}else{if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items);return}}}   // fallback lenses: names that only contain the words (e.g. 'Douglas' in monument names) still ask the geocoder, so island towns are found
   await loadLocalPlaces();const hits=pre.concat(localHits(q));
+  {const ex=hits.filter(h=>h.exact);if(ex.length===1&&!pre.length){goto(ex[0].lat,ex[0].lng,ex[0].z,ex[0].label);gores.innerHTML='';return}}   // one town of exactly that name: go there
   if(hits.length)showRes(hits); // monuments and local names stay on screen while the geocoder answers, and rank above it
   const key=q.toLowerCase();
   const join=items=>{const seen=new Set(hits.map(h=>h.label.toLowerCase()));const extra=items.filter(it=>{const k=it.label.toLowerCase();if(seen.has(k))return false;seen.add(k);return true});return hits.concat(extra)};
@@ -101,8 +102,19 @@ async function nearMiss(q){try{const norm=t=>t.toLowerCase().replace(/[^a-z0-9 ]
       out.push({lat:x.c[1],lng:x.c[0],z:['city','town','district','county'].includes(x.p.type)?13:16,name:x.n+(where?', '+where:''),label:'Did you mean '+x.n+(where?' ('+where+')':'')+'?'})}});
   return out}catch(e){return []}}
 let localPlaces=null,localP=null;
-function loadLocalPlaces(){const url=LZ.LC.localSearch;if(!url)return Promise.resolve([]);if(!localP)localP=fetch(url).then(r=>r.ok?r.json():[]).then(a=>{localPlaces=a||[];return localPlaces}).catch(()=>{localPlaces=[];return []});return localP}
-function localHits(q){if(!localPlaces||q.length<2)return [];const n=q.toLowerCase();const scored=[];
+function loadLocalPlaces(){const url=LZ.LC.localSearch;if(!url&&!LZ.LC.townSearch)return Promise.resolve([]);
+  if(!localP)localP=Promise.all([url?fetch(url).then(r=>r.ok?r.json():[]).catch(()=>[]):[],LZ.LC.townSearch?fetch(LZ.LC.townSearch).then(r=>r.ok?r.json():[]).catch(()=>[]):[]])
+    .then(([a,t])=>{localPlaces=a||[];localTowns=(t||[]).map(o=>(o.n=[tnorm(o[0])].concat(o[6]?[tnorm(o[6])]:[]),o));return localPlaces});return localP}
+// LC.townSearch: towns, villages and islands (GeoNames, CC BY 4.0) for areas the monument list does not cover (Scotland, Isle of Man,
+// Channel Islands): [name, lat, lng, kind, area, population, alt name]; offered first while typing, and an exact name goes straight there
+let localTowns=null;const TZ={city:12,town:13,village:14,district:15,island:11,islands:10},TR={city:0,town:1,islands:2,island:2,village:3,district:4};
+function tnorm(v){return v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\bsaint\b/g,'st').replace(/[^a-z0-9]+/g,' ').trim()}
+function townHits(q){if(!localTowns)return [];const n=tnorm(q);if(n.length<2)return [];const sc=[];
+  for(const o of localTowns){let rank=9;for(const v of o.n){const r=v===n?0:v.startsWith(n)?1:v.split(' ').some(w=>w.startsWith(n))?2:9;if(r<rank)rank=r}if(rank<9)sc.push([rank,o])}
+  sc.sort((a,b)=>a[0]-b[0]||TR[a[1][3]]-TR[b[1][3]]||b[1][5]-a[1][5]);
+  return sc.slice(0,5).map(([r,o])=>({lat:o[1],lng:o[2],z:TZ[o[3]]||14,label:o[0]+' · '+o[3]+', '+o[4],exact:r===0}))}
+function localHits(q){const th=townHits(q);return th.concat(monHits(q)).slice(0,8)}
+function monHits(q){if(!localPlaces||q.length<2)return [];const n=q.toLowerCase();const scored=[];
   for(const p of localPlaces){const name=p[0],l=name.toLowerCase();let rank=3;
     if(l.startsWith(n))rank=0;else if(l.split(/[^a-z0-9]+/).some(w=>w.startsWith(n)))rank=1;else if(l.includes(n))rank=2;else continue;
     scored.push({p,rank,len:name.length})}
