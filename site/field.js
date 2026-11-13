@@ -54,6 +54,7 @@ const CSS=
 '#fldbig small{font-size:22px;font-weight:700}#fldarr{width:40px;height:40px;flex:none;transition:transform .3s}#fldarr.cmp{transition:none}'+
 '#fldsub{font-size:15px;color:#e5e7eb;margin-top:3px;line-height:1.3}#fldsub b{color:#fff}'+
 '#fld #fldclr{flex:none;width:auto;min-width:104px;padding:0 12px;background:transparent;color:#fff;border:2px solid #fff;font-size:18px}'+
+'#fld #fldclr{white-space:normal;line-height:1.1;font-size:17px}#fld #fldfit.hint{background:transparent;color:#fff;border-color:#60a5fa}'+   // not following: an outline 'back to me' hint, not a lit toggle
 '#fld #flddone{display:flex;width:100%;margin-top:8px;min-height:64px;font-size:20px;background:#16a34a;border-color:#16a34a;color:#fff}'+
 '#fld [hidden],#fld[hidden]{display:none!important}'+
 'body.field #titlebox{z-index:1002}'+   // an open search-results list sits over the big zoom buttons, so every result can be tapped
@@ -103,12 +104,12 @@ sw.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
 
 // ---- the bottom sheet ----
 const fld=document.createElement('div');fld.id='fld';fld.hidden=true;fld.setAttribute('role','region');fld.setAttribute('aria-label','Field mode');
-fld.innerHTML='<div id="fldread"><div class="t" aria-live="polite"><div id="fldbig"></div><div id="fldsub"></div></div><button id="fldclr" type="button" title="Done: clear the target and leave the map as it is, to look at the LiDAR" hidden>&#x2713; Done</button></div>'+
+fld.innerHTML='<div id="fldread"><div class="t" aria-live="polite"><div id="fldbig"></div><div id="fldsub"></div></div><button id="fldclr" type="button" title="Clear the target and leave the map as it is" hidden>Clear target</button></div>'+
   '<button id="flddone" type="button" title="Clear the target and leave the map as it is, to look at the LiDAR" hidden>&#x2713; Done: clear target</button>'+
   '<div id="fldcmp" hidden><span>Turn the arrow with your phone, so it points the way to go.</span><button id="fldcmpb" type="button">Use compass</button></div><div id="fldgps" hidden><span id="fldgpst"></span><button id="fldretry" type="button">Retry</button><button id="fldgpsx" type="button" title="Hide this note" aria-label="Hide this note">&times;</button></div>'+
   '<div class="row" id="fldviews" role="group" aria-label="View">'+Object.entries(VIEWS).map(([k,v])=>'<button type="button" data-v="'+k+'" title="'+v.title+'">'+v.label+'</button>').join('')+'</div>'+
   '<div class="row"><button id="fldtgt" type="button" title="Set the target: tap this, then tap the map (or search for a place above)"><span class="ico">&#x25CE;</span> Target</button>'+
-  '<button id="fldfit" type="button" title="Recentre: back to where you are (with the target too when it is near), and keep following"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="vertical-align:-4px"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5" stroke="currentColor" stroke-width="2.5"/></svg> Recentre</button>'+
+  '<button id="fldfit" type="button" title="Back to me: where you are (with the target too when it is near), and keep following"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="vertical-align:-4px"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5" stroke="currentColor" stroke-width="2.5"/></svg> <span id="fldfitt">Recentre</span></button>'+
   '<button id="fldwi" type="button" title="What is it? Records and a best guess for the target (or where you are)">What is it?</button></div>';
 document.body.appendChild(fld);
 L.DomEvent.disableClickPropagation(fld);L.DomEvent.disableScrollPropagation(fld);
@@ -117,7 +118,16 @@ L.DomEvent.disableClickPropagation(fld);L.DomEvent.disableScrollPropagation(fld)
 let on=false,view='hs',target=null,me=null,acc=null,gpsState='off',watch=null,follow=true,picking=false,tgtMk=null,meMk=null,accMk=null,prog=0;
 {const s=load();if(s.view&&VIEWS[s.view])view=s.view;if(s.target&&isFinite(s.target.lat)&&isFinite(s.target.lng))target=s.target}
 const H0=LZ.H0||{};
-if(H0.tgt){const m=String(H0.tgt).match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);if(m){target={lat:+m[1],lng:+m[2],label:''};store({target})}}
+// a target in a link (tgt=lat,lng) is taken only the first time that link is opened: reloads, old tabs and home-screen icons that still
+// carry an older tgt= never bring back an old target. Every target set here is marked as seen.
+const tkey=t=>(+t.lat).toFixed(6)+','+(+t.lng).toFixed(6);
+function markUsed(t){if(!t)return;const k=tkey(t),u=(load().tgtUsed||[]).filter(x=>x!==k);u.push(k);store({tgtUsed:u.slice(-40)})}
+let linkT=false;
+{const first=!Array.isArray(load().tgtUsed);if(first)store({tgtUsed:target?[tkey(target)]:[]});   // first run of this version: the saved target wins over any old link
+  if(H0.tgt){const m=String(H0.tgt).match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);if(m){const t={lat:+m[1],lng:+m[2],label:''},k=tkey(t);
+    const s1=load(),again=s1.linkK===k&&Date.now()-(+s1.linkAt||0)<20000;   // the first visit reloads once for the offline worker: still the same fresh link
+    if(again){linkT=true;target=t;store({target,linkK:null})}
+    else if(first&&target)markUsed(t);else if(!(s1.tgtUsed||[]).includes(k)){linkT=!target||tkey(target)!==k;target=t;store(Object.assign({target},'serviceWorker' in navigator&&!navigator.serviceWorker.controller?{linkK:k,linkAt:Date.now()}:{linkK:null}));markUsed(t)}}}}
 
 // ---- maths ----
 function distBear(a,b){const R=6371008.8,p1=a.lat*D2R,p2=b.lat*D2R,dp=p2-p1,dl=(b.lng-a.lng)*D2R;
@@ -177,6 +187,7 @@ function cmpAsk(){if(compass!=='needperm')return;DeviceOrientationEvent.requestP
 // keep the readout on one line: if distance, arrow and direction would wrap, drop the degrees (always on narrow phones, via CSS)
 function fitDeg(big){big.classList.remove('nodeg','tight');const k=[...big.children].filter(e=>e.offsetWidth),wraps=()=>k.length>1&&k[k.length-1].offsetTop>k[0].offsetTop+4;
   if(wraps())big.classList.add('nodeg');if(wraps())big.classList.add('tight')}   // still two lines (e.g. "589 km N" at 360 px): a size smaller
+let followSaved=null;
 function readout(){const big=$('fldbig'),sub=$('fldsub');let near=false;
   if(target&&me){const d=distBear(me,target).d;near=d<=Math.max(NEAR,Math.min(50,acc||0))}
   $('fldread').hidden=!target&&!picking;   // no target: the sheet collapses to the buttons, so the map is uncluttered
@@ -198,8 +209,9 @@ function readout(){const big=$('fldbig'),sub=$('fldsub');let near=false;
       gpsState==='insecure'?'Location needs a secure (https) page or a device that supports it. The map and target still work.':
       gpsState==='timeout'?'No GPS fix yet. Try in the open with a clear view of the sky, then tap Retry.':'Your position isn’t available on this device just now. Tap Retry to try again.';
     $('fldretry').hidden=gpsState==='insecure'}else g.hidden=true;
-  $('fldtgt').classList.toggle('on',picking);$('fldtgt').innerHTML=picking?'Tap map…':'<span class="ico">&#x25CE;</span> Target';$('fldfit').classList.toggle('on',!follow&&!!target);
-  {const t=fld.querySelector('#fldread .t'),go=!!target&&!picking;t.classList.toggle('go',go);if(go){t.tabIndex=0;t.title='Tap to show the target on the map (Recentre brings you back)'}else{t.removeAttribute('tabindex');t.removeAttribute('title')}
+  $('fldtgt').classList.toggle('on',picking);$('fldtgt').innerHTML=picking?'Tap map…':'<span class="ico">&#x25CE;</span> Target';$('fldfit').classList.remove('on');$('fldfit').classList.toggle('hint',!follow&&!!(me||target));$('fldfitt').textContent=!follow&&me?'Back to me':'Recentre';
+  if(followSaved!==follow){followSaved=follow;store({follow})}
+  {const t=fld.querySelector('#fldread .t'),go=!!target&&!picking;t.classList.toggle('go',go);if(go){t.tabIndex=0;t.title='Tap to show the target on the map (Back to me brings you back)'}else{t.removeAttribute('tabindex');t.removeAttribute('title')}
     if(!t._ro&&window.ResizeObserver){let lw=0;t._ro=new ResizeObserver(()=>{const w=t.clientWidth;if(w&&w!==lw){lw=w;fitDeg($('fldbig'))}});t._ro.observe(t)}}   // refit when the sheet settles or rotates
   sheetH()}
 function sheetH(){const d=document.documentElement.style;d.setProperty('--fldh',(on?fld.offsetHeight:0)+'px');const tb=$('titlebox');if(tb)d.setProperty('--fldtop',Math.round(tb.getBoundingClientRect().bottom+10)+'px')}
@@ -243,11 +255,12 @@ map.on('zoomstart',()=>{if(on&&!prog)anchor=null});   // a pinch or wheel zoom m
   const z=Math.max(map.getMinZoom(),Math.min(map.getMaxZoom(),map.getZoom()+d));if(z!==map.getZoom())prg(()=>map.setZoomAround(vcentre(),z,{animate:false}))},true)}
 let fldH0=0;if(window.ResizeObserver)new ResizeObserver(()=>{if(!on)return;sheetH();const h=fld.offsetHeight;if(Math.abs(h-fldH0)>2){fldH0=h;recentre()}}).observe(fld);   // the sheet changed height (fonts, a GPS note): keep the same thing in the middle
 map.on('dragstart',()=>{if(!on)return;anchor=null;if(follow){follow=false;readout()}});
+let lvT=null;map.on('moveend',()=>{if(!on)return;clearTimeout(lvT);lvT=setTimeout(()=>{const c=map.getCenter();store({lastView:[+c.lat.toFixed(6),+c.lng.toFixed(6),map.getZoom()]})},400)});
 
 // ---- GPS ----
 function gpsStart(){if(!on)return;if(watch!=null)return;if(!navigator.geolocation||!window.isSecureContext){gpsState='insecure';readout();return}
   gpsState=me?'ok':'wait';readout();
-  watch=navigator.geolocation.watchPosition(p=>{const first=!me;me=L.latLng(p.coords.latitude,p.coords.longitude);acc=p.coords.accuracy;gpsState='ok';drawMarks();readout();if(follow||first)frame(first)},
+  watch=navigator.geolocation.watchPosition(p=>{const first=!me;me=L.latLng(p.coords.latitude,p.coords.longitude);acc=p.coords.accuracy;gpsState='ok';drawMarks();readout();if(follow)frame(first)},
     e=>{gpsState=e.code===1?'denied':e.code===3?(me?'ok':'timeout'):'unavail';if(e.code===1){gpsStop()}readout()},{enableHighAccuracy:true,maximumAge:5000,timeout:20000})}
 function gpsStop(){if(watch!=null){try{navigator.geolocation.clearWatch(watch)}catch(e){}watch=null}}
 let gpsHid=null;   // the note hidden with its ✕, until the GPS state changes
@@ -255,12 +268,25 @@ $('fldretry').onclick=()=>{gpsHid=null;gpsStop();gpsState='wait';readout();gpsSt
 $('fldgpsx').onclick=()=>{gpsHid=gpsState;readout()};
 
 // ---- target ----
-function setTarget(ll,label){target={lat:+(+ll.lat).toFixed(6),lng:+(+ll.lng).toFixed(6),label:label||''};store({target});picking=false;drawMarks();readout();follow=true;anchor=null;frame(true);LZ.saveHashSoon&&LZ.saveHashSoon()}
+// a new target replaces the old one and is shown: both of you when they fit at zoom 12 or closer, otherwise the target itself.
+// Following pauses (GPS fixes don't pull the map away); Back to me starts it again.
+function setTarget(ll,label){target={lat:+(+ll.lat).toFixed(6),lng:+(+ll.lng).toFixed(6),label:label||''};store({target,linkK:null});markUsed(target);picking=false;follow=false;anchor=null;drawMarks();readout();showTarget();LZ.saveHashSoon&&LZ.saveHashSoon()}
+function showTarget(){if(!on||!target)return;const t=L.latLng(target.lat,target.lng),p=pad();
+  prg(()=>{if(me){const b=L.latLngBounds([me,t]),z=map.getBoundsZoom(b,false,L.point(p.tl[0]+p.br[0],p.tl[1]+p.br[1]));
+      if(z>=12){map.fitBounds(b,{paddingTopLeft:p.tl,paddingBottomRight:p.br,maxZoom:18,animate:false});anchor=map.containerPointToLatLng(vcentre());return}}
+    anchor=t;centreIn(t,Math.max(map.getZoom(),13))});
+  lensToTarget()}
 $('fldtgt').onclick=()=>{picking=!picking;if(picking&&LZ.tool&&LZ.tool())LZ.setTool(null);readout()};
-function clearTarget(){target=null;follow=false;anchor=null;picking=false;store({target:null});drawMarks();readout();LZ.saveHashSoon&&LZ.saveHashSoon()}   // and stop re-framing: the map stays where it is, with your GPS dot
+function clearTarget(){target=null;follow=false;anchor=null;picking=false;store({target:null,linkK:null});drawMarks();readout();LZ.saveHashSoon&&LZ.saveHashSoon()}   // nothing moves: anchor cleared, not following, so the shorter sheet only uncovers more map
 $('fldcmpb').onclick=cmpAsk;$('fldclr').onclick=clearTarget;$('flddone').onclick=clearTarget;
-map.on('click',e=>{if(!on||!picking)return;setTarget(e.latlng,'')});
-document.addEventListener('lensgoto',e=>{if(!on||!e.detail)return;setTarget(L.latLng(e.detail.lat,e.detail.lng),e.detail.label||'')});
+// a plain tap on the map: with no target it sets one; with a target it says how to move it (so a stray tap never moves it).
+// Held back a moment so a double-tap zoom is not taken as a tap. ◎ Target then a tap always sets it.
+let tapT=null;
+map.on('click',e=>{if(!on)return;if(picking){setTarget(e.latlng,'');return}if(LZ.tool&&LZ.tool())return;const ll=e.latlng;clearTimeout(tapT);
+  tapT=setTimeout(()=>{if(!on||picking)return;if(!target)setTarget(ll,'');else if(LZ.msg)LZ.msg('To move the target, tap \u25CE Target first, then the map',2800)},320)});
+map.on('dblclick zoomstart',()=>clearTimeout(tapT));
+document.addEventListener('lensgoto',e=>{if(!e.detail)return;if(on)return setTarget(L.latLng(e.detail.lat,e.detail.lng),e.detail.label||'');   // in Lab, a search result becomes the Field target too
+  target={lat:+(+e.detail.lat).toFixed(6),lng:+(+e.detail.lng).toFixed(6),label:e.detail.label||''};store({target,linkK:null});markUsed(target)});
 $('fldfit').onclick=()=>{follow=true;anchor=null;frame(true);readout()};
 // tap the distance/bearing readout: show the target, however far away, in the part of the map you can see. Following stops,
 // so GPS updates don't pull the map back; Recentre (⌖) brings you back and starts following again.
@@ -287,7 +313,12 @@ function setField(f,user){f=!!f;if(f===on){if(user)store({on:f});return}
   on=f;if(user)store({on:f});
   document.body.classList.toggle('field',on);fld.hidden=!on;picking=false;
   if(LZ.tool&&LZ.tool()&&LZ.tool()!=='whatis')LZ.setTool(null);
-  if(on){const p=$('panel');if(p)p.classList.add('hide');applyView();follow=true;drawMarks();placeSwitch();cmpStart();readout();gpsStart();setTimeout(()=>{map.invalidateSize();frame(true)},60)}
+  if(on){const p=$('panel');if(p)p.classList.add('hide');applyView();
+    // from Lab: the map stays where you were looking (a Lab search is already the target). Opening the page: a new tgt= link shows
+    // that target; otherwise where you left off, following you only if you were following then.
+    const s0=load(),how=user?'stay':linkT?'link':s0.follow===false?'resume':'follow';linkT=false;follow=how==='follow';anchor=null;
+    if(how==='resume'&&!H0.c&&Array.isArray(s0.lastView)&&s0.lastView.every(isFinite))map.setView([s0.lastView[0],s0.lastView[1]],s0.lastView[2],{animate:false});
+    drawMarks();placeSwitch();cmpStart();readout();gpsStart();setTimeout(()=>{map.invalidateSize();if(how==='follow')frame(true);else if(how==='link')showTarget();else lensToTarget()},60)}
   else{gpsStop();cmpStop();document.body.classList.remove('fold');drawMarks();restore(load().research);placeSwitch();sheetH();
     if(!matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').matches){const p=$('panel');if(p)p.classList.remove('hide')}
     setTimeout(()=>{map.invalidateSize();LZ.resetLens&&LZ.resetLens()},60)}
