@@ -65,6 +65,8 @@ html=html.replace('<title>',pre+'<title>');fs.writeFileSync(OUT+'/index.html',ht
 // Cloudflare static assets ignore long Cache-Control on hashed files unless _headers says so.
 fs.writeFileSync(OUT+'/_headers','/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n');
 if(fs.existsSync(SITE+'/nhle_places.json'))fs.copyFileSync(SITE+'/nhle_places.json',OUT+'/nhle_places.json');
+// config townSearch:'towns.json' (GB lens): the town list next to the config (gb/towns.json, built by gb/make_towns.py)
+if(cfg&&/townSearch:'towns\.json'/.test(fs.readFileSync(cfg,'utf8'))&&fs.existsSync(path.dirname(cfg)+'/towns.json'))fs.copyFileSync(path.dirname(cfg)+'/towns.json',OUT+'/towns.json');
 // an area can carry its own scheduled-monument names for type-ahead search as <config>-places.json (e.g. configs/england-places.json)
 // or, for several configs of one area, as places.json in the config's folder (gb/places.json: England, Wales and Scotland)
 if(process.argv[2]){const pl=process.argv[2].replace(/\.js$/,'-places.json'),pd=path.dirname(process.argv[2])+'/places.json';if(fs.existsSync(pl))fs.copyFileSync(pl,OUT+'/nhle_places.json');else if(fs.existsSync(pd))fs.copyFileSync(pd,OUT+'/nhle_places.json')}
