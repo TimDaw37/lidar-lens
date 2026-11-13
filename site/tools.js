@@ -117,8 +117,12 @@ function localHits(q){const th=townHits(q);return th.concat(monHits(q)).slice(0,
 function monHits(q){if(!localPlaces||q.length<2)return [];const n=q.toLowerCase();const scored=[];
   for(const p of localPlaces){const name=p[0],l=name.toLowerCase();let rank=3;
     if(l.startsWith(n))rank=0;else if(l.split(/[^a-z0-9]+/).some(w=>w.startsWith(n)))rank=1;else if(l.includes(n))rank=2;else continue;
+    if(rank===0&&l.split(',')[0].trim()===n)rank=-1;   // the name itself ('Stonehenge, the Avenue, ...') before longer names that start with it
     scored.push({p,rank,len:name.length})}
-  scored.sort((a,b)=>a.rank-b.rank||a.len-b.len);
+  // then nearest first: to you in field mode (GPS), otherwise to the middle of the map
+  const F=window.__field,fs=F&&F.on&&F.on()&&F.state(),ref=fs&&fs.me?fs.me:map.getCenter(),kx=Math.cos(ref.lat*Math.PI/180);
+  for(const o of scored){const dy=o.p[1]-ref.lat,dx=(o.p[2]-ref.lng)*kx;o.d=dx*dx+dy*dy}
+  scored.sort((a,b)=>a.rank-b.rank||a.d-b.d||a.len-b.len);
   return scored.slice(0,8).map(({p})=>({lat:p[1],lng:p[2],z:16,label:p[0]}))}
 let taT=null;
 $('gotoq').addEventListener('focus',()=>loadLocalPlaces());
