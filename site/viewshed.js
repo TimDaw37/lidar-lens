@@ -58,7 +58,8 @@ async function decode(blob){if(!dcan){dcan=document.createElement('canvas');dcan
   if(!im){url=URL.createObjectURL(blob);im=await new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=url})}
   if(!im){if(url)URL.revokeObjectURL(url);return null}
   dctx.clearRect(0,0,256,256);dctx.drawImage(im,0,0);if(url)URL.revokeObjectURL(url);if(im.close)im.close();
-  return dctx.getImageData(0,0,256,256).data}
+  const d=dctx.getImageData(0,0,256,256).data;if(LC.fallback)for(let i=0;i<d.length;i+=4)if((d[i+2]&3)===2)d[i+3]=0;   // GEM-15 fallback pixels (blue = 2 mod 4) are not LiDAR heights: left out of the sweep
+  return d}
 // One tile as RGBA, or null where there is none. The live worker answers 503 while its downloads are queued behind the lens.
 // Every tile has a deadline (TILE_MS, both live-worker steps together; TRY_MS per request): a request that never answers
 // is given up and that tile counts as no data, like the sea or a missing tile, so the sweep always runs.
