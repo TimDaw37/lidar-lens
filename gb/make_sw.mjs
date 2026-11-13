@@ -24,4 +24,8 @@ export default function makeSW(cfgPath){
   const m=rd('gb/worker/src/scot-core.mjs'),i=m.lastIndexOf('export {');if(i<0)throw new Error('make_sw: scot-core export line not found');const core=m.slice(0,i);
   const scot='\n// ======== Scotland (own scope: its constants and helpers do not clash with the England & Wales ones above) ========\nconst SCOTLAND = (() => {\n'+core+'\n'+rd('gb/scot-shell.js')+'\nreturn { tile: stile, VER: SVER };\n})();\n';
   const poly=fs.readFileSync(cfgPath,'utf8').match(/\{c:'scotland',poly:(\[\[.*?\]\])\}/);if(!poly)throw new Error('make_sw: Scotland outline not found in '+cfgPath);
-  return hdr+e+scot+rd('gb/gb-route.js').split('__SC_POLY__').join(poly[1])}
+  let out=hdr+e+scot+rd('gb/gb-route.js').split('__SC_POLY__').join(poly[1]);
+  // GEM-15 fallback (gb/gem15-route.js): only for a config with a `fallback` block (production and live-test); others are unchanged
+  if(/\n\s*fallback\s*:\s*\{/.test(fs.readFileSync(cfgPath,'utf8'))){const a='e.respondWith(route(+m[1], +m[2], +m[3], e))';if(out.split(a).length!==2)throw new Error('make_sw: route call not found');
+    out=out.replace(a,()=>'e.respondWith(GEM.route(+m[1], +m[2], +m[3], e))')+rd('gb/gem15-route.js')}
+  return out}

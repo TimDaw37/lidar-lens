@@ -57,16 +57,20 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
     if(Math.abs(a)>1000&&Math.abs(b)>1000){if(a>=0&&a<700000&&b>=0&&b<1300000){const [la,lo]=en2ll(a,b);goto(la,lo,18,'E '+a+' N '+b+' ('+gridRef(a,b)+')');return}showRes([{err:'Easting/northing out of range'}]);return}}
   const ll=parseLatLng(q);if(ll){let [a,b]=ll;if(!ll[2]&&Math.abs(a)<=10&&b>=49&&b<=61){[a,b]=[b,a]}if(Math.abs(a)<=90&&Math.abs(b)<=180){goto(a,b,17,a.toFixed(5)+', '+b.toFixed(5));return}}
   const pc=q.toUpperCase().replace(/\s+/g,'');
+  const ISL=FBK&&/^(IM|JE|GY)\d/.test(pc),pcFmt=pc.length>4?pc.slice(0,-3)+' '+pc.slice(-3):pc;
   if(/^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/.test(pc)){try{const r=await fetch('/api/postcode?pc='+encodeURIComponent(pc));const j=await r.json();
-      if(j.status===200&&j.result){goto(j.result.latitude,j.result.longitude,16,j.result.postcode+' (postcode centroid)');return}showRes([{err:'Postcode not found'}]);return}catch(e){showRes([{err:'Postcode lookup failed'}]);return}}
+      if(j.status===200&&j.result&&j.result.latitude!=null){goto(j.result.latitude,j.result.longitude,16,j.result.postcode+' (postcode centroid)');return}
+      if(ISL){const f=await islandPostcode(pcFmt);if(f){goto(f.lat,f.lng,17,pcFmt+' (OpenStreetMap)');return}showRes([{err:FBK.pcNone.replace('{pc}',pcFmt)}]);return}
+      showRes([{err:'Postcode not found'}]);return}catch(e){showRes([{err:'Postcode lookup failed'}]);return}}
+  if(ISL&&/^[A-Z]{1,2}\d[A-Z\d]?$/.test(pc)&&FBK.pcDistrict){showRes([{err:FBK.pcDistrict.replace('{pc}',pc)}]);return}
   if(/^[A-Z]{1,2}\d[A-Z\d]?$/.test(pc)){try{const r=await fetch('/api/postcode?outcode='+encodeURIComponent(pc));const j=await r.json();if(j.status===200&&j.result){goto(j.result.latitude,j.result.longitude,13,j.result.outcode+' (postcode district)');return}}catch(e){}}
   // place name: Nominatim, UK-only, biased to the configured viewbox; at most one request per 1.1 s, submit-only (no autocomplete), cached
-  {const nq=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim(),qq=nq(q),P=window.__placeNames||[];
+  let pre=[];{const nq=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim(),qq=nq(q),P=window.__placeNames||[];
    const hit=P.filter(f=>{const p=f.properties;return [p.cy,p.en,p.alt].some(v=>v&&nq(v)===qq)});
    const part=hit.length?hit:qq.length>=3?P.filter(f=>{const p=f.properties;return [p.cy,p.en,p.alt].some(v=>v&&nq(v).includes(qq))}):[];
    if(part.length){const items=part.slice(0,8).map(f=>({lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],label:f.properties.n+' · '+(f.properties.te||''),z:f.properties.te==='Settlement'?15:16}));
-     if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items);return}}
-  await loadLocalPlaces();const hits=localHits(q);
+     if(!hit.length&&FBK){pre=items}else{if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items);return}}}   // fallback lenses: names that only contain the words (e.g. 'Douglas' in monument names) still ask the geocoder, so island towns are found
+  await loadLocalPlaces();const hits=pre.concat(localHits(q));
   if(hits.length)showRes(hits); // monuments and local names stay on screen while the geocoder answers, and rank above it
   const key=q.toLowerCase();
   const join=items=>{const seen=new Set(hits.map(h=>h.label.toLowerCase()));const extra=items.filter(it=>{const k=it.label.toLowerCase();if(seen.has(k))return false;seen.add(k);return true});return hits.concat(extra)};
@@ -83,6 +87,10 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
     if(!all.length){showRes([{err:'No match (try a grid ref or postcode)'}]);return}
     if(all.length===1){goto(all[0].lat,all[0].lng,all[0].z,all[0].label);gores.innerHTML=''}else showRes(all)}
   catch(e){if(hits.length)showRes(hits);else showRes([{err:'Place search failed (Nominatim)'}])}}
+// Isle of Man and Channel Islands postcodes: postcodes.io has no coordinates for them, so ask Nominatim (OpenStreetMap) for the exact postcode
+async function islandPostcode(pc){const wait=lastNom+1100-Date.now();if(wait>0)await new Promise(r=>setTimeout(r,wait));lastNom=Date.now();
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=3&countrycodes=im,je,gg&q='+encodeURIComponent(pc),{headers:{'Accept':'application/json'}});const j=await r.json();
+    const k=pc.replace(/\s+/g,'').toUpperCase(),x=(j||[]).find(x=>x.type==='postcode'&&String(x.display_name||'').replace(/\s+/g,'').toUpperCase().startsWith(k));return x?{lat:+x.lat,lng:+x.lon}:null}catch(e){return null}}
 // 'Did you mean': Photon (OpenStreetMap, typo-tolerant) within Great Britain; keep the 1-2 names closest to what was typed
 function lev(a,b){const m=a.length,n=b.length,d=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){let p=d[0];d[0]=i;for(let j=1;j<=n;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[n]}
 async function nearMiss(q){try{const norm=t=>t.toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim(),nq=norm(q);
@@ -104,13 +112,18 @@ let taT=null;
 $('gotoq').addEventListener('focus',()=>loadLocalPlaces());
 $('gotoq').addEventListener('input',()=>{clearTimeout(taT);const q=$('gotoq').value.trim();if(q.length<2){gores.innerHTML='';return}
   taT=setTimeout(async()=>{await loadLocalPlaces();if($('gotoq').value.trim()!==q)return;const hits=localHits(q);if(hits.length)showRes(hits);else gores.innerHTML=''},120)});
-$('goto').addEventListener('submit',e=>{e.preventDefault();if(matchMedia('(pointer:coarse)').matches)$('gotoq').blur();doGoto($('gotoq').value)});   // touch: drop the on-screen keyboard so the map shows
+$('goto').addEventListener('submit',e=>{e.preventDefault();clearTimeout(taT);if(matchMedia('(pointer:coarse)').matches)$('gotoq').blur();doGoto($('gotoq').value)});   // touch: drop the on-screen keyboard so the map shows
 LZ.doGoto=doGoto;
 // ===================== Where am I =====================
 let wPos=null,wSrc='Centre',wT=null,hoverOK=false;
 function fmtPos(ll){const [E,N]=ll2en(ll.lat,ll.lng);return {gr:gridRef(E,N),ll:ll.lat.toFixed(5)+', '+ll.lng.toFixed(5),E,N}}
-function updWhere(ll,src){wPos=ll;wSrc=src;const f=fmtPos(ll);$('wlab').textContent=src;$('wgr').textContent=f.gr||'outside GB grid';$('wll').textContent=f.ll;
-  clearTimeout(wT);wT=setTimeout(async()=>{const h=await LZ.heightAt(ll);if(wPos===ll)$('wh').textContent=h==null?'':h.toFixed(1)+' m OD'},120)}
+// GEM-15 fallback (LC.fallback): a height estimate where only GEM-15 covers the spot, never labelled m OD; island record notes
+const FBK=LZ.LC.fallback||null;
+function gemLabel(g,short){return (short?FBK.estShort:FBK.estLabel).replace('{h}',Math.round(g.h)).replace('{e}',g.e)+(!short&&g.warn&&FBK.estWarn?' '+FBK.estWarn:'')}
+function fbRegion(ll){for(const r of ((FBK&&FBK.regions)||[]))if(ll.lat>=r.box[0]&&ll.lat<=r.box[2]&&ll.lng>=r.box[1]&&ll.lng<=r.box[3])return r;return null}
+async function gemAt(ll){return FBK&&LZ.gemHeightAt?LZ.gemHeightAt(ll):null}
+function updWhere(ll,src){wPos=ll;wSrc=src;const f=fmtPos(ll);$('wlab').textContent=src;{const R=!f.gr&&fbRegion(ll);$('wgr').textContent=f.gr||(R&&FBK.noGridShort?FBK.noGridShort:'outside GB grid');$('wgr').title=R&&FBK.noGrid?FBK.noGrid:''}$('wll').textContent=f.ll;
+  clearTimeout(wT);wT=setTimeout(async()=>{const h=await LZ.heightAt(ll);const g=h==null?await gemAt(ll):null;if(wPos!==ll)return;const e=$('wh');e.textContent=h!=null?h.toFixed(1)+' m OD':g!=null?gemLabel(g,1):'';e.title=h==null&&g!=null?gemLabel(g):''},120)}
 // show the cursor position for a real mouse/pen; touch devices show the map centre instead
 // Pin: a click on the map (with no tool on) fixes the readout there, so the pointer can go to Copy without moving it.
 // Clicking again moves the pin; Esc or clicking the 'Pinned' label releases it.
@@ -423,14 +436,14 @@ async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L
   const [E,N]=ll2en(ll.lat,ll.lng);const gr0=gridRef(E,N);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gr0)+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small><br>'+lookLink('',gr0)+'</div><div class="bd"><div class="photostrip"></div>Looking at the LiDAR and records…</div>';
   card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);
   const HA=LZ.LC.herApi;const herP=HA?fetch(HA.url+'?e='+Math.round(E)+'&n='+Math.round(N),{credentials:'same-origin'}).then(r=>r.ok?r.json():{r:[],err:r.status}).catch(()=>({r:[],err:1})):Promise.resolve(null);
-  LZ.recErr=0;LZ.recMissing=null;const both=Promise.all([dataNear(E,N,180),herP]);const W=await dtmWindow(ll,100);if(seq!==wiSeq)return;
+  LZ.recErr=0;LZ.recMissing=null;const both=Promise.all([fbRegion(ll)?Promise.resolve({recs:[],ctx:{}}):dataNear(E,N,180),herP]);const W=await dtmWindow(ll,100);if(seq!==wiSeq)return;
   // records can take seconds (live Historic England queries): show the LiDAR measurements at once, then fill the records in
   const early=await Promise.race([both,new Promise(r=>setTimeout(()=>r(null),400))]);if(seq!==wiSeq)return;
   if(early)return wiRender(ll,E,N,W,early[0],early[1],false,seq);
   await wiRender(ll,E,N,W,{recs:[],ctx:{}},null,true,seq);
   let D,HJ;try{[D,HJ]=await both}catch(e){D={recs:[],ctx:{}};HJ=null}if(seq!==wiSeq)return;return wiRender(ll,E,N,W,D,HJ,false,seq)}
 async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
-  const a=analyse(W);const elev=await LZ.heightAt(ll);if(seq!==wiSeq)return;
+  const a=analyse(W);const elev=await LZ.heightAt(ll);const gelev=elev==null?await gemAt(ll):null,REG=fbRegion(ll);if(seq!==wiSeq)return;
   const ref=a.nodata?[E,N]:ll2en(a.centreLL.lat,a.centreLL.lng);
   const ctx={};for(const k in CTX){const r=nearest(CTX[k],ref[0],ref[1],150);if(r)ctx[k]=r}
   const cls=classify(a,ctx,elev==null?0:elev);
@@ -443,13 +456,15 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   const ctxList=Object.entries(ctx).filter(([k,v])=>v.d<=100).sort((x,y)=>x[1].d-y[1].d).slice(0,4).map(([k,v])=>v.d<1?(k==='wood'||k==='settled'||k==='water'?'in '+CTX_NAMES[k]:'on '+CTX_NAMES[k]):Math.round(v.d)+' m from '+CTX_NAMES[k]);
   const confTxt={low:'low confidence',moderate:'moderate confidence',na:''}[cls.conf];
   const siteName=(atSpot.find(r=>r.f.s!=='OSM'&&r.f.s!=='HER'&&(r.f.n||r.f.t))||atSpot.find(r=>r.f.n||r.f.t)||{f:{}}).f;
-  const placeName=siteName.n||siteName.t||'this spot';
-  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gridRef(E,N))+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':'')+'</small><br>'+lookLink(placeName,gridRef(E,N))+'</div><div class="bd">'+(LZ.LC.tidyUI?'':'<div class="photostrip"></div>');
+  const placeName=siteName.n||siteName.t||'this spot';const grH=gridRef(E,N);
+  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+(grH?esc(grH)+' &middot; ':REG?esc((FBK.noGridCard||'no British National Grid ref ({r})').replace('{r}',REG.name))+' &middot; ':'')+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':gelev!=null?' &middot; <span class="gemest" style="color:#f6ad3c">'+esc(gemLabel(gelev))+'</span>':'')+'</small><br>'+lookLink(REG&&placeName==='this spot'?REG.look||REG.name:placeName,grH||(REG?REG.look||REG.name:''))+'</div><div class="bd">'+(LZ.LC.tidyUI?'':'<div class="photostrip"></div>');
   // Heritage Gateway retired its Results_Single.aspx pages; go straight to the new search for that HE research record (saves a redirect)
   const hgLink=u=>{const m=/^https?:\/\/(?:www\.)?heritagegateway\.org\.uk\/Gateway\/Results_Single\.aspx\?uid=([^&#]+)&resourceID=19191\b/i.exec(u);return m?'https://historicengland.org.uk/listing/heritage-gateway/results?q='+encodeURIComponent(decodeURIComponent(m[1]))+'&filters%5B0%5D%5Bfield%5D=dataset&filters%5B0%5D%5Bvalues%5D%5B0%5D=Historic%20England%20research%20records&filters%5B1%5D%5Bfield%5D=layoutView&filters%5B1%5D%5Bvalues%5D%5B0%5D=list':u};
   const BADGE={CADW:'Cadw',CADWLB:'Cadw',NMRW:'Coflein'};
   const recRow=({f,d})=>{let h='';h+='<div class="rec"><span class="b '+f.s+'">'+(BADGE[f.s]||f.s)+'</span><b>'+esc(f.n||f.t||'(unnamed)')+'</b> <span class="m">&middot; '+(d<0.5?'here':Math.round(d)+' m')+'</span><div class="m">'+esc([f.t&&f.t!==f.n?f.t:'',f.p,f.s==='OSM'?'OSM '+f.id:f.s==='NHLE'||f.s==='LB'?'List entry '+f.id:f.s==='AIM'?(f.id&&!/none/i.test(f.id)?'HE UID '+f.id:''):f.s==='GAZ'?(/^\d+$/.test(f.id||'')?'NHLE '+f.id:''):f.s==='CADW'?'Cadw '+f.id:f.s==='CADWLB'?'Cadw listed building '+f.id:f.s==='NMRW'?'NPRN '+f.id:f.id].filter(Boolean).join(' · '))+
     (f.u?' &middot; <a href="'+esc(hgLink(f.u))+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':f.s==='CADW'||f.s==='CADWLB'?'Cadw report':f.s==='NMRW'?'Coflein':f.s==='OSM'?'OSM':f.s==='HES'?hesLabel(f.u):srcHost(f.u))+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
+  if(REG)h+='<h3>Heritage records</h3><div class="m fbrec" style="font-size:12px">'+REG.records+'</div>';
+  else{
   h+='<h3>Recorded within 30 m</h3><div class="m snap" style="font-size:11px;margin:-2px 0 4px">'+esc(LZ.LC.recordsLine||('Records from the '+HLL+', NHLE, HE aerial mapping and OSM'))+'</div>';
   if(pending)h+='<div class="m wiwait">Fetching records…</div>';
   if(!pending&&LZ.recMissing&&LZ.recMissing.length)h+='<div class="m" style="font-size:12px;color:#b45309">'+esc(LZ.recMissing.join(' and '))+' records could not be fetched just now, so they are not listed. Click again in a minute.</div>';
@@ -461,7 +476,8 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   if(LZ.LC.herLinks&&LZ.LC.herLinks.length){const gr=gridRef(E,N).replace(/\s+/g,''),dl=0.0027,dg=0.0043,v={e:Math.round(E),n:Math.round(N),gr,lat:ll.lat.toFixed(5),lng:ll.lng.toFixed(5),lat1:(ll.lat+dl).toFixed(5),lng1:(ll.lng-dg).toFixed(5),lat2:(ll.lat-dl).toFixed(5),lng2:(ll.lng+dg).toFixed(5)};
     const fill=t=>t.replace(/\{(\w+)\}/g,(m,k)=>k in v?encodeURIComponent(v[k]):m);
     h+='<div class="herlinks" style="margin-top:6px;font-size:13px">'+LZ.LC.herLinks.map(L=>'<a href="'+esc(fill(L.url))+'" target="_blank" rel="noopener noreferrer">'+esc(L.label)+' &#x2197;</a>'+(L.note?' <span class="m" style="font-size:11px">('+esc(fill(L.note).replace(/%20/g,' '))+')</span>':'')).join(' &middot; ')+'</div>'}
-  const CANM=LZ.LC.canmore&&(!LZ.country||!LZ.LC.countryText||LZ.country()==='scotland');if(CANM)h+='<div class="canmore" style="margin-top:6px;font-size:13px"><span class="m">Canmore records within '+(LZ.LC.canmore.radius||150)+' m: loading…</span></div>';
+  }
+  const CANM=!REG&&LZ.LC.canmore&&(!LZ.country||!LZ.LC.countryText||LZ.country()==='scotland');if(CANM)h+='<div class="canmore" style="margin-top:6px;font-size:13px"><span class="m">Canmore records within '+(LZ.LC.canmore.radius||150)+' m: loading…</span></div>';
   if(LZ.LC.tidyUI)h+='<div class="photostrip" style="margin-top:8px"></div>';
   const mStart=h.length;
   h+='<h3>Measured from the DTM</h3>'+(LZ.LC.dtmGroundNote?'<div class="m" style="font-size:11px;margin-bottom:3px">'+esc(LZ.LC.dtmGroundNote)+'</div>':'')+'<div class="desc">'+esc(describe(a))+'</div><div class="meas">'+(a.nodata?'':'<canvas></canvas>');
@@ -473,7 +489,8 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
   h+='<div class="ft">Measurements from the '+esc((LZ.country&&LZ.LC.countryText&&(LZ.LC.countryText[LZ.country()]||{}).dtmName)||LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC.replace(/\.\s*$/,''))+'.</div></div>';
   // measurements on demand (LC.measureOnDemand): the DTM analysis section stays folded behind a button until asked for
-  if(LZ.LC.measureOnDemand){const mh=h.slice(mStart);h=h.slice(0,mStart)+'<div class="measwrap"><button type="button" class="measbtn" style="margin:8px 0 4px;padding:5px 10px;cursor:pointer">Measure this feature from the DTM</button><div class="measbody" hidden>'+mh+'</div></div>'}
+  if(a.nodata&&(gelev!=null||REG)){h=h.slice(0,mStart)+'<div class="m fbmeas" style="font-size:12px;margin-top:8px">'+esc(FBK.noMeasure)+'</div>'}
+  else if(LZ.LC.measureOnDemand){const mh=h.slice(mStart);h=h.slice(0,mStart)+'<div class="measwrap"><button type="button" class="measbtn" style="margin:8px 0 4px;padding:5px 10px;cursor:pointer">Measure this feature from the DTM</button><div class="measbody" hidden>'+mh+'</div></div>'}
   const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);loadCanmore(card.querySelector('.canmore'),E,N);{const cv=card.querySelector('.meas canvas'),mb=card.querySelector('.measbtn');if(mb)mb.onclick=()=>{card.querySelector('.measbody').hidden=false;mb.remove();if(cv)thumb(cv,W,a)};else if(cv)thumb(cv,W,a)}
   LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
 // Canmore (National Record of the Historic Environment, HES, OGL) points near the click, live from HES's open ArcGIS service; links open trove.scot

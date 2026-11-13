@@ -249,10 +249,14 @@ const tileCache=new Map();
 const SW_WAIT=!!(LC.live&&('serviceWorker' in navigator)&&!navigator.serviceWorker.controller);
 function tileRange(z){const p1=map.project(CFG.bounds[1],z),p0=map.project(CFG.bounds[0],z);
   return {x0:Math.floor(Math.min(p0.x,p1.x)/256),x1:Math.floor(Math.max(p0.x,p1.x)/256),y0:Math.floor(Math.min(p0.y,p1.y)/256),y1:Math.floor(Math.max(p0.y,p1.y)/256)}}
+// GEM-15 marker (blue = 2 mod 4) read from the tile itself, so the note and credit also show when the tile comes from a cache and the worker sends no message
+let gemCv=null;function gemScan(k,img){if(typeof FB==='undefined'||!FB||FB.has(k))return;try{if(!gemCv){gemCv=document.createElement('canvas');gemCv.width=gemCv.height=256}
+  const g=gemCv.getContext('2d',{willReadFrequently:true});g.clearRect(0,0,256,256);g.drawImage(img,0,0);const d=g.getImageData(0,0,256,256).data;
+  for(let i=0;i<d.length;i+=4)if(d[i+3]>=128&&(d[i+2]&3)===2){FB.add(k);fbCheck();return}}catch(e){}}
 function getTile(z,x,y,cb){if(SW_WAIT)return null;const k=z+'/'+x+'/'+y;let t=tileCache.get(k);
   if(t){if(t.ok)return t.img; if(!t.failed&&cb)t.cbs.push(cb); return null}
   const img=new Image();if(CFG.xo)img.crossOrigin=CFG.xo;t={img,ok:false,failed:false,cbs:cb?[cb]:[]};tileCache.set(k,t);img.decoding='async';
-  img.onload=()=>{t.ok=true;t.cbs.forEach(f=>f());t.cbs=[];pokeLens()};img.onerror=()=>{t.failed=true;const c=t.cbs;t.cbs=[];c.forEach(f=>f());pokeLens()};   // a failed tile also triggers a rebuild, so the loading count clears
+  img.onload=()=>{t.ok=true;t.cbs.forEach(f=>f());t.cbs=[];pokeLens();if(LC.fallback)setTimeout(()=>gemScan(k,img),0)};img.onerror=()=>{t.failed=true;const c=t.cbs;t.cbs=[];c.forEach(f=>f());pokeLens()};   // a failed tile also triggers a rebuild, so the loading count clears
   img.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y);return null}
 // ---------- mosaic state ----------
 let MZ=null; // {zt,x0,y0,nx,ny,w,h,key}
@@ -363,11 +367,11 @@ else if(mode==10){vec3 n1=normalize(vec3(-gx,-gn,1.0));float s1=degrees(atan(len
  float vg=vat(shade(n1,A1,radians(35.0)),s1,hz.y,hz.x,50.0,68.0,93.0,0.7);float vf=vat(shade(n1,A1,radians(15.0)),s1,hz.w,hz.z,15.0,85.0,93.0,0.9);
  r=0.5*vg+0.5*vf;G=s1;}
 o=vec4(r,G,Bc,1.0);}`;
-  const SAMP=HEAD+`uniform sampler2D V;uniform vec2 b0,bs,lc;uniform int mode,fs,n;uniform float rad;
+  const SAMP=HEAD+`uniform sampler2D V;uniform sampler2D TR;uniform vec2 b0,bs,lc;uniform int mode,fs,n,sfb;uniform float rad;
 void main(){vec2 mp=b0+(gl_FragCoord.xy/float(max(n,1)))*bs;if(fs==0&&distance(mp,lc)>rad){o=vec4(0.0);return;}
 ivec2 sz=textureSize(V,0);ivec2 ip=ivec2(floor(mp));if(ip.x<0||ip.y<0||ip.x>=sz.x||ip.y>=sz.y){o=vec4(0.0);return;}
-vec4 v=texelFetch(V,ip,0);if(v.a<0.5){o=vec4(0.0);return;}o=vec4(mode==5?v.g:v.r,0.0,0.0,1.0);}`;
-  const FIN=HEAD+`uniform sampler2D V;uniform sampler2D RP;uniform vec2 tl,org,lc;uniform float sc,dpr,ch,lr,lo,hi,gm,op;uniform int fs,mode,dvg,rrc,msh,mrgb,won;uniform float wl;uniform sampler2D HW;
+vec4 v=texelFetch(V,ip,0);if(v.a<0.5){o=vec4(0.0);return;}if(sfb==1){vec4 tr=texelFetch(TR,ip,0);if(tr.a>0.5&&(int(round(tr.b*255.0))&3)==2){o=vec4(0.0);return;}}o=vec4(mode==5?v.g:v.r,0.0,0.0,1.0);}`;
+  const FIN=HEAD+`uniform sampler2D V;uniform sampler2D RP;uniform vec2 tl,org,lc;uniform float sc,dpr,ch,lr,lo,hi,gm,op;uniform int fs,mode,dvg,rrc,msh,mrgb,won,gfb;uniform float wl;uniform sampler2D HW;uniform sampler2D TR;
 vec3 hsv(float h,float s,float v){vec3 k=mod(vec3(5.0,3.0,1.0)+h*6.0,6.0);return v-v*s*clamp(min(k,4.0-k),0.0,1.0);}
 void main(){vec2 css=vec2(gl_FragCoord.x,ch-gl_FragCoord.y)/dpr;float ea=1.0;
 if(fs==0){float dd=distance(css,lc);if(dd>lr)discard;ea=clamp((lr-dd)/1.5,0.0,1.0);}
@@ -381,7 +385,9 @@ if(mode==14&&mrgb==1){col=pow(clamp(v.rgb,0.0,1.0),vec3(gm));}
 else if(mode==5){col=hsv(v.r/360.0,t,0.35+0.65*v.b);}
 else if(mode==6||rrc==1){float s=clamp(v.g/40.0,0.0,1.0);col=vec3(t,t*(1.0-0.8*s),t*(1.0-0.95*s));}
 else{col=texture(RP,vec2(t*0.996+0.002,0.5)).rgb;if(mode==7)col*=0.3+0.7*v.b;if(msh==1)col=0.7*col+0.3*vec3(v.b);}
-if(won==1){float hw=texelFetch(HW,clamp(ivec2(floor(m+0.5)),ivec2(0),sz-1),0).r;if(hw>-9000.0&&hw<wl){float d=clamp((wl-hw)/3.0,0.0,1.0);col=mix(col,mix(vec3(0.42,0.68,0.92),vec3(0.06,0.27,0.58),d),0.55+0.3*d);}}   // water: cells below the level, deeper = darker
+bool gf=false;if(gfb==1){vec4 tr=texelFetch(TR,clamp(ivec2(floor(m+0.5)),ivec2(0),sz-1),0);gf=tr.a>0.5&&(int(round(tr.b*255.0))&3)==2;}   // GEM-15 fallback pixel (blue = 2 mod 4): plain sepia tones, never LiDAR-looking
+if(gf){float l=dot(col,vec3(0.299,0.587,0.114));col=mix(col,l*vec3(1.0,0.83,0.6),0.8);}
+if(won==1&&!gf){float hw=texelFetch(HW,clamp(ivec2(floor(m+0.5)),ivec2(0),sz-1),0).r;if(hw>-9000.0&&hw<wl){float d=clamp((wl-hw)/3.0,0.0,1.0);col=mix(col,mix(vec3(0.42,0.68,0.92),vec3(0.06,0.27,0.58),d),0.55+0.3*d);}}   // water: cells below the level, deeper = darker
 o=vec4(col,op*ea);}`;
   function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s}
   const vs=sh(gl.VERTEX_SHADER,VS);
@@ -428,10 +434,10 @@ o=vec4(col,op*ea);}`;
       quad(p,T.V.fb,mz.w,mz.h,[box.x,box.y,box.w,box.h])},
     readBox(box){gl.bindFramebuffer(gl.FRAMEBUFFER,T.V.fb);const a=new Float32Array(box.w*box.h*4);gl.readPixels(box.x,box.y,box.w,box.h,gl.RGBA,gl.FLOAT,a);return a},
     sample(box,n,cx,cy,rad){if(sampN!==n){if(sampTex){gl.deleteTexture(sampTex);gl.deleteFramebuffer(sampFb)}sampTex=tex(n,n,'rgba32f');sampFb=fbo(sampTex);sampN=n}
-      const p=P.samp;gl.useProgram(p.p);bindT(0,T.V.tex,p,'V');gl.uniform2f(p.u.b0,box.x,box.y);gl.uniform2f(p.u.bs,box.w,box.h);gl.uniform2f(p.u.lc,cx,cy);
+      const p=P.samp;gl.useProgram(p.p);bindT(0,T.V.tex,p,'V');bindT(1,T.rgb.tex,p,'TR');gl.useProgram(p.p);gl.uniform1i(p.u.sfb,0);gl.uniform2f(p.u.b0,box.x,box.y);gl.uniform2f(p.u.bs,box.w,box.h);gl.uniform2f(p.u.lc,cx,cy);
       gl.uniform1i(p.u.mode,S.mode);gl.uniform1i(p.u.fs,S.fs?1:0);gl.uniform1i(p.u.n,n);gl.uniform1f(p.u.rad,rad);quad(p,sampFb,n,n);
       const a=new Float32Array(n*n*4);gl.bindFramebuffer(gl.FRAMEBUFFER,sampFb);gl.readPixels(0,0,n,n,gl.RGBA,gl.FLOAT,a);return a},
-    sampleH(box,n){const p=P.samp;gl.useProgram(p.p);bindT(0,T.H.tex,p,'V');gl.uniform2f(p.u.b0,box.x,box.y);gl.uniform2f(p.u.bs,box.w,box.h);gl.uniform2f(p.u.lc,0,0);
+    sampleH(box,n){const p=P.samp;gl.useProgram(p.p);bindT(0,T.H.tex,p,'V');bindT(1,T.rgb.tex,p,'TR');gl.useProgram(p.p);gl.uniform1i(p.u.sfb,LC.fallback?1:0);gl.uniform2f(p.u.b0,box.x,box.y);gl.uniform2f(p.u.bs,box.w,box.h);gl.uniform2f(p.u.lc,0,0);
       gl.uniform1i(p.u.mode,0);gl.uniform1i(p.u.fs,1);gl.uniform1i(p.u.n,n);gl.uniform1f(p.u.rad,1e9);if(sampN!==n){if(sampTex){gl.deleteTexture(sampTex);gl.deleteFramebuffer(sampFb)}sampTex=tex(n,n,'rgba32f');sampFb=fbo(sampTex);sampN=n}quad(p,sampFb,n,n);
       const a=new Float32Array(n*n*4);gl.bindFramebuffer(gl.FRAMEBUFFER,sampFb);gl.readPixels(0,0,n,n,gl.RGBA,gl.FLOAT,a);const o=[];for(let i=0;i<a.length;i+=4)if(a[i+3]>0.5&&a[i]>-9000)o.push(a[i]);return o},
     draw(vw,lo,hi){if(rampName!==S.ramp){if(rampTex)gl.deleteTexture(rampTex);rampTex=tex(256,1,'rgba8',rampBytes(S.ramp));gl.bindTexture(gl.TEXTURE_2D,rampTex);
@@ -439,7 +445,7 @@ o=vec4(col,op*ea);}`;
       const p=P.fin;gl.useProgram(p.p);bindT(0,T.V.tex,p,'V');bindT(1,rampTex,p,'RP');const dpr=cvDpr;
       gl.uniform2f(p.u.tl,vw.tl[0],vw.tl[1]);gl.uniform2f(p.u.org,vw.org[0],vw.org[1]);gl.uniform2f(p.u.lc,lensC[0],lensC[1]);gl.uniform1f(p.u.sc,vw.sc);gl.uniform1f(p.u.dpr,dpr);
       gl.uniform1f(p.u.ch,cv.height);gl.uniform1f(p.u.lr,S.ls/2);gl.uniform1f(p.u.lo,lo);gl.uniform1f(p.u.hi,hi);gl.uniform1f(p.u.gm,S.gm);gl.uniform1f(p.u.op,S.op);
-      gl.uniform1i(p.u.fs,S.fs?1:0);gl.uniform1i(p.u.mode,S.mode);gl.uniform1i(p.u.dvg,DIVERGING(S.mode)?1:0);gl.uniform1i(p.u.rrc,redRel()?1:0);gl.uniform1i(p.u.msh,isMSRM(S.mode)&&S.msh?1:0);gl.uniform1i(p.u.mrgb,mstpRGB()?1:0);gl.uniform1i(p.u.won,waterOn()?1:0);gl.uniform1f(p.u.wl,S.wl==null?-1e9:S.wl);bindT(2,T.H.tex,p,'HW');gl.useProgram(p.p);
+      gl.uniform1i(p.u.fs,S.fs?1:0);gl.uniform1i(p.u.mode,S.mode);gl.uniform1i(p.u.dvg,DIVERGING(S.mode)?1:0);gl.uniform1i(p.u.rrc,redRel()?1:0);gl.uniform1i(p.u.msh,isMSRM(S.mode)&&S.msh?1:0);gl.uniform1i(p.u.mrgb,mstpRGB()?1:0);gl.uniform1i(p.u.won,waterOn()?1:0);gl.uniform1f(p.u.wl,S.wl==null?-1e9:S.wl);bindT(2,T.H.tex,p,'HW');bindT(3,T.rgb.tex,p,'TR');gl.useProgram(p.p);gl.uniform1i(p.u.gfb,LC.fallback?1:0);
       gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height);gl.disable(gl.SCISSOR_TEST);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.drawArrays(gl.TRIANGLES,0,3)},
     clear(){gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT)}
   }}
@@ -519,11 +525,21 @@ function pokeLens(){const w=lensWait;if(!w)return;for(const [z,x,y] of w.tiles)i
 // live worker: {refine:'z/x/y'} a finer tile is ready (swap it in once loaded, no blank in between); {drop:'z/x/y'} the tile
 // was given up because the lens moved away (forget it, so it is asked for again if the lens comes back)
 let lastFocus='';
-if(LC.live&&navigator.serviceWorker)navigator.serviceWorker.addEventListener('message',e=>{const d=e.data||{};
+// GEM-15 fallback (LC.fallback {label, attribution, about}): tiles the live worker filled from a coarse non-LiDAR model where no open
+// LiDAR exists. The lens tones those pixels sepia (FIN shader) and, while any lens tile holds them, a note says so and the credit shows.
+var FB=new Set(),fbOn=false;   // var: placeLens may run before this line
+if(LC.fallback){const st=document.createElement('style');st.textContent='#fbnote{position:absolute;z-index:1001;left:50%;bottom:58px;transform:translateX(-50%);background:rgba(58,34,4,.88);color:#ffe0b0;border:1px solid #f0a030;padding:4px 10px;border-radius:6px;font:12px/1.35 system-ui,sans-serif;max-width:min(92vw,560px);text-align:center;pointer-events:none}#fbnote[hidden]{display:none}#fbnote .fs{display:none}@media (max-width:700px),(max-height:500px){#fbnote{bottom:150px;font-size:11.5px;padding:3px 8px}#fbnote .fl{display:none}#fbnote .fs{display:inline}}html[data-fb="1"] #lens:not(.fs){box-shadow:0 0 0 2px #f0a030,0 0 0 4px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.5)}';document.head.appendChild(st)}
+function fbCheck(){if(!LC.fallback||!FB)return;const w=MZ;let on=false;
+  if(w&&lensC)for(let j=0;j<w.ny&&!on;j++)for(let i=0;i<w.nx&&!on;i++){const x=w.x0+i,y=w.y0+j;if(FB.has(w.zt+'/'+x+'/'+y)&&(S.fs||tileInLens(w.zt,x,y)))on=true}
+  if(on===fbOn)return;fbOn=on;let el=$('fbnote');
+  if(!el){el=document.createElement('div');el.id='fbnote';el.setAttribute('role','status');el.innerHTML='<span class="fl">'+LC.fallback.label+'</span><span class="fs">'+(LC.fallback.short||LC.fallback.label)+'</span>';document.body.appendChild(el)}
+  el.hidden=!on;document.documentElement.dataset.fb=on?'1':'';
+  if(LC.fallback.attribution){if(on)map.attributionControl.addAttribution(LC.fallback.attribution);else map.attributionControl.removeAttribution(LC.fallback.attribution)}}
+if(LC.live&&navigator.serviceWorker)navigator.serviceWorker.addEventListener('message',e=>{const d=e.data||{};if(d.fb&&LC.fallback){FB.add(d.fb);fbCheck()}
   if(d.drop){const t=tileCache.get(d.drop);if(t&&!t.ok){tileCache.delete(d.drop);scheduleMosaic()}}
   if(d.refine){const t=tileCache.get(d.refine);if(!t)return;const [z,x,y]=d.refine.split('/'),im=new Image();if(CFG.xo)im.crossOrigin=CFG.xo;im.decoding='async';
     im.onload=()=>{t.img=im;t.ok=true;t.failed=false;scheduleMosaic()};im.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)+'?fine=1'}});
-function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=false;R.clear();lensWait=null;return}
+function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=false;R.clear();lensWait=null;fbCheck();return}
   const all=[];for(let j=0;j<want.ny;j++)for(let i=0;i<want.nx;i++)all.push([want.x0+i,want.y0+j,i*256,j*256]);
   const lens=[],rest=[];if(!LC.live&&!S.fs)all.forEach(t=>(tileInLens(want.zt,t[0],t[1])?lens:rest).push(t));else lens.push(...all);
   const defer=lens.length&&rest.length,use=defer?lens:all;
@@ -537,6 +553,7 @@ function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=fal
   if(defer){lensWait={key:want.key,zt:want.zt,tiles:lens.map(([x,y])=>[want.zt,x,y]),rest};pokeLens()}else lensWait=null;
   if(LC.live&&!SW_WAIT&&map.getZoom()>=liveMz()-0.25){const failed=all.filter(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);return t&&t.failed}).length;   // (nearly) every tile empty: say why, not a blank lens
     if(failed&&failed>=all.length*0.75)msg(NO_LIDAR);else if($('msg').textContent===NO_LIDAR)msg('',1)}
+  fbCheck();
   {const ld=document.getElementById('loading');if(SW_WAIT)missing=all.length;if(ld){ld.hidden=!missing;if(missing)document.getElementById('loadt').textContent='Loading LiDAR… ('+missing+' tiles)'}}requestRender(true)}
 // tiles arrive in bursts: coalesce rebuilds (each one re-decodes the whole mosaic)
 let mosT=null,mosFirst=0;function scheduleMosaic(){clearTimeout(mosT);const now=performance.now();if(!mosFirst)mosFirst=now;
@@ -637,11 +654,19 @@ let suppressHash=false;function saveHash(){if(suppressHash)return;try{history.re
 let hT=null;function saveHashSoon(){clearTimeout(hT);hT=setTimeout(saveHash,300)}
 $('share').onclick=()=>{saveHash();const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>msg(LC.private===true?'Link copied (the site still needs the password)':'Link copied',2500),()=>{prompt('Copy this link:',u)})};
 // ---------- elevation profile ----------
-const ptile=new Map();
+const ptile=new Map(),pgem=new Map();   // pgem: GEM-15 fallback heights per tile (only an estimate readout uses them)
 function tileData(z,x,y){const k=z+'/'+x+'/'+y;if(ptile.has(k))return ptile.get(k);
-  const pr=new Promise(res=>{const im=new Image();if(CFG.xo)im.crossOrigin=CFG.xo;im.onload=()=>{const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d',{willReadFrequently:true});if(!g)return res(null);g.drawImage(im,0,0);res(g.getImageData(0,0,256,256).data)};im.onerror=()=>res(null);im.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)});ptile.set(k,pr);return pr}
+  const pr=new Promise(res=>{const im=new Image();if(CFG.xo)im.crossOrigin=CFG.xo;im.onload=()=>{const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d',{willReadFrequently:true});if(!g)return res(null);g.drawImage(im,0,0);const dd=g.getImageData(0,0,256,256).data;if(LC.fallback){let gh=null;for(let i=0;i<dd.length;i+=4)if((dd[i+2]&3)===2&&dd[i+3]>=128){if(!gh)gh=new Float32Array(65536).fill(NaN);gh[i>>2]=dd[i]*256+dd[i+1]+dd[i+2]/256-32768;dd[i+3]=0}if(gh)pgem.set(k,gh)}res(dd)};im.onerror=()=>res(null);im.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)});ptile.set(k,pr);return pr}
 async function heightAt(ll){const z=CFG.maxz,p=map.project(ll,z),x=Math.floor(p.x/256),y=Math.floor(p.y/256),d=await tileData(z,x,y);if(!d)return null;
   const i=Math.min(255,Math.floor(p.x-x*256)),j=Math.min(255,Math.floor(p.y-y*256)),o=(j*256+i)*4;if(d[o+3]<128)return null;return d[o]*256+d[o+1]+d[o+2]/256-32768}
+// GEM-15 estimate (EGM96, metres out): only where the tile holds GEM-15 at that spot; null elsewhere, including wherever LiDAR has a height
+async function gemHeightAt(ll){if(!LC.fallback)return null;const z=CFG.maxz,p=map.project(ll,z),x=Math.floor(p.x/256),y=Math.floor(p.y/256);await tileData(z,x,y);const gh=pgem.get(z+'/'+x+'/'+y);if(!gh)return null;
+  const ix=Math.min(255,Math.floor(p.x-x*256)),iy=Math.min(255,Math.floor(p.y-y*256)),at=(i,j)=>gh[Math.max(0,Math.min(255,j))*256+Math.max(0,Math.min(255,i))],v=at(ix,iy);if(v!==v)return null;
+  // error class from the local GEM-15 slope (about 15 m baseline) and from masked GEM-15 cells within about 30 m (cliffs, snow, water)
+  const mpp=156543.03392*Math.cos(ll.lat*Math.PI/180)/Math.pow(2,z),d=Math.max(1,Math.round(7.5/mpp)),r=Math.max(2,Math.round(30/mpp));let gap=false;
+  for(let k=0;k<16&&!gap;k++){const a=k*Math.PI/8;for(const f of [0.5,1]){const w=at(ix+Math.round(Math.cos(a)*r*f),iy+Math.round(Math.sin(a)*r*f));if(w!==w){gap=true;break}}}
+  const dx=(at(ix+d,iy)-at(ix-d,iy))/(2*d*mpp),dy=(at(ix,iy+d)-at(ix,iy-d))/(2*d*mpp),sl=dx===dx&&dy===dy?Math.atan(Math.hypot(dx,dy))*180/Math.PI:90;
+  return {h:v,slope:sl,gap,e:gap||sl>=35?'10+':sl>=20?'4':'2',warn:gap||sl>=35}}
 let tool=null,profPts=[],profLine=null,profMk=[];const toolHooks={};
 function setTool(t){if(t===tool)t=null;const prev=tool;tool=t;
   if(prev==='profile'&&t!=='profile'){clearProfile(true)}
@@ -674,8 +699,9 @@ document.querySelector('#prof .x').onclick=()=>{clearProfile(true);if(tool==='pr
 // ---------- go ----------
 $('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Combined VAT visualisation after Kokalj, Ž. &amp; Somrak, M. (2019) Why Not a Single Image? Combining Visualizations to Facilitate Fieldwork and On-Screen Mapping. Remote Sensing 11(7), 747. doi:<a href="https://doi.org/10.3390/rs11070747" target="_blank" rel="noopener noreferrer">10.3390/rs11070747</a>. Relief Visualization Toolbox (RVT), Apache 2.0. Here: general- and flat-terrain settings (horizon radii 10 m and 20 m, sun 315°), computed in the browser from the same DTM tiles, without vertical exaggeration. Openness difference = (positive − negative openness) / 2 from the same horizon search and radius: openness after Yokoyama, R., Shirasawa, M. &amp; Pike, R.J. (2002) Visualizing topography by openness. Photogrammetric Engineering &amp; Remote Sensing 68(3), 257–265; difference after Chiba, T., Kaneta, S. &amp; Suzuki, Y. (2008) Red relief image map: new visualization method for three dimensional data. ISPRS Archives 37(B2), 1071–1076. Centred on zero (ridges light, hollows dark); it can also use the red relief colours (slope in red). Multi-scale topographic position after Lindsay, J.B., Cockburn, J.M.H. &amp; Russell, H.A.J. (2015) An integral image approach to performing multi-scale topographic position analysis. Geomorphology 245, 51–61. doi:10.1016/j.geomorph.2015.05.025, with the colour composite of Guyot, A., Hubert-Moy, L. &amp; Lorho, T. (2018) Detecting Neolithic burial mounds from LiDAR-derived elevation data using a multi-scale approach and machine learning techniques. Remote Sensing 10, 225. doi:10.3390/rs10020225: deviation from mean elevation at local (1–5 m), meso (5–50 m) and broad (50–500 m) scales as blue, green and red (the default; any other colour ramp shows one size, or the strongest, on that ramp); brightness 1−exp(−lightness·|DEVmax|) as in the Relief Visualization Toolbox. Water level: in full screen, every LiDAR cell lower than the level chosen is shaded blue (a simple level, not a flood model), with the level in m OD and the share of the view under water; also as a sheet in the 3D view. Soft shading in the 3D view: sky-view factor after Zakšek, K., Oštir, K. &amp; Kokalj, Ž. (2011) Sky-view factor as a relief visualization technique. Remote Sensing 3, 398–415. doi:10.3390/rs3020398, within 10 m, as a gentle darkening. Red–cyan 3D in the 3D view: three.js AnaglyphEffect, using the least-squares colour matrices of Dubois, E. (2001) A projection method to generate anaglyph stereo images, Proc. IEEE ICASSP 3, 1661–1664. Multi-scale relief model after Orengo, H.A. &amp; Petrie, C.A. (2018) Multi-scale relief model (MSRM): a new algorithm for the visualization of subtle topographic change of variable size in digital elevation models. Earth Surface Processes and Landforms 43, 1361–1369. doi:10.1002/esp.4317: the difference of two mean (box) filtered surfaces for the chosen feature sizes (default 0–20 m, scaling 2), standard-deviation stretch (±2.5 σ), optionally at 70% over the multi-direction hillshade. Local dominance after Hesse, R. (2016) Visualisierung hochauflösender Digitaler Geländemodelle mit LiVT. In 3D-Anwendungen in der Archäologie, Berlin Studies of the Ancient World 34, 109–128. doi:10.18452/5368: the mean angle down from an observer 1.7 m above each point to the ground 10–20 m around it (24 directions, 12 on a phone; settings below the menu), true heights; default settings as in the Relief Visualization Toolbox. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
 // config creditsFull: the full credit text lives in About / data; a .credlink in the short attribution opens it
+if(LC.fallback&&LC.fallback.about){const c=document.createElement('div');c.id='fbabout';c.style.marginTop='6px';c.innerHTML=LC.fallback.about;$('about').appendChild(c)}
 if(LC.creditsFull){const c=document.createElement('div');c.className='credits';c.style.marginTop='6px';c.innerHTML='<b>Credits.</b> '+LC.creditsFull;$('about').appendChild(c)}
 document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a.credlink');if(!a)return;e.preventDefault();$('panel').classList.remove('hide');const d=$('about').closest('details');if(d)d.open=true;placeLens();requestRender();setTimeout(()=>$('about').scrollIntoView({block:'nearest',behavior:'smooth'}),50)});
-Object.assign(window.__lens,{H0,saveHashSoon,RAMPS,syncUI,placeLens,requestRender,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},setLensC:(x,y)=>{if(!isFinite(x)||!isFinite(y))return;lensC=[x,y];placeLens();requestRender()},tileData,heightAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
+Object.assign(window.__lens,{H0,saveHashSoon,RAMPS,syncUI,placeLens,requestRender,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},setLensC:(x,y)=>{if(!isFinite(x)||!isFinite(y))return;lensC=[x,y];placeLens();requestRender()},tileData,heightAt,gemHeightAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
 resizeCanvas();syncUI();if(S.sm)setSM(true);buildMosaic();
 })();

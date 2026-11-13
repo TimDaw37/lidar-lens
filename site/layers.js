@@ -193,9 +193,11 @@ CATALOG.forEach(d=>{if(d.group!==group){group=d.group;const h=document.createEle
   cb.addEventListener('change',()=>setOn(d,cb.checked));const span=document.createElement('span');span.textContent=d.name;lab.appendChild(cb);lab.appendChild(span);host.appendChild(lab);
   const meta=document.createElement('div');meta.className='laymeta';meta.textContent=d.credit;host.appendChild(meta);d.meta=meta;d.cb=cb;d.els=[lab,meta];;d.gh=curH});
 const sug=$('laysuggest');function sugText(cc){if(sug)sug.textContent=cc==='wales'&&CCODE.wales==='W'?'Welsh layers: Cadw designations, RCAHMW (Coflein) sites and Natural Resources Wales protected areas and flood zones, all from DataMapWales under the Open Government Licence.':cc==='scotland'?'Scottish layers: Historic Environment Scotland designations and NatureScot protected areas, all Open Government Licence. Canmore and local HER/SMR records are not shown.':'Not added: Environment Agency historic landfill is Open Government Licence and can explain modern mounds. National soil maps (NATMAP and Soilscapes, Cranfield) are not published under the Open Government Licence, so they are left out.';}
-let CUR=null;function applyCountry(){const cc=AUTO?countryAt(map.getCenter()):LCC;if(cc===CUR)return;CUR=cc;sugText(cc);if(!AUTO)return;const k=CCODE[cc]||'E';
+const FBR=(LZ.LC.fallback&&LZ.LC.fallback.regions)||[],regAt=ll=>FBR.find(r=>r.layers&&ll.lat>=r.box[0]&&ll.lat<=r.box[2]&&ll.lng>=r.box[1]&&ll.lng<=r.box[3])||null;
+let CUR=null;function applyCountry(){const RG=AUTO&&regAt(map.getCenter()),cc=RG?'reg:'+RG.name:AUTO?countryAt(map.getCenter()):LCC;if(cc===CUR)return;CUR=cc;
+  if(RG){if(sug)sug.textContent=(RG.layers==='GB'?LZ.LC.fallback.layersGB:LZ.LC.fallback.layersNone).replace('{r}',RG.name==='Isle of Man'?'The Isle of Man':RG.name);}else sugText(cc);if(!AUTO)return;const k=RG?(RG.layers==='GB'?'GB':'-'):CCODE[cc]||'E';
   host.querySelectorAll('.lg').forEach(h=>h.style.display='none');
-  CATALOG.forEach(d=>{const show=d.on||(d.c||'E')==='GB'||(d.c||'E')===k;d.els.forEach(e=>e.style.display=show?'':'none');if(show&&d.gh)d.gh.style.display=''})}
+  CATALOG.forEach(d=>{const show=d.on||(k!=='-'&&((d.c||'E')==='GB'||(d.c||'E')===k));d.els.forEach(e=>e.style.display=show?'':'none');if(show&&d.gh)d.gh.style.display=''})}
 applyCountry();if(AUTO)map.on('moveend',applyCountry);
 let mvT=null;map.on('moveend',()=>{clearTimeout(mvT);mvT=setTimeout(()=>{CATALOG.forEach(d=>{if(!d.on)return;if(d.kind==='fs')loadFs(d);else setStatus(d,wmsNote(d))})},350)});
 function parseFields(xml){const m=String(xml).match(/<FIELDS\b([^>]*)\/?>/i);if(!m)return null;const o={},re=/([\w:.-]+)="([^"]*)"/g;let a;

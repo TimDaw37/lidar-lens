@@ -76,7 +76,20 @@ function setHist(id){const h=HIST.find(x=>x.id===id);hop.disabled=!h;hs.value=h?
   Object.values(histLayers).forEach(l=>{if(l._histId!==id&&map.hasLayer(l))map.removeLayer(l)});
   histL=h?histLayers[id]:null;
   if(histL){histL.setOpacity(+hop.value);if(!map.hasLayer(histL))histL.addTo(map);
-    if(h.minZoom&&map.getZoom()<h.minZoom)LZ.msg('Zoom in to see the '+h.name+' map (from zoom '+h.minZoom+')',3500)}}
+    if(h.minZoom&&map.getZoom()<h.minZoom)LZ.msg('Zoom in to see the '+h.name+' map (from zoom '+h.minZoom+')',3500)}
+  if(typeof covUpdate==='function')setTimeout(covUpdate,0)}
+// GEM-15 fallback lenses: say where the old OS maps stop (Isle of Man: one-inch only; Channel Islands: none), in the panel and on the map
+const FBR=(LC.fallback&&LC.fallback.regions)||[],regAt=ll=>FBR.find(r=>r.oldMaps&&ll.lat>=r.box[0]&&ll.lat<=r.box[2]&&ll.lng>=r.box[1]&&ll.lng<=r.box[3])||null;
+let covEl=null,covP=null;
+function covUpdate(){if(!FBR.length)return;const R=regAt(map.getCenter()),F=LC.fallback;
+  const miss=R&&HIST.some(h=>!R.oldMaps.includes(h.id)),txt=!R||!miss?'':(R.oldMaps.length?F.oldSome:F.oldNone).replace('{r}',R.name==='Isle of Man'?'the Isle of Man':R.name);
+  if(!covP){covP=document.createElement('small');covP.id='oldcov';covP.style.cssText='display:block;color:#b45309;margin-top:4px';$('histbox').appendChild(covP)}
+  covP.textContent=txt;covP.hidden=!txt;
+  const id=hs.value,bad=R&&id&&!R.oldMaps.includes(id),t2=bad?(R.oldMaps.length?F.oldSome:F.oldNone).replace('{r}',R.name==='Isle of Man'?'the Isle of Man':R.name):'';
+  if(!covEl){const st=document.createElement('style');st.textContent='#covnote{position:absolute;z-index:1002;left:50%;top:10px;transform:translateX(-50%);background:rgba(120,53,15,.92);color:#fff7ed;border:1px solid #f0a030;padding:4px 10px;border-radius:6px;font:12px/1.35 system-ui,sans-serif;max-width:min(60vw,440px);text-align:center;pointer-events:none}#covnote[hidden]{display:none}@media (max-width:700px){#covnote{left:8px;transform:none;top:112px;max-width:calc(100vw - 200px);font-size:11.5px}}';document.head.appendChild(st);
+    covEl=document.createElement('div');covEl.id='covnote';covEl.setAttribute('role','status');document.body.appendChild(covEl)}
+  covEl.textContent=t2;covEl.hidden=!t2}
+map.on('moveend',covUpdate);hs.addEventListener('change',()=>setTimeout(covUpdate,0));
 // Ticking an old map on the layers button does the same as choosing it in the panel.
 map.on('overlayadd',e=>{if(e.layer._histId&&e.layer!==histL){setHist(e.layer._histId);LZ.saveHashSoon()}});
 map.on('overlayremove',e=>{if(e.layer._histId&&e.layer===histL){histL=null;hs.value='';hop.disabled=true;LZ.saveHashSoon()}});
