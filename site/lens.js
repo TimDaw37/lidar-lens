@@ -444,7 +444,8 @@ o=vec4(col,op*ea);}`;
     draw(vw,lo,hi){if(rampName!==S.ramp){if(rampTex)gl.deleteTexture(rampTex);rampTex=tex(256,1,'rgba8',rampBytes(S.ramp));gl.bindTexture(gl.TEXTURE_2D,rampTex);
         gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);rampName=S.ramp}
       const p=P.fin;gl.useProgram(p.p);bindT(0,T.V.tex,p,'V');bindT(1,rampTex,p,'RP');const dpr=cvDpr;
-      gl.uniform2f(p.u.tl,vw.tl[0],vw.tl[1]);gl.uniform2f(p.u.org,vw.org[0],vw.org[1]);gl.uniform2f(p.u.lc,lensC[0],lensC[1]);gl.uniform1f(p.u.sc,vw.sc);gl.uniform1f(p.u.dpr,dpr);
+      gl.uniform2f(p.u.tl,vw.tl[0]-vw.org[0]*vw.sc,vw.tl[1]-vw.org[1]*vw.sc);gl.uniform2f(p.u.org,0,0);   // tl-org*sc in JS (double): world pixels at zoom 17-20 (up to ~2.7e8) lose 2-16 px in a float32 uniform, which made the magnified lens blocky (13 Nov 2026)
+      gl.uniform2f(p.u.lc,lensC[0],lensC[1]);gl.uniform1f(p.u.sc,vw.sc);gl.uniform1f(p.u.dpr,dpr);
       gl.uniform1f(p.u.ch,cv.height);gl.uniform1f(p.u.lr,S.ls/2);gl.uniform1f(p.u.lo,lo);gl.uniform1f(p.u.hi,hi);gl.uniform1f(p.u.gm,S.gm);gl.uniform1f(p.u.op,S.op);
       gl.uniform1i(p.u.fs,S.fs?1:0);gl.uniform1i(p.u.mode,S.mode);gl.uniform1i(p.u.dvg,DIVERGING(S.mode)?1:0);gl.uniform1i(p.u.rrc,redRel()?1:0);gl.uniform1i(p.u.msh,isMSRM(S.mode)&&S.msh?1:0);gl.uniform1i(p.u.mrgb,mstpRGB()?1:0);gl.uniform1i(p.u.won,waterOn()?1:0);gl.uniform1f(p.u.wl,S.wl==null?-1e9:S.wl);bindT(2,T.H.tex,p,'HW');bindT(3,T.rgb.tex,p,'TR');gl.useProgram(p.p);gl.uniform1i(p.u.gfb,LC.fallback?1:0);
       gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height);gl.disable(gl.SCISSOR_TEST);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.drawArrays(gl.TRIANGLES,0,3)},

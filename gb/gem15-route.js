@@ -74,16 +74,25 @@ async function get(z, x, y) {
   mem.set(k, p); while (mem.size > 24) mem.delete(mem.keys().next().value);
   return p;
 }
-// zoom 14-17: the zoom 13 tile enlarged (bilinear in height; nearest at a no-data edge), re-encoded with the marker
+// zoom 14-17: the zoom 13 tile enlarged (bicubic Catmull-Rom in height, so the hillshade has no 11 m cell grid of creases as it had with
+// bilinear; bilinear next to no-data, nearest at a no-data edge), re-encoded with the marker. Catmull-Rom passes through every zoom 13
+// height, so GEM-15 estimates at the cell centres are unchanged (13 Nov 2026, after Bert Temme's bilinear hillshade post, Tim pt2197u)
+const CR = t => { const t2 = t * t, t3 = t2 * t; return [(-t3 + 2 * t2 - t) / 2, (3 * t3 - 5 * t2 + 2) / 2, (-3 * t3 + 4 * t2 + t) / 2, (t3 - t2) / 2] };
 async function tileData(z, x, y) {
   if (z <= 13) return get(z, x, y);
   const d = z - 13, s = 2 ** d, P = await get(13, x >> d, y >> d); if (!P) return null;
   const H = new Float32Array(65536); for (let i = 0; i < 65536; i++) H[i] = P[i * 4 + 3] < 128 ? NaN : P[i * 4] * 256 + P[i * 4 + 1] + P[i * 4 + 2] / 256 - 32768;
   const ox = (x - ((x >> d) << d)) * 256 / s, oy = (y - ((y >> d) << d)) * 256 / s, out = new Uint8ClampedArray(65536 * 4); let any = false;
-  for (let j = 0; j < 256; j++) { const v = Math.min(255, Math.max(0, oy + (j + 0.5) / s - 0.5)), iy = Math.min(254, Math.floor(v)), ay = v - iy;
-    for (let i = 0; i < 256; i++) { const u = Math.min(255, Math.max(0, ox + (i + 0.5) / s - 0.5)), ix = Math.min(254, Math.floor(u)), ax = u - ix, q = iy * 256 + ix;
+  const cl = k => k < 0 ? 0 : k > 255 ? 255 : k, CX = [], IX = new Int32Array(256), AX = new Float32Array(256);   // per-column weights, once per tile
+  for (let i = 0; i < 256; i++) { const u = Math.min(255, Math.max(0, ox + (i + 0.5) / s - 0.5)); IX[i] = Math.min(254, Math.floor(u)); AX[i] = u - IX[i]; CX[i] = CR(AX[i]) }
+  for (let j = 0; j < 256; j++) { const v = Math.min(255, Math.max(0, oy + (j + 0.5) / s - 0.5)), iy = Math.min(254, Math.floor(v)), ay = v - iy, wy = CR(ay),
+      r0 = cl(iy - 1) * 256, r1 = iy * 256, r2 = (iy + 1) * 256, r3 = cl(iy + 2) * 256;
+    for (let i = 0; i < 256; i++) { const ix = IX[i], ax = AX[i], q = iy * 256 + ix;
       const h00 = H[q], h10 = H[q + 1], h01 = H[q + 256], h11 = H[q + 257];
-      let h = (h00 * (1 - ax) + h10 * ax) * (1 - ay) + (h01 * (1 - ax) + h11 * ax) * ay;
+      const wx = CX[i], c0 = cl(ix - 1), c3 = cl(ix + 2);
+      const row = r => wx[0] * H[r + c0] + wx[1] * H[r + ix] + wx[2] * H[r + ix + 1] + wx[3] * H[r + c3];
+      let h = wy[0] * row(r0) + wy[1] * row(r1) + wy[2] * row(r2) + wy[3] * row(r3);   // NaN if any of the 16 cells is no-data
+      if (h !== h) h = (h00 * (1 - ax) + h10 * ax) * (1 - ay) + (h01 * (1 - ax) + h11 * ax) * ay;
       if (h !== h) { h = [h00, h10, h01, h11][(ay > 0.5 ? 2 : 0) + (ax > 0.5 ? 1 : 0)]; if (h !== h) continue }
       const vv = Math.round((h + 32768) * 64) / 64, vi = Math.floor(vv), o = (j * 256 + i) * 4;
       out[o] = vi >> 8; out[o + 1] = vi & 255; out[o + 2] = (Math.round((vv - vi) * 256) & 252) + 2; out[o + 3] = 255; any = true } }
@@ -91,7 +100,8 @@ async function tileData(z, x, y) {
 }
 // finished GEM-15 tiles are kept (Cache Storage, per mask version) when their LiDAR part cannot change: no LiDAR at all, a zoom 8-10
 // overview, or the static Scottish overview (zoom 8-13, not a border tile with live England/Wales in it); so a second look costs a cache read, not a decode, mask and PNG encode
-const OUT = 'gem15-out-v2';
+const OUT = 'gem15-out-v3';   // v3: bicubic zoom 14-17 (v2 tiles were bilinear)
+self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('gem15-out-') && k !== OUT).map(k => caches.delete(k)))).catch(() => {})));   // drop older finished-tile caches
 async function fbRoute(z, x, y, ev) {
   if (z < 8 || z > 17) return route(z, x, y, ev);
   const [I, M] = await Promise.all([load(), mask()]); if (!I || !M || !has(I, z, x, y) || !tileClass(M, z, x, y)) return route(z, x, y, ev);
