@@ -1,6 +1,6 @@
 // Regression gate for the live Great Britain viewer.
 // Building site/ with scripts/build_site.mjs and gb/config.js must reproduce the
-// assets on https://lidarlens.sarsen.org (checked 8 Nov 2026; releases 6 and 7 checked 11 Nov 2026; GEM-15 release 13 Nov 2026; hillshade smoothing 14 Nov 2026):
+// assets on https://lidarlens.sarsen.org (checked 8 Nov 2026; releases 6 and 7 checked 11 Nov 2026; GEM-15 release 13 Nov 2026; hillshade smoothing 14 Nov 2026; GEM-15 gap fill 14 Nov 2026, live-sw.js only):
 //   assets/app.cba371ab.js  (hillshade smoothing release, 14 Nov 2026 (t2198u): the lens offset worked out in JS doubles so magnified zoom 17-20
 //                            views interpolate instead of showing float32-rounded blocks, and bicubic GEM-15 at zoom 14-17 (live-sw.js changes with it).)
 //   Before: assets/app.d0ff1675.js  (field-logic release, 13 Nov 2026.)
@@ -101,7 +101,7 @@ try {
     console.log('field mode is additive: ' + f);
   }
   // the live-mode service worker and the monument names production serves at the site root (checked against the live files 10 Nov 2026)
-  for (const [rel, expect] of [['live-sw.js', 'db4aebba715a9e35a61113e9718ab93be898f8353842e9c87ee7d92e3240eaac'], ['towns.json', '9a1cc317f58cdcbb3a40bcdfe10d9276b2c6ecb11c2b5de57331d5deb2c20ab5'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
+  for (const [rel, expect] of [['live-sw.js', '245df3279f2543e849ea9dfa944ec2566864248025f1e6d36fb5398a401e8d36'], ['towns.json', '9a1cc317f58cdcbb3a40bcdfe10d9276b2c6ecb11c2b5de57331d5deb2c20ab5'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
     const got = sha(fs.readFileSync(path.join(tmp, 'dist', rel)));
     if (got !== expect) fail(rel + ' sha256 ' + got + ' != live ' + expect);
   }
