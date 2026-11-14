@@ -100,22 +100,40 @@ async function tileData(z, x, y) {
 }
 // finished GEM-15 tiles are kept (Cache Storage, per mask version) when their LiDAR part cannot change: no LiDAR at all, a zoom 8-10
 // overview, or the static Scottish overview (zoom 8-13, not a border tile with live England/Wales in it); so a second look costs a cache read, not a decode, mask and PNG encode
-const OUT = 'gem15-out-v3';   // v3: bicubic zoom 14-17 (v2 tiles were bilinear)
+// A LiDAR tile with a small hole (under 1%) is still filled when the hole reaches the tile edge: that is the LiDAR coverage edge
+// running on from a neighbouring tile (Perth, 14 Nov 2026, t2204u: a corner of a coverage gap was left blank). Small holes inside
+// the tile (voids in the LiDAR) stay as they were.
+function edgeHole(px) { for (let k = 0; k < 256; k++) { if (px[k * 4 + 3] < 128 || px[(65280 + k) * 4 + 3] < 128 || px[k * 1024 + 3] < 128 || px[(k * 256 + 255) * 4 + 3] < 128) return true } return false }
+// Narrow LiDAR seams (1-3 px of no-data with LiDAR on both sides, across or down; the straight dashed lines where Scottish survey tiles
+// meet) are bridged linearly from the LiDAR either side before any GEM-15 fill, so they do not show as sepia dashes. Returns pixels filled.
+function heal(px) { const D = 3, A = new Uint8Array(65536), H = new Float32Array(65536); let f = 0;
+  for (let i = 0; i < 65536; i++) { A[i] = px[i * 4 + 3] >= 128 ? 1 : 0; if (A[i]) H[i] = px[i * 4] * 256 + px[i * 4 + 1] + px[i * 4 + 2] / 256 }
+  for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++) { const q = j * 256 + i; if (A[q]) continue; let h = NaN;
+    let l = i - 1, r = i + 1; while (l >= 0 && i - l <= D && !A[j * 256 + l]) l--; while (r < 256 && r - i <= D && !A[j * 256 + r]) r++;
+    if (l >= 0 && r < 256 && A[j * 256 + l] && A[j * 256 + r] && r - l - 1 <= D) h = H[j * 256 + l] + (H[j * 256 + r] - H[j * 256 + l]) * (i - l) / (r - l);
+    else { let u = j - 1, d = j + 1; while (u >= 0 && j - u <= D && !A[u * 256 + i]) u--; while (d < 256 && d - j <= D && !A[d * 256 + i]) d++;
+      if (u >= 0 && d < 256 && A[u * 256 + i] && A[d * 256 + i] && d - u - 1 <= D) h = H[u * 256 + i] + (H[d * 256 + i] - H[u * 256 + i]) * (j - u) / (d - u) }
+    if (h !== h) continue; const vv = Math.round(h * 64) / 64, vi = Math.floor(vv), o = q * 4;
+    px[o] = vi >> 8; px[o + 1] = vi & 255; px[o + 2] = Math.round((vv - vi) * 256) & 252; px[o + 3] = 255; f++ }
+  return f }
+const OUT = 'gem15-out-v4';   // v4: more zoom 13 tiles in gem15/index.json (14 Nov 2026); v3: bicubic zoom 14-17 (v2 tiles were bilinear)
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('gem15-out-') && k !== OUT).map(k => caches.delete(k)))).catch(() => {})));   // drop older finished-tile caches
 async function fbRoute(z, x, y, ev) {
   if (z < 8 || z > 17) return route(z, x, y, ev);
   const [I, M] = await Promise.all([load(), mask()]); if (!I || !M || !has(I, z, x, y) || !tileClass(M, z, x, y)) return route(z, x, y, ev);
   const ck = `https://gem15-out.invalid/m1/${z}/${x}/${y}.png`, oc = await caches.open(OUT), hit = await oc.match(ck);
   if (hit) { tell({ fb: z + '/' + x + '/' + y }); return hit }
-  const nob = inBox(z, x, y), r = nob ? none() : await route(z, x, y, ev);
+  const nob = inBox(z, x, y), r = nob ? none() : await route(z, x, y, ev); let edge = false, healed = 0;
   if (r.status !== 404 && !r.ok) return r;               // busy (503): the page asks again
   let base = null;
   if (r.ok) { try { base = await rgba(await r.clone().blob()) } catch (e) { return r }
-    let holes = 0; for (let i = 3; i < 262144; i += 4) if (base[i] < 128) holes++; if (holes < HOLE) return r }
-  const g0 = await tileData(z, x, y), g = g0 && clip(M, z, x, y, g0); if (!g) return r;
+    let holes = 0; for (let i = 3; i < 262144; i += 4) if (base[i] < 128) holes++; if (!holes) return r;
+    healed = heal(base); holes -= healed; if (!holes) return png(base);
+    edge = holes < HOLE ? edgeHole(base) : false; if (holes < HOLE && !edge) return healed ? png(base) : r }
+  const g0 = await tileData(z, x, y), g = g0 && clip(M, z, x, y, g0); if (!g) return healed ? png(base) : r;
   let n = 0;
   if (base) { for (let i = 0; i < 262144; i += 4) if (base[i + 3] < 128 && g[i + 3] >= 128) { base[i] = g[i]; base[i + 1] = g[i + 1]; base[i + 2] = g[i + 2]; base[i + 3] = 255; n++ }
-    if (n < HOLE) return r }
+    if (n < (edge ? 1 : HOLE)) return healed ? png(base) : r }
   else { for (let i = 3; i < 262144; i += 4) if (g[i] >= 128) n++; if (!n) return r; base = g }
   tell({ fb: z + '/' + x + '/' + y });
   const res = await png(base);
