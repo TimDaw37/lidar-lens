@@ -138,8 +138,12 @@ const FBK=LZ.LC.fallback||null;
 function gemLabel(g,short){return (short?FBK.estShort:FBK.estLabel).replace('{h}',Math.round(g.h)).replace('{e}',g.e)+(!short&&g.warn&&FBK.estWarn?' '+FBK.estWarn:'')}
 function fbRegion(ll){for(const r of ((FBK&&FBK.regions)||[]))if(ll.lat>=r.box[0]&&ll.lat<=r.box[2]&&ll.lng>=r.box[1]&&ll.lng<=r.box[3])return r;return null}
 async function gemAt(ll){return FBK&&LZ.gemHeightAt?LZ.gemHeightAt(ll):null}
+// seabed (LC.seabed, live TEST): a depth estimate relative to mean sea level, never m OD
+const SBK=LZ.LC.seabed||null;
+async function seaAt(ll){return SBK&&LZ.seaDepthAt?LZ.seaDepthAt(ll):null}
+function seaLabel(s,short){const B=SBK,d=s.h<0?(short?B.depthShort:B.depthLabel):(short?B.aboveShort:B.aboveLabel),r=s.mb?Math.abs(s.h).toFixed(1):String(Math.round(Math.abs(s.h)));return d.replace('{d}',r).replace('{src}',s.mb?B.srcMb:B.srcEmod)}
 function updWhere(ll,src){wPos=ll;wSrc=src;const f=fmtPos(ll);$('wlab').textContent=src;{const R=!f.gr&&fbRegion(ll);$('wgr').textContent=f.gr||(R&&FBK.noGridShort?FBK.noGridShort:'outside GB grid');$('wgr').title=R&&FBK.noGrid?FBK.noGrid:''}$('wll').textContent=f.ll;
-  clearTimeout(wT);wT=setTimeout(async()=>{const h=await LZ.heightAt(ll);const g=h==null?await gemAt(ll):null;if(wPos!==ll)return;const e=$('wh');e.textContent=h!=null?h.toFixed(1)+' m OD':g!=null?gemLabel(g,1):'';e.title=h==null&&g!=null?gemLabel(g):''},120)}
+  clearTimeout(wT);wT=setTimeout(async()=>{const h=await LZ.heightAt(ll);const g=h==null?await gemAt(ll):null,sb=h==null&&g==null?await seaAt(ll):null;if(wPos!==ll)return;const e=$('wh');e.textContent=h!=null?h.toFixed(1)+' m OD':g!=null?gemLabel(g,1):sb!=null?seaLabel(sb,1):'';e.title=h==null&&g!=null?gemLabel(g):sb!=null?seaLabel(sb):''},120)}
 // show the cursor position for a real mouse/pen; touch devices show the map centre instead
 // Pin: a click on the map (with no tool on) fixes the readout there, so the pointer can go to Copy without moving it.
 // Clicking again moves the pin; Esc or clicking the 'Pinned' label releases it.
@@ -459,7 +463,7 @@ async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L
   await wiRender(ll,E,N,W,{recs:[],ctx:{}},null,true,seq);
   let D,HJ;try{[D,HJ]=await both}catch(e){D={recs:[],ctx:{}};HJ=null}if(seq!==wiSeq)return;return wiRender(ll,E,N,W,D,HJ,false,seq)}
 async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
-  const a=analyse(W);const elev=await LZ.heightAt(ll);const gelev=elev==null?await gemAt(ll):null,REG=fbRegion(ll);if(seq!==wiSeq)return;
+  const a=analyse(W);const elev=await LZ.heightAt(ll);const gelev=elev==null?await gemAt(ll):null,selev=elev==null&&gelev==null?await seaAt(ll):null,REG=fbRegion(ll);if(seq!==wiSeq)return;
   const ref=a.nodata?[E,N]:ll2en(a.centreLL.lat,a.centreLL.lng);
   const ctx={};for(const k in CTX){const r=nearest(CTX[k],ref[0],ref[1],150);if(r)ctx[k]=r}
   const cls=classify(a,ctx,elev==null?0:elev);
@@ -473,7 +477,7 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   const confTxt={low:'low confidence',moderate:'moderate confidence',na:''}[cls.conf];
   const siteName=(atSpot.find(r=>r.f.s!=='OSM'&&r.f.s!=='HER'&&(r.f.n||r.f.t))||atSpot.find(r=>r.f.n||r.f.t)||{f:{}}).f;
   const placeName=siteName.n||siteName.t||'this spot';const grH=gridRef(E,N);
-  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+(grH?esc(grH)+' &middot; ':REG?esc((FBK.noGridCard||'no British National Grid ref ({r})').replace('{r}',REG.name))+' &middot; ':'')+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':gelev!=null?' &middot; <span class="gemest" style="color:#f6ad3c">'+esc(gemLabel(gelev))+'</span>':'')+'</small><br>'+lookLink(REG&&placeName==='this spot'?REG.look||REG.name:placeName,grH||(REG?REG.look||REG.name:''))+'</div><div class="bd">'+(LZ.LC.tidyUI?'':'<div class="photostrip"></div>');
+  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+(grH?esc(grH)+' &middot; ':REG?esc((FBK.noGridCard||'no British National Grid ref ({r})').replace('{r}',REG.name))+' &middot; ':'')+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':gelev!=null?' &middot; <span class="gemest" style="color:#f6ad3c">'+esc(gemLabel(gelev))+'</span>':selev!=null?' &middot; <span class="seaest" style="color:#7cc0ee">'+esc(seaLabel(selev))+'</span>':'')+'</small><br>'+lookLink(REG&&placeName==='this spot'?REG.look||REG.name:placeName,grH||(REG?REG.look||REG.name:''))+'</div><div class="bd">'+(LZ.LC.tidyUI?'':'<div class="photostrip"></div>');
   // Heritage Gateway retired its Results_Single.aspx pages; go straight to the new search for that HE research record (saves a redirect)
   const hgLink=u=>{const m=/^https?:\/\/(?:www\.)?heritagegateway\.org\.uk\/Gateway\/Results_Single\.aspx\?uid=([^&#]+)&resourceID=19191\b/i.exec(u);return m?'https://historicengland.org.uk/listing/heritage-gateway/results?q='+encodeURIComponent(decodeURIComponent(m[1]))+'&filters%5B0%5D%5Bfield%5D=dataset&filters%5B0%5D%5Bvalues%5D%5B0%5D=Historic%20England%20research%20records&filters%5B1%5D%5Bfield%5D=layoutView&filters%5B1%5D%5Bvalues%5D%5B0%5D=list':u};
   const BADGE={CADW:'Cadw',CADWLB:'Cadw',NMRW:'Coflein'};
@@ -505,7 +509,8 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
   h+='<div class="ft">Measurements from the '+esc((LZ.country&&LZ.LC.countryText&&(LZ.LC.countryText[LZ.country()]||{}).dtmName)||LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC.replace(/\.\s*$/,''))+'.</div></div>';
   // measurements on demand (LC.measureOnDemand): the DTM analysis section stays folded behind a button until asked for
-  if(a.nodata&&(gelev!=null||REG)){h=h.slice(0,mStart)+'<div class="m fbmeas" style="font-size:12px;margin-top:8px">'+esc(FBK.noMeasure)+'</div>'}
+  if(a.nodata&&selev!=null&&!REG){h=h.slice(0,mStart)+'<div class="m sbmeas" style="font-size:12px;margin-top:8px">'+esc(SBK.noMeasure)+'</div>'}
+  else if(a.nodata&&(gelev!=null||REG)){h=h.slice(0,mStart)+'<div class="m fbmeas" style="font-size:12px;margin-top:8px">'+esc(FBK.noMeasure)+'</div>'}
   else if(LZ.LC.measureOnDemand){const mh=h.slice(mStart);h=h.slice(0,mStart)+'<div class="measwrap"><button type="button" class="measbtn" style="margin:8px 0 4px;padding:5px 10px;cursor:pointer">Measure this feature from the DTM</button><div class="measbody" hidden>'+mh+'</div></div>'}
   const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);loadCanmore(card.querySelector('.canmore'),E,N);{const cv=card.querySelector('.meas canvas'),mb=card.querySelector('.measbtn');if(mb)mb.onclick=()=>{card.querySelector('.measbody').hidden=false;mb.remove();if(cv)thumb(cv,W,a)};else if(cv)thumb(cv,W,a)}
   LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
