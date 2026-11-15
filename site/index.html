@@ -47,6 +47,9 @@ html,body{margin:0;height:100%;touch-action:pan-x pan-y;overscroll-behavior:none
 #titlebox .sub{font-size:12px;margin:1px 0 5px}#titlebox .sub a{color:#1d4ed8}
 #titlebox .xlinks,#titlebox .tries{font-size:11.5px;line-height:1.35;margin:-2px 0 6px;color:#555}#titlebox .xlinks a,#titlebox .tries a{color:#1d4ed8}
 #modes{display:none}
+#presets{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:4px 0 2px}#panel #presets button{margin:0;padding:6px 4px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;font-weight:600;line-height:1.15}#panel #presets button.on{background:#f59e0b;border-color:#b45309;color:#111}
+#adv{margin-top:6px;border-top:1px dashed #e5e7eb}#adv>summary{cursor:pointer;color:#475569;font-size:12px;padding:5px 0}
+#card .opp{margin-top:4px;display:flex;gap:6px;align-items:flex-start}#card .opp button{flex:none;font-size:11.5px;padding:3px 5px;border:1px solid #b45309;border-radius:6px;background:#fffbeb;cursor:pointer;max-width:96px;line-height:1.2}#card .opp button.on{background:#f59e0b;color:#111}#card .opp ul{margin:0;padding-left:12px;font-size:11px;color:#4b5563;line-height:1.2}
 #goto{display:flex;gap:4px}#goto input{flex:1;min-width:0;font-size:13px;padding:4px 6px;border:1px solid #bbb;border-radius:4px}
 #goto button{font-size:13px;padding:3px 7px;cursor:pointer;border:1px solid #bbb;border-radius:4px;background:#f3f4f6}
 #myloc{display:block;width:100%;margin-top:5px;font-size:13px;padding:6px 8px;cursor:pointer;border:1px solid #2563eb;border-radius:6px;background:#eff6ff;color:#1e3a8a;font-weight:600}#myloc:disabled{opacity:.6;cursor:wait}
@@ -141,8 +144,8 @@ body:has(#card[style*="block"]) #toggle{display:none}
 #loading{bottom:112px;left:8px}
 #toggle,#modes{bottom:12px}
 body:not(:has(#panel.hide)) #toggle,body:not(:has(#panel.hide)) #modes{bottom:calc(50vh + 8px)}
-#modes{display:flex;position:absolute;z-index:1001;left:8px;right:108px;gap:3px;justify-content:flex-end}
-#modes button{flex:1 1 0;max-width:40px;min-width:0;height:44px;margin:0;padding:0;border:0;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35);font-weight:700}
+#modes{display:flex;position:absolute;z-index:1001;left:8px;right:108px;gap:4px}
+#modes button{flex:1 1 0;min-width:0;height:44px;margin:0;padding:0 3px;border:0;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35);font-weight:700;font-size:12px;line-height:1.1}
 #modes button.on{background:#f59e0b;color:#111}
 body:has(#card[style*="block"]) #modes{display:none}
 }
@@ -164,6 +167,11 @@ body:has(#card[style*="block"]) #modes{display:none}
 <div id="panel" role="region" aria-label="Controls">
  <div class="ph"><h1>Controls <small id="privtag">(private)</small></h1><button id="helpbtn" class="q" title="Help and keyboard shortcuts (?)" aria-label="Help and keyboard shortcuts" aria-expanded="false">?</button></div>
  <details class="sec" open><summary>Visualisation</summary>
+ <div id="presets" role="group" aria-label="Looks"></div>
+ <div id="sunbox"><label for="dial">Sun azimuth <span class="v" id="azv"></span></label>
+ <canvas id="dial" width="180" height="180" role="slider" tabindex="0" aria-label="Sun azimuth: drag or use arrow keys" title="Drag to set the sun direction (arrow keys when focused)"></canvas>
+ <label for="el">Sun elevation <span class="v" id="elv"></span></label><input type="range" id="el" min="5" max="80" step="1" title="Low sun picks out subtle earthworks"></div>
+ <details id="adv"><summary>Advanced</summary>
  <label for="mode">Visualisation</label>
  <select id="mode" title="How the LiDAR is drawn inside the lens (keys 1-9, 0, V, O, L, M, T)">
   <option value="0">Hillshade (single sun)</option>
@@ -183,9 +191,6 @@ body:has(#card[style*="block"]) #modes{display:none}
   <option value="14" title="Multi-scale topographic position: shows how much each point stands out from its surroundings. By default colour shows the size: red broad (50–500 m), green medium (5–50 m), blue small (1–5 m); pick another colour ramp to show one size, or the strongest, on that ramp. After Lindsay et al. (2015) and Guyot et al. (2018). Phones use three window sizes per scale instead of 5–10, and full screen is computed on every second pixel; the broad scale is complete only from about zoom 14 out.">Multi-scale topographic position</option>
  </select>
  <div id="modelegend" hidden style="font-size:12px;color:#374151;margin:2px 0 4px"></div>
- <div id="sunbox"><label for="dial">Sun azimuth <span class="v" id="azv"></span></label>
- <canvas id="dial" width="180" height="180" role="slider" tabindex="0" aria-label="Sun azimuth: drag or use arrow keys" title="Drag to set the sun direction (arrow keys when focused)"></canvas>
- <label for="el">Sun elevation <span class="v" id="elv"></span></label><input type="range" id="el" min="5" max="80" step="1" title="Low sun picks out subtle earthworks"></div>
  <label for="ve">Vertical exaggeration <span class="v" id="vev"></span></label><input type="range" id="ve" min="1" max="20" step="0.5" title="Exaggerates height differences">
  <div id="modeparams">
   <div class="mp" data-m="12" hidden><label for="ld0">Inner radius <span class="v" id="ld0v"></span></label><input type="range" id="ld0" min="2" max="30" step="1" title="Nearest ring, in metres (RVT default 10)">
@@ -198,8 +203,7 @@ body:has(#card[style*="block"]) #modes{display:none}
   <div class="mp" data-m="14" hidden><label for="mts">On a colour ramp, show</label><select id="mts" title="Which size the colour ramp shows (the three-colour option shows all three at once)"><option value="0">Strongest of the three sizes</option><option value="1">Small (1–5 m)</option><option value="2">Medium (5–50 m)</option><option value="3">Broad (50–500 m)</option></select><label for="mtl">Lightness <span class="v" id="mtlv"></span></label><input type="range" id="mtl" min="0.4" max="3" step="0.1" title="Brightness of each colour: 1 - exp(-lightness x deviation), as in the Relief Visualization Toolbox (default 1.2)"></div>
  </div>
  <div id="radbox"><label for="rad">Radius (LRM / SVF / openness) <span class="v" id="radv"></span></label><input type="range" id="rad" min="3" max="50" step="1" title="Feature size the relief model looks for, in metres"></div>
- </details>
- <details class="sec" open><summary>Lens &amp; appearance</summary>
+
  <label for="ramp">Colour ramp</label>
  <select id="ramp" title="Colour scale"><option value="grey">Grey</option><option value="greyinv">Grey (inverted)</option><option value="viridis">Viridis</option><option value="magma">Magma</option><option value="rdbu">Blue–grey–red, zero in the middle</option><option value="terrain">Terrain</option><option value="cividis">Cividis</option><option value="redrel" hidden disabled>Red relief colours (slope in red)</option><option value="scales" hidden disabled>Three sizes in colour (red broad, green medium, blue small)</option></select>
  <div id="swatches" role="group" aria-label="Colour ramp previews"></div>
@@ -220,6 +224,7 @@ body:has(#card[style*="block"]) #modes{display:none}
   <label for="wl">Level <span class="v" id="wlv"></span></label><input type="range" id="wl" min="0" max="100" step="0.1" title="Water level, metres above sea level (Ordnance Datum), across the range of heights in view" disabled>
   <div id="wlread" style="font-size:12px;color:#374151"></div></div>
  <button id="lensreset" title="Recentre lens: put it back in the middle (C)" aria-label="Recentre lens">Recentre lens</button>
+ </details>
  </details>
  <details class="sec" open><summary>Tools</summary>
  <button id="whatis" aria-pressed="false" title="Click a spot for measurements and nearby records (W)">What is it? (off)</button>

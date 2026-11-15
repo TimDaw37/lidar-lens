@@ -23,7 +23,17 @@ if(LC.live){if(!('serviceWorker' in navigator)){document.addEventListener('DOMCo
   else navigator.serviceWorker.register('live-sw.js').catch(()=>{})}
 const CFG={tiles:LC.tiles.url,minz:LC.tiles.minzoom,maxz:LC.tiles.maxzoom,xo:LC.tiles.crossOrigin||null,bounds:LC.bounds,start:{lat:LC.start.lat,lng:LC.start.lng,z:LC.start.zoom}};
 const $=id=>document.getElementById(id);
-const DEF={va:false,ld0:10,ld1:20,ldh:1.7,mf0:0,mf1:20,mx:2,msh:false,mtl:1.2,mts:0,wat:false,wl:null,mode:0,az:315,el:35,ve:2,rad:10,ramp:'grey',auto:true,ct:1,gm:1,op:1,ls:340,fs:false,sm:false,base:'sat'};
+// Presets (trial on live-test, 15 Nov 2026; brief briefs/2026-11-04-presets-checks-prefetch.md): four named looks in one table (a
+// config can replace it with LC.presets). One tap sets mode, sun, exaggeration, radius, colour ramp and contrast. ct is a multiple of
+// the view's own default look (MODE_LOOK, release 6), so a preset keeps each view's tuned contrast and gamma; Overview is the default.
+const PRESETS=LC.presets||{
+  overview:{name:'Overview',tip:'The general lie of the land',mode:1,az:315,el:35,ve:2,rad:10,ct:1,ramp:'grey'},
+  earthworks:{name:'Earthworks',tip:'Banks, ditches, barrows, enclosures',mode:6,az:315,el:35,ve:2,rad:10,ct:1.2,ramp:'rdbu'},
+  lowsun:{name:'Low sun',tip:'Faint banks and lynchets',mode:0,az:315,el:20,ve:3,rad:10,ct:1,ramp:'grey'},
+  banks:{name:'Banks and hollows',short:'Banks / hollows',tip:'What is raised (red) and what is sunk (blue)',mode:3,az:315,el:35,ve:2,rad:20,ct:1.2,ramp:'rdbu'}};
+const PKEYS=['mode','az','el','ve','rad','ramp'];
+const P0=PRESETS.overview||PRESETS[Object.keys(PRESETS)[0]];
+const DEF={va:false,ld0:10,ld1:20,ldh:1.7,mf0:0,mf1:20,mx:2,msh:false,mtl:1.2,mts:0,wat:false,wl:null,mode:P0.mode,az:P0.az,el:P0.el,ve:P0.ve,rad:P0.rad,ramp:P0.ramp,auto:true,ct:1,gm:1,op:1,ls:340,fs:false,sm:false,base:'sat'};
 const MODE_RAMP={0:'grey',1:'grey',2:'greyinv',3:'rdbu',4:'grey',5:'grey',6:'rdbu',7:'rdbu',8:'grey',9:'grey',10:'grey',11:'grey',12:'grey',13:'grey',14:'scales'};
 const MODE_RANGE={0:[0,1],1:[0.2,1],2:[0,35],3:[-0.5,0.5],4:[0.8,1],5:[0,30],6:[-0.5,0.5],7:[-0.5,0.5],8:[65,90],9:[65,90],10:[0,1],11:[-15,15],12:[2,14],13:[-0.3,0.3],14:[0,1]};
 const DIVERGING=m=>m===3||m===6||m===7||m===11||m===13;   // centred on zero, symmetric auto-contrast
@@ -100,6 +110,8 @@ const MODE_LEGEND={10:'Lighter: level or raised, open ground. Darker: steep slop
 // opened too dark or clipped heavily were softened: Contrast below 1 widens the 2–98% stretch, Gamma below 1 lifts the mid-tones
 // (above 1 darkens). Combined VAT keeps a touch of Tim's 9 Nov punch (Contrast 1.1) with neutral Gamma.
 const MODE_LOOK={0:{ct:0.85,gm:0.85},1:{ct:0.6,gm:1.2},2:{ct:0.85,gm:1},4:{ct:0.85,gm:1},8:{ct:0.85,gm:1},9:{ct:0.85,gm:1},10:{ct:1.1,gm:1},11:{ct:0.85,gm:0.85},12:{ct:0.85,gm:1},13:{ct:0.9,gm:0.85},14:{ct:1,gm:0.8}};const lookOf=m=>MODE_LOOK[m]||{ct:1,gm:1};
+const presetLook=p=>{const L=lookOf(p.mode);return {ct:Math.round(L.ct*(p.ct||1)*100)/100,gm:L.gm}};
+function presetKey(){for(const k in PRESETS){const p=PRESETS[k],L=presetLook(p);if(PKEYS.every(q=>p[q]===S[q])&&Math.abs(L.ct-S.ct)<1e-6&&Math.abs(L.gm-S.gm)<1e-6&&S.auto&&!manual[S.mode])return k}return null}
 const CVAT_R1=10,CVAT_R2=20;   // horizon radii in metres: RVT general 10 px, flat 20 px on a 1 m DTM
 function phoneLike(){return matchMedia('(pointer:coarse)').matches||matchMedia('(max-width:700px)').matches}
 function horizonN(){const p=phoneLike();if(R&&String(R.kind).indexOf('Canvas')===0)return p?{nd:8,ns:6}:{nd:12,ns:10};return p?{nd:8,ns:6}:{nd:16,ns:14}}
@@ -566,7 +578,7 @@ function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=fal
   let missing=0;const imgs=use.map(([x,y])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||!t.failed)missing++}return im});
   if(defer)rest.forEach(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||(!t.ok&&!t.failed))missing++});
   if(LC.live&&!S.fs&&lensC&&want.key!==lastFocus){lastFocus=want.key;const sw=navigator.serviceWorker&&navigator.serviceWorker.controller;   // tell the live worker where the lens is: it fetches nearest first, drops what the lens left
-    if(sw){const c=map.containerPointToLatLng(lensC),mpp=156543.03392*Math.cos(c.lat*Math.PI/180)/Math.pow(2,map.getZoom());sw.postMessage({focus:[c.lat,c.lng,(S.ls/2+Math.max(96,needPx(want.zt)*Math.pow(2,map.getZoom()-want.zt)+8))*mpp]})}}
+    if(sw){const c=map.containerPointToLatLng(lensC),mpp=156543.03392*Math.cos(c.lat*Math.PI/180)/Math.pow(2,map.getZoom());const cn=navigator.connection||{};sw.postMessage({focus:[c.lat,c.lng,(S.ls/2+Math.max(96,needPx(want.zt)*Math.pow(2,map.getZoom()-want.zt)+8))*mpp],z:map.getZoom(),lw:S.ls*mpp,net:{saveData:!!cn.saveData,effectiveType:String(cn.effectiveType||'')}})}}
   MZ=want;R.newMosaic(want);use.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});
   if(defer)rest.forEach(([x,y,px,py])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(t&&t.ok)R.putTile(t.img,px,py)});
   R.decode(want);mosaicReady=true;
@@ -634,7 +646,10 @@ map.on('zoomstart',()=>{cv.style.visibility='hidden'});map.on('zoomend',()=>{cv.
 map.on('resize',()=>{resizeCanvas();placeLens();scheduleMosaic()});
 // ---------- controls ----------
 const ctl=[['mode','',v=>+v],['el','°',v=>+v],['ve','x',v=>+v],['rad',' m',v=>+v],['ct','x',v=>+v],['gm','',v=>+v],['op','',v=>+v],['ls',' px',v=>+v]].concat(MP.map(([k,u])=>[k,u,v=>+v]));
-function syncUI(){ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$(k+'v');if(o)o.textContent=(k==='op'?Math.round(S[k]*100)+'%':S[k]+u)});
+function paintPresets(){const k=presetKey();document.querySelectorAll('[data-preset]').forEach(b=>{const on=b.dataset.preset===k;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)})}
+function applyPreset(k){const p=PRESETS[k];if(!p)return;flip=null;if(p.mode!==S.mode){keepView(S.mode);S.mode=p.mode;loadView(S.mode)}
+  PKEYS.forEach(q=>{if(p[q]!==undefined)S[q]=p[q]});Object.assign(S,presetLook(p));S.auto=true;delete manual[S.mode];bumpShade();syncUI();requestRender();saveHashSoon()}
+function syncUI(){paintPresets();ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$(k+'v');if(o)o.textContent=(k==='op'?Math.round(S[k]*100)+'%':S[k]+u)});
   const sv=(id,p,v)=>{const e=$(id);if(e)e[p]=v};sv('ramp','value',S.ramp);sv('auto','checked',isCVAT(S.mode)?S.va:S.auto);sv('fs','checked',S.fs);sv('wat','checked',S.wat);if($('waterbox'))$('waterbox').hidden=!S.fs;sv('msh','checked',S.msh);sv('sm','checked',S.sm);sv('azv','textContent',Math.round(S.az)+'°');drawDial();
   $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))&&!isCVAT(S.mode)?'':'none';if($('ve'))$('ve').disabled=trueHeights(S.mode);document.querySelectorAll('#modeparams .mp').forEach(b=>{b.hidden=+b.dataset.m!==S.mode});
   $('ramp').disabled=S.mode===5||S.mode===6;{const ro=document.querySelector('#ramp option[value="redrel"]');if(ro){ro.hidden=ro.disabled=!isOD(S.mode)}}{const so=document.querySelector('#ramp option[value="scales"]');if(so){so.hidden=so.disabled=!isMSTP(S.mode)}}if($('mts'))$('mts').disabled=mstpRGB();if($('ct'))$('ct').disabled=!S.auto&&!isCVAT(S.mode);const man=$('manrange');if(man)man.hidden=!!S.auto||isCVAT(S.mode);
@@ -642,7 +657,7 @@ function syncUI(){ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$
   const lg=$('modelegend');if(lg){const t=MODE_LEGEND[S.mode];lg.textContent=isMSTP(S.mode)?mstpLegend():(t||'');lg.hidden=!t}
   if(!S.auto&&!isCVAT(S.mode)&&$('rlo')&&document.activeElement!==$('rlo')&&document.activeElement!==$('rhi')){const b=manual[S.mode]||MODE_RANGE[S.mode]||[0,1];$('rlo').value=b[0];$('rhi').value=b[1]}}
 ctl.forEach(([k,u,f])=>{const e=$(k);const on=()=>{const pm=S.mode;S[k]=f(e.value);if(k==='mode'&&S.mode!==pm){keepView(pm);loadView(S.mode)}if(k==='ls')placeLens();if(MP.some(q=>q[0]===k))scheduleMosaic();syncUI();requestRender();saveHashSoon()};e.addEventListener('input',on);e.addEventListener('change',on)});
-$('ramp').onchange=e=>{S.ramp=e.target.value;if(isMSTP(S.mode))syncUI();requestRender();saveHashSoon()};
+$('ramp').onchange=e=>{S.ramp=e.target.value;paintPresets();if(isMSTP(S.mode))syncUI();requestRender();saveHashSoon()};
 if($('msh'))$('msh').onchange=e=>{S.msh=e.target.checked;requestRender();saveHashSoon()};
 $('auto').onchange=e=>{if(isCVAT(S.mode)){S.va=e.target.checked;syncUI();requestRender();saveHashSoon();return}S.auto=e.target.checked;if(!S.auto){const b=lastStretch||MODE_RANGE[S.mode]||[0,1];manual[S.mode]=[b[0],b[1]]}syncUI();requestRender();saveHashSoon()};
 function readManual(){const lo=parseFloat($('rlo').value),hi=parseFloat($('rhi').value);if(!isFinite(lo)||!isFinite(hi)||!(hi>lo))return;manual[S.mode]=[lo,hi];requestRender();saveHashSoon()}
@@ -651,7 +666,7 @@ $('fs').onchange=e=>{S.fs=e.target.checked;$('waterbox').hidden=!S.fs;placeLens(
 $('wat').onchange=e=>{S.wat=e.target.checked;$('wl').disabled=!S.wat;if(!S.wat){$('wlv').textContent='';$('wlread').textContent=''}waterH=null;requestRender();saveHashSoon()};
 $('wl').oninput=e=>{S.wl=+e.target.value;drawOnly=true;requestRender();saveHashSoon()};
 $('sm').onchange=e=>{S.sm=e.target.checked;setSM(S.sm);saveHashSoon()};
-function resetDefaults(){clearTimeout(hT);const keep={base:S.base,sm:S.sm};Object.assign(S,DEF,keep);S.ramp=MODE_RAMP[S.mode];S.ct=lookOf(S.mode).ct;S.gm=lookOf(S.mode).gm;for(const k of Object.keys(manual))delete manual[k];for(const k of Object.keys(viewSet))delete viewSet[k];
+function resetDefaults(){clearTimeout(hT);flip=null;const keep={base:S.base,sm:S.sm};Object.assign(S,DEF,keep);S.ramp=P0.ramp||MODE_RAMP[S.mode];Object.assign(S,presetLook(P0));for(const k of Object.keys(manual))delete manual[k];for(const k of Object.keys(viewSet))delete viewSet[k];
   const [w,h]=mapSize();S.ls=Math.min(DEF.ls,Math.max(150,Math.min(w,h)-40));lensC=defaultLensC();placeLens();syncUI();requestRender();
   try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}suppressHash=true;setTimeout(()=>{suppressHash=false},400);msg('Settings reset to defaults',1800)}
 $('reset').onclick=resetDefaults;window.__lens.reset=resetDefaults;
@@ -666,10 +681,19 @@ function drawDial(){const w=dial.width,c=w/2,r=c-14;dx.clearRect(0,0,w,w);dx.lin
   dx.fillStyle='#f59e0b';dx.beginPath();dx.arc(c+Math.sin(q)*r,c-Math.cos(q)*r,11,0,7);dx.fill()}
 let dd=false;const dialSet=e=>{const b=dial.getBoundingClientRect();S.az=Math.round((Math.atan2(e.clientX-b.left-b.width/2,-(e.clientY-b.top-b.height/2))*180/Math.PI+360)%360);bumpShade();syncUI();requestRender();saveHashSoon()};
 dial.addEventListener('pointerdown',e=>{dd=true;dial.setPointerCapture(e.pointerId);dialSet(e)});dial.addEventListener('pointermove',e=>{if(dd)dialSet(e)});dial.addEventListener('pointerup',()=>dd=false);
+// preset buttons (desktop panel); ui.js builds the phone strip from the same table
+{const host=$('presets');if(host)for(const k in PRESETS){const p=PRESETS[k],b=document.createElement('button');b.type='button';b.dataset.preset=k;b.textContent=p.name;b.title=p.tip||p.name;b.onclick=()=>applyPreset(k);host.appendChild(b)}}
+// 'Light from the other side' (What's here? card): turn the sun 180 degrees, and back on a second tap.
+// A view without a sun (relief, slope, sky-view, VAT...) switches to hillshade first, and back again on the second tap.
+const usesSun=m=>m===0||m===1||m===5||m===7;let flip=null;
+function flipSun(){if(flip){S.az=(S.az+180)%360;if(flip.mode!=null&&flip.mode!==S.mode){keepView(S.mode);S.mode=flip.mode;loadView(S.mode)}flip=null}
+  else{flip={mode:null};if(!usesSun(S.mode)){flip={mode:S.mode};keepView(S.mode);S.mode=0;loadView(0)}S.az=(S.az+180)%360}
+  bumpShade();syncUI();requestRender();saveHashSoon();return !!flip}
+window.__lens.flipState=()=>({on:!!flip,usesSun:usesSun(S.mode)});
 // ---------- share hash ----------
 function hashStr(){const c=map.getCenter(),ll=map.containerPointToLatLng(lensC);const p=new URLSearchParams();
   p.set('c',c.lat.toFixed(5)+','+c.lng.toFixed(5)+','+map.getZoom());p.set('l',ll.lat.toFixed(5)+','+ll.lng.toFixed(5));
-  ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>p.set(k,S[k]));MP.forEach(([k,,m])=>{if(S.mode===m)p.set(k,S[k])});if(S.mode===13&&S.msh)p.set('msh',1);if(S.wat&&S.wl!=null){p.set('wat',1);p.set('wl',S.wl.toFixed(1))}p.set('ramp',S.ramp);p.set('auto',S.auto?1:0);if(S.va)p.set('va',1);if(!S.auto&&manual[S.mode]){p.set('mlo',fmtN(manual[S.mode][0]));p.set('mhi',fmtN(manual[S.mode][1]))}p.set('fs',S.fs?1:0);p.set('sm',S.sm?1:0);p.set('base',S.base);if(window.__lensHashExtra)window.__lensHashExtra(p);return p.toString()}
+  ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>p.set(k,S[k]));MP.forEach(([k,,m])=>{if(S.mode===m)p.set(k,S[k])});if(S.mode===13&&S.msh)p.set('msh',1);if(S.wat&&S.wl!=null){p.set('wat',1);p.set('wl',S.wl.toFixed(1))}p.set('ramp',S.ramp);p.set('auto',S.auto?1:0);if(S.va)p.set('va',1);if(!S.auto&&manual[S.mode]){p.set('mlo',fmtN(manual[S.mode][0]));p.set('mhi',fmtN(manual[S.mode][1]))}p.set('fs',S.fs?1:0);p.set('sm',S.sm?1:0);p.set('base',S.base);{const pk=presetKey();if(pk)p.set('p',pk)}if(window.__lensHashExtra)window.__lensHashExtra(p);return p.toString()}
 let suppressHash=false;function saveHash(){if(suppressHash)return;try{history.replaceState(null,'','#'+hashStr())}catch(e){}}
 let hT=null;function saveHashSoon(){clearTimeout(hT);hT=setTimeout(saveHash,300)}
 $('share').onclick=()=>{saveHash();const u=location.href;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(()=>msg(LC.private===true?'Link copied (the site still needs the password)':'Link copied',2500),()=>{prompt('Copy this link:',u)})};
@@ -727,6 +751,6 @@ if(LC.fallback&&LC.fallback.about){const c=document.createElement('div');c.id='f
 if(LC.seabed&&LC.seabed.about){const c=document.createElement('div');c.id='sbabout';c.style.marginTop='6px';c.innerHTML=LC.seabed.about;$('about').appendChild(c)}
 if(LC.creditsFull){const c=document.createElement('div');c.className='credits';c.style.marginTop='6px';c.innerHTML='<b>Credits.</b> '+LC.creditsFull;$('about').appendChild(c)}
 document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a.credlink');if(!a)return;e.preventDefault();$('panel').classList.remove('hide');const d=$('about').closest('details');if(d)d.open=true;placeLens();requestRender();setTimeout(()=>$('about').scrollIntoView({block:'nearest',behavior:'smooth'}),50)});
-Object.assign(window.__lens,{H0,saveHashSoon,RAMPS,syncUI,placeLens,requestRender,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},setLensC:(x,y)=>{if(!isFinite(x)||!isFinite(y))return;lensC=[x,y];placeLens();requestRender()},tileData,heightAt,gemHeightAt,seaDepthAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
+Object.assign(window.__lens,{PRESETS,presetKey,applyPreset,paintPresets,flipSun,H0,saveHashSoon,RAMPS,syncUI,placeLens,requestRender,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},setLensC:(x,y)=>{if(!isFinite(x)||!isFinite(y))return;lensC=[x,y];placeLens();requestRender()},tileData,heightAt,gemHeightAt,seaDepthAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
 resizeCanvas();syncUI();if(S.sm)setSM(true);buildMosaic();
 })();

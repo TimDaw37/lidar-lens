@@ -10,10 +10,12 @@ const sw=$('swatches'),sel=$('ramp');
 function mark(){[...sw.children].forEach(b=>{b.classList.toggle('sel',b.dataset.v===sel.value);{const o=sel.querySelector('option[value="'+b.dataset.v+'"]');b.hidden=!!(o&&o.hidden)}b.disabled=sel.disabled;b.style.opacity=sel.disabled?.4:1})}
 sel.addEventListener('change',mark);const ms=$('mode');ms.addEventListener('change',()=>setTimeout(mark,0));$('reset').addEventListener('click',()=>setTimeout(mark,0));mark();
 const modeBar=$('modes');
-if(modeBar){const names=['Hillshade','Multi-direction','Slope','Local relief','Sky-view','Aspect','Red relief','Combined','Combined VAT'],vals=[0,1,2,3,4,5,6,7,10],keys=['1','2','3','4','5','6','7','8','V'];
-  for(let j=0;j<names.length;j++){const i=vals[j];const b=document.createElement('button');b.type='button';b.textContent=keys[j];b.title=names[j];b.dataset.m=String(i);b.setAttribute('aria-label',names[j]+', key '+keys[j]);
-    b.onclick=()=>{ms.value=String(i);ms.dispatchEvent(new Event('change'));paintModes();flashMode(names[j])};modeBar.appendChild(b)}
-  function paintModes(){[...modeBar.children].forEach(b=>b.classList.toggle('on',ms.value===b.dataset.m))}
+if(modeBar){   // phone: the four presets, labelled, plus Combined VAT (the full mode list is under Advanced in the panel)
+  for(const k in LZ.PRESETS){const p=LZ.PRESETS[k],b=document.createElement('button');b.type='button';b.dataset.preset=k;b.textContent=p.short||p.name;b.title=p.tip||p.name;b.setAttribute('aria-label',p.name);
+    b.onclick=()=>{LZ.applyPreset(k);flashMode(p.name)};modeBar.appendChild(b)}
+  {const b=document.createElement('button');b.type='button';b.dataset.m='10';b.textContent='VAT';b.title='Combined VAT';b.setAttribute('aria-label','Combined VAT, key V');
+    b.onclick=()=>{ms.value='10';ms.dispatchEvent(new Event('change'));paintModes();flashMode('Combined VAT')};modeBar.appendChild(b)}
+  function paintModes(){[...modeBar.querySelectorAll('[data-m]')].forEach(b=>b.classList.toggle('on',ms.value===b.dataset.m));LZ.paintPresets()}
   function flashMode(name){if(!matchMedia('(pointer:coarse)').matches)return;const m=$('msg');
     const up=matchMedia('(max-width:700px) and (pointer:coarse)').matches&&!$('panel').classList.contains('hide');
     m.style.top='auto';m.style.bottom=up?'calc(50vh + 60px)':'72px';LZ.msg(name,1200);
