@@ -578,7 +578,7 @@ function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=fal
   let missing=0;const imgs=use.map(([x,y])=>{const im=getTile(want.zt,x,y,scheduleMosaic);if(!im){const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||!t.failed)missing++}return im});
   if(defer)rest.forEach(([x,y])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(!t||(!t.ok&&!t.failed))missing++});
   if(LC.live&&!S.fs&&lensC&&want.key!==lastFocus){lastFocus=want.key;const sw=navigator.serviceWorker&&navigator.serviceWorker.controller;   // tell the live worker where the lens is: it fetches nearest first, drops what the lens left
-    if(sw){const c=map.containerPointToLatLng(lensC),mpp=156543.03392*Math.cos(c.lat*Math.PI/180)/Math.pow(2,map.getZoom());const cn=navigator.connection||{};sw.postMessage({focus:[c.lat,c.lng,(S.ls/2+Math.max(96,needPx(want.zt)*Math.pow(2,map.getZoom()-want.zt)+8))*mpp],z:map.getZoom(),lw:S.ls*mpp,net:{saveData:!!cn.saveData,effectiveType:String(cn.effectiveType||'')}})}}
+    if(sw){const c=map.containerPointToLatLng(lensC),mpp=156543.03392*Math.cos(c.lat*Math.PI/180)/Math.pow(2,map.getZoom());sw.postMessage({focus:[c.lat,c.lng,(S.ls/2+Math.max(96,needPx(want.zt)*Math.pow(2,map.getZoom()-want.zt)+8))*mpp]})}}
   MZ=want;R.newMosaic(want);use.forEach(([x,y,px,py],k)=>{if(imgs[k])R.putTile(imgs[k],px,py)});
   if(defer)rest.forEach(([x,y,px,py])=>{const t=tileCache.get(want.zt+'/'+x+'/'+y);if(t&&t.ok)R.putTile(t.img,px,py)});
   R.decode(want);mosaicReady=true;
