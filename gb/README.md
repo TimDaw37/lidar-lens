@@ -65,6 +65,15 @@ Visualisation 12, "Local dominance" (key L), after Hesse (2016). An observer sta
 
 Test: open the viewer at Normanton Down (SU 115 413), mode 12. Each barrow, including the low ploughed ones, should be a bright spot. Automated: `node tests/modes.test.mjs <url> 12`.
 
+## Presets trial (live-test only, 15 Nov 2026; branch `grok/presets-trial`, not on production or Wiltshire)
+
+Ported from `grok/presets-prefetch` (12c1d0c, brief `briefs/2026-11-04-presets-checks-prefetch.md`) onto main `ac6eca6`. Built with `node scripts/build_site.mjs gb/config-live-test.js`; only `index.html`, `live-sw.js`, `assets/app.ceac04e3.js` and `assets/app.f66759dc.css` differ from main's live-test build.
+- Presets: four buttons at the top of Visualisation (Overview = multi-direction hillshade, the new default; Earthworks = red relief; Low sun = hillshade at 20°, VE 3; Banks and hollows = local relief, radius 20 m). The mode list, ramps, contrast, gamma, opacity, lens size and full screen fold into a closed Advanced section; the sun dial and elevation stay visible. Contrast is the view's own default look (MODE_LOOK) times the brief's factor, so the release 6 per-view looks are kept. Any hand change clears the highlight; Reset to defaults returns to Overview; share links add `p=<preset>`. Phones: the number strip becomes the four presets plus VAT.
+- What's here?: a "Light from the other side" button (sun +180°, again to undo; views without a sun switch to hillshade and back) and three check questions, above the folded measurements. The footer is one short line; the full note is in About / data.
+- Idle prefetch in `site/live-sw.js` (budgets in `PREFETCH`: 8 blocks a minute, 24 MB a session, one at a time behind real requests, off for Save-data / 2g, skipped in Scotland). Checked on live-test 15 Nov 2026: after the lens stopped at Avebury (zoom 15) the worker fetched the 4 relay blocks round it (0.53 MB). Most GB tiles now come from the Worker's tile cache (`tc/`), so those blocks are only used when a tile misses that cache: the gain is smaller than the brief expected.
+- `npm run check:gb-viewer` fails on this branch by design: it pins the production build, which this trial does not change.
+- Rollback: `/workspace/lidar-cvat/rollback-20261115-presets-livetest/` (on the box).
+
 ## Field mode (trial on live-test 11 Nov 2026)
 
 A Field / Lab switch (Lab is the full research view): in the panel header on desktop, floating at the top right on a phone, beside the search box in field mode. The choice is remembered on the device (localStorage `lidarlens.field.v1`) and carried in links: `ui=field`, or `ui=research` / `ui=lab` (`mode` is already the visualisation number). A link without `ui=` follows the device's last choice.
