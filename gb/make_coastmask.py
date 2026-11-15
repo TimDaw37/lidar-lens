@@ -24,8 +24,10 @@ def lat(y, z): return math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / 2 
 def keep(x, y):   # Great Britain, Isle of Man and the Channel Islands only (no LiDAR in Lens elsewhere): skip the Continent and Ireland
     lo, la = lon(x + 0.5, 10), lat(y + 0.5, 10)
     if lo > 2.0: return False
-    if la < 50.0 and not (-3.0 < lo < -1.9 and la > 49.1): return False
-    if lo < -5.8 and 51.3 < la < 55.25: return False           # Ireland (Pembrokeshire, the Smalls and Kintyre stay in)
+    if -6.0 < lo < -4.9 and 49.8 < la < 50.0: return True            # Land's End, Mount's Bay and the Lizard (south of 50.0 N; was missed until 15 Nov 2026)
+    if -6.0 < lo < -5.6 and 51.6 < la < 51.85: return True      # the Smalls (west of the Ireland cut)
+    if la < 50.0 and not (-3.0 < lo < -1.9 and la > 48.9): return False   # the Channel Islands incl. Les Minquiers
+    if lo < -5.8 and 51.3 < la < 55.25: return False           # Ireland (Pembrokeshire and Kintyre stay in)
     return True
 def keep2(x, y):
     lo, la = lon(x + 0.5, 10), lat(y + 0.5, 10)
@@ -35,13 +37,15 @@ land = None; hwl = None; crb = None
 def os_faces(x0, y0, w):   # faces of the OS high water / low water outlines inside one tile box (3857), as a list of polygons
     import shapely
     from shapely.geometry import box
-    b = box(x0, y0 - w, x0 + w, y0); bb = b.buffer(w * 0.01)
-    ls = [g for g in hwl.geometry.values[hwl.sindex.query(bb)]] + [g for g in crb.geometry.values[crb.sindex.query(bb)]]
+    b = box(x0, y0 - w, x0 + w, y0); bb = b.buffer(w * 0.01, join_style='mitre'); big = b.buffer(w * 0.05, join_style='mitre')
+    ls = [g for g in hwl.geometry.values[hwl.sindex.query(big)]] + [g for g in crb.geometry.values[crb.sindex.query(big)]]
     if not ls: return None
-    ls = [shapely.intersection(g, bb) for g in ls]; ls = [g for g in ls if not g.is_empty]
-    if not ls: return None   # only the bounding box of a far-off OS outline matched (e.g. Scotland's around the Isle of Man): OSM decides
-    ls = ls + [bb.exterior]
-    return list(shapely.polygonize(shapely.get_parts(shapely.union_all(shapely.get_parts(shapely.GeometryCollection(ls))))).geoms)
+    if not any(shapely.intersects(g, bb) for g in ls): return None   # only far-off outlines / bounding boxes matched (e.g. Scotland's around the Isle of Man): OSM decides
+    # lines are cut to a bigger box so they cross the tile box outline and get noded with it; lines cut exactly at the tile box
+    # could end a hair short of it and leave every face open (the Beauly Firth was one land face until 15 Nov 2026)
+    ls = [shapely.intersection(g, big) for g in ls]; ls = [g for g in ls if not g.is_empty] + [bb.exterior]
+    F = shapely.polygonize(shapely.get_parts(shapely.union_all(shapely.get_parts(shapely.GeometryCollection(ls))))).geoms
+    return [f for f in F if bb.contains(f.representative_point())]
 def tile(xy):
     global land, hwl, crb
     x, y = xy

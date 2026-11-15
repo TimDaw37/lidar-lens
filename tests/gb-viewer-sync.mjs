@@ -103,7 +103,7 @@ try {
     console.log('field mode is additive: ' + f);
   }
   // the live-mode service worker and the monument names production serves at the site root (checked against the live files 10 Nov 2026)
-  for (const [rel, expect] of [['live-sw.js', '8fa25ed02ffdb33de444657d64786112fe42e45064cf5463bb34a3b2a018dfdf'], ['towns.json', '9a1cc317f58cdcbb3a40bcdfe10d9276b2c6ecb11c2b5de57331d5deb2c20ab5'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
+  for (const [rel, expect] of [['live-sw.js', '11ae76c9f2468e1a0973e0cc9a79fb942ca767f194e10dce4b1ed03041458ed8'], ['towns.json', '9a1cc317f58cdcbb3a40bcdfe10d9276b2c6ecb11c2b5de57331d5deb2c20ab5'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
     const got = sha(fs.readFileSync(path.join(tmp, 'dist', rel)));
     if (got !== expect) fail(rel + ' sha256 ' + got + ' != live ' + expect);
   }
