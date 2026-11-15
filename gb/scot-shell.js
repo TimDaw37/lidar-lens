@@ -24,14 +24,15 @@ const sbusy = () => new Response(null, { status: 503, headers: { 'Retry-After': 
 const making = new Map();
 async function stile(z, x, y, isPre, localFn) {   // localFn: the England/Wales in-browser builder (display only); none = Scotland's
   if (!isPre) ring(z, x, y);
-  const c = await caches.open(STILES), key = `https://scot-live.invalid/${SVER}/${z}/${x}/${y}.png`, hit = await c.match(key);
+  const c = await caches.open(STILES), key = `https://scot-live.invalid/${SVER}/${localFn ? 'e2/' : ''}${z}/${x}/${y}.png`, hit = await c.match(key);
   if (hit) return hit;
   const tk = z + '/' + x + '/' + y;
   if (!making.has(tk)) making.set(tk, (async () => {
     const t0 = Date.now();
     // ONE-WAY shared cache: ask the Worker (R2 hit, or it builds the tile from SRSP itself and stores it). If it has not answered
     // in 4 s or fails, also build here for display; whichever is first is shown. The browser never uploads.
-    const wk = fetch(new URL(`tc/${z}/${x}/${y}.png`, self.registration.scope)).then(async sr => { if (sr.status === 404 && sr.headers.get('X-TC') === 'none') return 'none'; if (!sr.ok) throw sr.status;
+    const wk = fetch(new URL(`tc/${z}/${x}/${y}.png${localFn ? '?e=2' : ''}`, self.registration.scope))   // England/Wales: ?e=2 = tiles made with the 5 x 5 zero-area rule (new URL, so the year-long HTTP cache of the old ones is not used)
+   .then(async sr => { if (sr.status === 404 && sr.headers.get('X-TC') === 'none') return 'none'; if (!sr.ok) throw sr.status;
       const res = new Response(await sr.blob(), { headers: { 'Content-Type': 'image/png', 'X-Live': sr.headers.get('X-TC') === 'built' ? 'worker-built' : 'shared', 'X-Ms': String(Date.now() - t0) } }); await c.put(key, res.clone()); return res });
     const first = await Promise.race([wk.catch(() => null), new Promise(r => setTimeout(() => r('slow'), 6000))]);
     if (first && first !== 'slow') return first;   // a Response, or 'none' (no data here)
