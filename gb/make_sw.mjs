@@ -48,6 +48,10 @@ export default function makeSW(cfgPath){
   // GEM-15 fallback (gb/gem15-route.js): only for a config with a `fallback` block (production and live-test); others are unchanged
   if(/\n\s*fallback\s*:\s*\{/.test(fs.readFileSync(cfgPath,'utf8'))){const a='e.respondWith(route(+m[1], +m[2], +m[3], e))';if(out.split(a).length!==2)throw new Error('make_sw: route call not found');
     out=out.replace(a,()=>'e.respondWith(GEM.route(+m[1], +m[2], +m[3], e))')+rd('gb/gem15-route.js')}
+  // Seabed fallback (gb/seabed-route.js, live TEST 15 Nov 2026): only for a config with a `seabed` block; it wraps the GEM-15 route
+  // (or the plain route) and fills the pixels they leave empty off the coast from the EMODnet seabed tiles
+  if(/\n\s*seabed\s*:\s*\{/.test(fs.readFileSync(cfgPath,'utf8'))){const a=out.includes('e.respondWith(GEM.route(+m[1], +m[2], +m[3], e))')?'e.respondWith(GEM.route(+m[1], +m[2], +m[3], e))':'e.respondWith(route(+m[1], +m[2], +m[3], e))';
+    if(out.split(a).length!==2)throw new Error('make_sw: route call not found (seabed)');out=out.replace(a,()=>'e.respondWith(SEA.route(+m[1], +m[2], +m[3], e))')+rd('gb/seabed-route.js')}
   // England and Wales zoomed out (config `ewLow`, live TEST): live tiles from zoom ewLow.minzoom (64 m blocks, the coarsest the relay
   // makes) and, below that, a small overview built once from the same blocks (gb/ewov/, served at ewov/{z}/{x}/{y}.png)
   const ew=fs.readFileSync(cfgPath,'utf8').match(/\n\s*ewLow\s*:\s*\{\s*minzoom\s*:\s*(\d+)/);
