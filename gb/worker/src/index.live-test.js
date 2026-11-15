@@ -134,7 +134,10 @@ async function herLookup(env, url) {
 
 // ---- GB TEST: shared cache of Scottish live LiDAR tiles (z14-17 terrarium PNG, 256 px) in R2 under TC_PREFIX. The first viewer's browser
 // builds a tile from the SRSP GeoTIFFs and PUTs it here; later viewers GET it. No expiry; never overwritten; validated before storing.
-const TC_W = "gb-live-test/tc/w1/", TC_PREFIX_OLD_BROWSER = "gb-live-test/tc/g1/", TC_STATS = "gb-live-test/tc/_stats.json", TC_W_STATS = "gb-live-test/tc/_w1stats.json", TC_MAX_BYTES = 100e9, TC_MIN = 200, TC_MAXSZ = 400000;
+// TEST (15 Nov 2026, zero-height fix): England and Wales tiles are stored under TC_W2 (tc/w2/), built with the 5 x 5 zero-area rule in
+// ew-core.mjs; tc/w1/ England/Wales tiles (pinholes where the ground reads 0.00 m) stay for production, which still reads them. Scotland stays in w1.
+// w2 is not in the TC_MAX_BYTES count (tcCount lists TC_W only).
+const TC_W = "gb-live-test/tc/w1/", TC_W2 = "gb-live-test/tc/w2/", TC_PREFIX_OLD_BROWSER = "gb-live-test/tc/g1/", TC_STATS = "gb-live-test/tc/_stats.json", TC_W_STATS = "gb-live-test/tc/_w1stats.json", TC_MAX_BYTES = 100e9, TC_MIN = 200, TC_MAXSZ = 400000;
 const TC_WPOLY = [[53.36,-3.17],[53.24,-3.0],[53.16,-2.93],[53.08,-2.86],[52.98,-2.73],[52.95,-2.86],[52.91,-3.03],[52.84,-3.03],[52.76,-3.04],[52.70,-3.09],[52.62,-3.12],[52.57,-3.05],[52.50,-3.00],[52.43,-3.04],[52.35,-3.04],[52.27,-3.05],[52.19,-3.07],[52.12,-3.12],[52.06,-3.10],[51.99,-2.98],[51.92,-2.85],[51.85,-2.73],[51.80,-2.67],[51.72,-2.67],[51.64,-2.67],[51.60,-2.68],[51.45,-2.75],[51.30,-3.30],[51.25,-4.80],[51.45,-6.20],[52.10,-6.00],[52.90,-5.20],[53.50,-4.80],[53.55,-3.40],[53.40,-3.20]];
 const TC_POLY = [[54.45,-8.9],[54.85,-3.62],[54.97,-3.08],[55.04,-3.03],[55.13,-2.86],[55.23,-2.69],[55.30,-2.56],[55.35,-2.47],[55.42,-2.30],[55.48,-2.18],[55.57,-2.24],[55.64,-2.27],[55.66,-2.17],[55.72,-2.10],[55.78,-2.05],[55.81,-2.04],[55.84,-1.6],[61.6,-0.2],[61.6,-9.5],[54.45,-9.5]];
 function tcInScot(lat, lng) { let ins = false; for (let i = 0, j = TC_POLY.length - 1; i < TC_POLY.length; j = i++) { const a = TC_POLY[i], b = TC_POLY[j];
@@ -179,7 +182,7 @@ async function tileCache(request, env, url, ctx) {
   // ONE-WAY: browsers only GET. On a miss the Worker builds the tile itself from the SRSP COGs (scot-core.mjs, same code as the browser),
   // stores it in R2 under TC_W (Worker-built only) and serves it. Browser-uploaded tiles under the old g1/ prefix are ignored (kept, not deleted).
   const m = url.pathname.match(/^\/tc\/(\d+)\/(\d+)\/(\d+)\.png$/); if (!m) return null;
-  const z = +m[1], x = +m[2], y = +m[3], cc = tcCountry(z, x, y), key = TC_W + cc + "/" + z + "/" + x + "/" + y + ".png", H0 = { "X-Content-Type-Options": "nosniff" };
+  const z = +m[1], x = +m[2], y = +m[3], cc = tcCountry(z, x, y), key = (cc === "sco" ? TC_W : TC_W2) + cc + "/" + z + "/" + x + "/" + y + ".png", H0 = { "X-Content-Type-Options": "nosniff" };
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { ...H0, Allow: "GET, HEAD" } });
   if (!cc) return new Response("Not a GB tile at a served zoom", { status: 400, headers: H0 });
   const o = await env.LENS_BUCKET.get(key);

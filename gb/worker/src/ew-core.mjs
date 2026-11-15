@@ -62,6 +62,20 @@ async function readCm(buf) {
   return { W, H: Hh, data: out };
 }
 const isCm = buf => buf.byteLength > 8 && new Uint32Array(buf, 0, 1)[0] === 0x31434c4c;
+// EA 0.0 m: outside its survey (Wales, Scotland, the sea) the WCS sends 0.0, but real ground near 0 m OD (the Broads, the Fens,
+// coastal marsh) also reads 0.00 (1 cm steps in the relay's blocks). Only zeros in a zero-filled area at least 5 x 5 pixels across
+// are no data: a 5 x 5 morphological opening of the zero mask (15 Nov 2026; before, every 0 was dropped, leaving pinholes).
+function zeroArea(d, W, Hh) {
+  const N = W * Hh, z = new Uint8Array(N), a = new Uint8Array(N), b = new Uint8Array(N);
+  for (let i = 0; i < N; i++) z[i] = d[i] === 0 ? 1 : 0;
+  // erode 5 x 5 (outside the block counts as zero, so an area reaching the edge is kept), separable
+  for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) { let m = 1; for (let k = -2; k <= 2 && m; k++) { const xx = x + k; if (xx >= 0 && xx < W && !z[y * W + xx]) m = 0 } a[y * W + x] = m }
+  for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) { let m = 1; for (let k = -2; k <= 2 && m; k++) { const yy = y + k; if (yy >= 0 && yy < Hh && !a[yy * W + x]) m = 0 } b[y * W + x] = m }
+  // dilate 5 x 5, separable
+  for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) { let m = 0; for (let k = -2; k <= 2 && !m; k++) { const xx = x + k; if (xx >= 0 && xx < W && b[y * W + xx]) m = 1 } a[y * W + x] = m }
+  for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) { let m = 0; for (let k = -2; k <= 2 && !m; k++) { const yy = y + k; if (yy >= 0 && yy < Hh && a[yy * W + x]) m = 1 } b[y * W + x] = m }
+  return b;
+}
 
 const BLOCK_PX = 512, ENG = { e0: 80000, n0: 0, e1: 660000, n1: 660000 }, WALES = { e0: 164993, n0: 164000, e1: 356007, n1: 397000 };
 async function block(r, bx, by, st) {
@@ -70,7 +84,8 @@ async function block(r, bx, by, st) {
       if (res.ok) { const ab = await res.arrayBuffer(); st.bytes += ab.byteLength; return ab } if (res.status !== 429 && res.status < 500) return null;
       await new Promise(q => setTimeout(q, 800 * (t + 1))) } throw new Error('relay busy') };
   const dec = async (ab, zeroIsNoData) => { if (!ab) return null; const t = isCm(ab) ? await readCm(ab) : await readTiff(ab); let any = false;
-    for (let i = 0; i < t.data.length; i++) { const v = t.data[i]; if (!(v > -1000) || (zeroIsNoData && v === 0)) t.data[i] = NaN; else any = true }
+    const Z = zeroIsNoData ? zeroArea(t.data, t.W, t.H) : null;
+    for (let i = 0; i < t.data.length; i++) { const v = t.data[i]; if (!(v > -1000) || (Z && v === 0 && Z[i])) t.data[i] = NaN; else any = true }
     return any ? { ...t, x0, yTop: y1, r } : null };
   const inWales = x1 > WALES.e0 && x0 < WALES.e1 && y1 > WALES.n0 && y0 < WALES.n1;
   const [e, w] = await Promise.all([get('/wcs').then(a => dec(a, true)), inWales ? get('/wales').then(a => dec(a, false)) : null]);
