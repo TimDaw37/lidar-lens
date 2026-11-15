@@ -15,7 +15,7 @@
 // coastline the seabed is drawn instead (or nothing, where the seabed model has no pixel); inside it, LiDAR holes are left empty.
 // Islands (Lundy, Flat Holm, Steep Holm...) are land polygons and keep their LiDAR. Tiles of the open sea do not ask for LiDAR at all.
 const SEA = (() => {
-const C = 'seabed-tiles-v1', CM = 'seabed-mask-v3', OUT = 'seabed-out-v6', MBZ = 15, SZ = 10;   // CM v3: mask rebuilt 15 Nov 2026 (Isle of Man, then south Cornwall / Beauly Firth fix), older mask copies in C dropped on activate
+const C = 'seabed-tiles-v1', CM = 'seabed-mask-v3', OUT = 'seabed-out-v7', MBZ = 15, SZ = 10;   // CM v3: mask rebuilt 15 Nov 2026 (Isle of Man, then south Cornwall / Beauly Firth fix), older mask copies in C dropped on activate
 const inner = typeof GEM !== 'undefined' ? GEM.route : route;
 function jload(path) { let v = null, p = null, t = 0;
   return () => { if (v) return Promise.resolve(v);

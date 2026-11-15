@@ -209,6 +209,38 @@ Where there is no open LiDAR (the gaps in Scotland, mainly Highland and Shetland
 - Limits: GEM-15 masks water, snow/ice and some low-texture ground (no fill); no GEM-15 tiles exist for Foula or North Rona / Sula Sgeir. GEM-15 has its own processing-tile seams (straight steps in the hillshade, e.g. Glen Affric). Against the Scottish LiDAR overview the per-tile median GEM-15 minus LiDAR offset was -0.09 m (5-95%: -1.5 to +1.6 m, 201 tiles).
 - Gap fill (live-test 14 Nov 2026, t2204u; production 14 Nov 2026, t2205u): stage 2 built a zoom 13 GEM-15 tile only where at least 64 of its pixels were GEM-15 land not covered by the Scottish LiDAR overview, so small coverage gaps (e.g. near Perth) stayed blank. `gb/make_gem15_gapfill.py` built 1,116 more zoom 13 tiles (any such pixel within 2 px of uncovered ground), copied to `gb/gem15/13/` and listed in `gb/gem15/index.json` (`added14nov`; 11,736 zoom 13 tiles). In `gb/gem15-route.js` a LiDAR hole under 1% is still filled when it reaches the tile edge, and 1-3 px no-data seams with LiDAR on both sides are bridged linearly from the LiDAR before any GEM-15 fill (finished-tile cache `gem15-out-v4`). Wiltshire has no GEM-15 and is unchanged. Rollback copies (previous production build and `gem15/index.json`): `/workspace/lidar-cvat/rollback-20261114-gemgap-prod/`; the added tiles are new keys, so the old index leaves them unused.
 
+## Zero-height holes fix (live-test 15 Nov 2026; branch `grok/zero-height-fix`; not on production)
+
+**Problem.** Pinholes (pixels with no LiDAR, showing the aerial photo) on low ground, e.g. Winterton, Norfolk
+(52.72722, 1.62091). The EA DTM uses 0 for "no data" around its edges, so the code treated every 0 as no data
+(`zeroIsNoData`). But real ground near sea level (Norfolk Broads, the Fens, Romney Marsh, the Severn levels) can read
+exactly 0.00 m, more so after the relay's 1 cm rounding, so those single pixels were dropped.
+
+**Fix.** A 0 is only "no data" when it lies in a 5 x 5 (or bigger) area made entirely of zeros: a 5 x 5 morphological
+opening of the zero mask (`zeroArea()` in `site/live-sw.js` and `gb/worker/src/ew-core.mjs`). The EA edge fill and the
+sea are large zero areas, so they stay as no data; lone or small clusters of real 0.00 m ground are kept.
+Checked on the EA 1 m DTM at Winterton: 5,584 zeros after cm rounding, all kept; synthetic 1 x 1 and 3 x 3 zero
+spots kept, a large zero area removed.
+
+**Caches.** Old tiles have the holes baked in, so:
+- Worker (live-test only, `index.live-test.js`): England and Wales stored tiles now go to `gb-live-test/tc/w2/`
+  (new keys only; production's Worker also uses `gb-live-test/tc/w1/`, which is left untouched);
+  Scotland stays in `tc/w1/` (unchanged code path). w2 is not in the 100 GB `TC_MAX_BYTES` count.
+- Browser: England/Wales `tc/` requests carry `?e=2` (a new URL, because the old ones are cached for a year as
+  immutable; the Worker ignores the query), their Cache Storage key gets an `e2/` part, the GB `VER` goes to `v8`
+  and the seabed output cache to `seabed-out-v7`.
+
+**Live-test build.** Live-test runs this branch merged with `grok/presets-trial` (presets and "Light from the
+other side"), built locally as `node scripts/build_site.mjs gb/config-live-test.js`; the two branches do not touch
+the same files.
+
+**Production promotion (needs Tim's OK).** Make the same w2 change in `gb/worker/src/index.js` (production and
+live-test share the stored-tile store: both Workers use `gb-live-test/tc/w1/`, so production would simply read and
+write the same `gb-live-test/tc/w2/`, already warmed by live-test) and deploy the production Worker; rebuild the
+production site (`node scripts/build_site.mjs gb/config.js`) so its `live-sw.js` picks up `zeroArea()`, `v8`,
+`?e=2` and `seabed-out-v7`; update the `check:gb-viewer` pins. Tiles rebuild on demand. **Wiltshire stays
+undeployed:** it has no near-0 m ground, so the shared `site/live-sw.js` change is on main only to keep the code in sync.
+
 ## Known issues (14 Nov 2026)
 
 - Narrow (1-3 px) no-data seams where Scottish LiDAR survey tiles meet are still visible deep inside LiDAR-only areas. The seam bridging in `gb/gem15-route.js` runs only for tiles listed in the GEM-15 index (near coverage gaps), so tiles that are LiDAR on all sides are served as they are. Fixing it everywhere would mean bridging in the main LiDAR tile path or rebuilding the Scottish tiles.
