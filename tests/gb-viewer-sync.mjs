@@ -1,6 +1,7 @@
 // Regression gate for the live Great Britain viewer.
 // Building site/ with scripts/build_site.mjs and gb/config.js must reproduce the
-// assets on https://lidarlens.sarsen.org (checked 8 Nov 2026; releases 6 and 7 checked 11 Nov 2026; GEM-15 release 13 Nov 2026; hillshade smoothing 14 Nov 2026; GEM-15 gap fill 14 Nov 2026, live-sw.js only):
+// assets on https://lidarlens.sarsen.org (checked 8 Nov 2026; releases 6 and 7 checked 11 Nov 2026; GEM-15 release 13 Nov 2026; hillshade smoothing 14 Nov 2026; GEM-15 gap fill 14 Nov 2026, live-sw.js only;
+// zero-height fix 15 Nov 2026, live-sw.js only):
 //   assets/app.9fd53d20.js  (seabed release, 15 Nov 2026 (Tim pt2243u, t~13:29): EMODnet seabed and Dogger Bank 2 m multibeam beyond an OS/OSM coastline mask,
 //                            seabed depth estimates in What's here?, seabed kept out of measurements and viewshed (viewshed.efcec107.js); live-sw.js adds gb/seabed-route.js.)
 //   Before: assets/app.cba371ab.js  (hillshade smoothing release, 14 Nov 2026 (t2198u): the lens offset worked out in JS doubles so magnified zoom 17-20
@@ -102,8 +103,9 @@ try {
     if (!f || !fs.existsSync(path.join(tmp, 'dist', f))) fail('built index.html does not load field mode (assets/field.*.js)');
     console.log('field mode is additive: ' + f);
   }
-  // the live-mode service worker and the monument names production serves at the site root (checked against the live files 10 Nov 2026)
-  for (const [rel, expect] of [['live-sw.js', '11ae76c9f2468e1a0973e0cc9a79fb942ca767f194e10dce4b1ed03041458ed8'], ['towns.json', '9a1cc317f58cdcbb3a40bcdfe10d9276b2c6ecb11c2b5de57331d5deb2c20ab5'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
+  // the live-mode service worker and the monument names production serves at the site root (checked against the live files 10 Nov 2026;
+  // live-sw.js: zero-height fix 15 Nov 2026 (Tim pt2259u), VER v8, before it 11ae76c9... (seabed release))
+  for (const [rel, expect] of [['live-sw.js', '2ef1d262a7cf914feb72067dd578bd8b6834727da39ab251d1586c83d8e71e3a'], ['towns.json', '9a1cc317f58cdcbb3a40bcdfe10d9276b2c6ecb11c2b5de57331d5deb2c20ab5'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
     const got = sha(fs.readFileSync(path.join(tmp, 'dist', rel)));
     if (got !== expect) fail(rel + ' sha256 ' + got + ' != live ' + expect);
   }

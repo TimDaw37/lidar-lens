@@ -1,6 +1,6 @@
 # LiDAR Lens - Great Britain (production)
 Worker `lidar-lens-gb` (https://lidar-lens-gb.tim-daw.workers.dev), viewer files under `gb/` in R2 bucket `lidar-lens-scotland`.
-Relay `lidar-lens-gb-relay` (copy of relay/, allows lidar-lens-gb, lidarlens.sarsen.org). One-way tile cache (GET/HEAD only, Worker-built) under `gb-live-test/tc/w1/`, 100 GB cap, cron stats every 6 h.
+Relay `lidar-lens-gb-relay` (copy of relay/, allows lidar-lens-gb, lidarlens.sarsen.org). One-way tile cache (GET/HEAD only, Worker-built) under `gb-live-test/tc/w1/` (Scotland) and, since the zero-height fix of 15 Nov 2026, `gb-live-test/tc/w2/` (England and Wales), 100 GB cap over the tiles still read, cron stats every 6 h.
 lidarlens.sarsen.org (GitHub Pages) redirects here; the previous England & Wales site is tag `gh-pages-ew-20261104`.
 `lidar-lens-scotland` redirects here (scotland-redirect/; upload route kept).
 
@@ -209,7 +209,7 @@ Where there is no open LiDAR (the gaps in Scotland, mainly Highland and Shetland
 - Limits: GEM-15 masks water, snow/ice and some low-texture ground (no fill); no GEM-15 tiles exist for Foula or North Rona / Sula Sgeir. GEM-15 has its own processing-tile seams (straight steps in the hillshade, e.g. Glen Affric). Against the Scottish LiDAR overview the per-tile median GEM-15 minus LiDAR offset was -0.09 m (5-95%: -1.5 to +1.6 m, 201 tiles).
 - Gap fill (live-test 14 Nov 2026, t2204u; production 14 Nov 2026, t2205u): stage 2 built a zoom 13 GEM-15 tile only where at least 64 of its pixels were GEM-15 land not covered by the Scottish LiDAR overview, so small coverage gaps (e.g. near Perth) stayed blank. `gb/make_gem15_gapfill.py` built 1,116 more zoom 13 tiles (any such pixel within 2 px of uncovered ground), copied to `gb/gem15/13/` and listed in `gb/gem15/index.json` (`added14nov`; 11,736 zoom 13 tiles). In `gb/gem15-route.js` a LiDAR hole under 1% is still filled when it reaches the tile edge, and 1-3 px no-data seams with LiDAR on both sides are bridged linearly from the LiDAR before any GEM-15 fill (finished-tile cache `gem15-out-v4`). Wiltshire has no GEM-15 and is unchanged. Rollback copies (previous production build and `gem15/index.json`): `/workspace/lidar-cvat/rollback-20261114-gemgap-prod/`; the added tiles are new keys, so the old index leaves them unused.
 
-## Zero-height holes fix (live-test 15 Nov 2026; branch `grok/zero-height-fix`; not on production)
+## Zero-height holes fix (live-test 15 Nov 2026; production 15 Nov 2026, Tim pt2259u; branch `grok/zero-height-fix`)
 
 **Problem.** Pinholes (pixels with no LiDAR, showing the aerial photo) on low ground, e.g. Winterton, Norfolk
 (52.72722, 1.62091). The EA DTM uses 0 for "no data" around its edges, so the code treated every 0 as no data
@@ -225,7 +225,12 @@ spots kept, a large zero area removed.
 **Caches.** Old tiles have the holes baked in, so:
 - Worker (live-test only, `index.live-test.js`): England and Wales stored tiles now go to `gb-live-test/tc/w2/`
   (new keys only; production's Worker also uses `gb-live-test/tc/w1/`, which is left untouched);
-  Scotland stays in `tc/w1/` (unchanged code path). w2 is not in the 100 GB `TC_MAX_BYTES` count.
+  Scotland stays in `tc/w1/` (unchanged code path). Production's Worker (`index.js`) does the same since the production
+  release, so both Workers share `gb-live-test/tc/w2/`. The 100 GB `TC_MAX_BYTES` count (cron `tcCount`, stats in
+  `gb-live-test/tc/_w1stats.json`) now lists `tc/w1/` and `tc/w2/` together (prefix `gb-live-test/tc/w`; `byCountry` keys
+  such as `w1/sco`, `w2/eng`) but caps only the tiles still read (`w1/sco` and `w2/*`). The old `w1/eng` and `w1/wal`
+  tiles (about 65 GB of the 73 GB counted on 15 Nov 2026) are no longer read; they are kept (shown as `notReadBytes`)
+  until Tim decides to delete them. A count run started under the old w1-only prefix restarts.
 - Browser: England/Wales `tc/` requests carry `?e=2` (a new URL, because the old ones are cached for a year as
   immutable; the Worker ignores the query), their Cache Storage key gets an `e2/` part, the GB `VER` goes to `v8`
   and the seabed output cache to `seabed-out-v7`.
@@ -234,12 +239,12 @@ spots kept, a large zero area removed.
 other side"), built locally as `node scripts/build_site.mjs gb/config-live-test.js`; the two branches do not touch
 the same files.
 
-**Production promotion (needs Tim's OK).** Make the same w2 change in `gb/worker/src/index.js` (production and
-live-test share the stored-tile store: both Workers use `gb-live-test/tc/w1/`, so production would simply read and
-write the same `gb-live-test/tc/w2/`, already warmed by live-test) and deploy the production Worker; rebuild the
-production site (`node scripts/build_site.mjs gb/config.js`) so its `live-sw.js` picks up `zeroArea()`, `v8`,
-`?e=2` and `seabed-out-v7`; update the `check:gb-viewer` pins. Tiles rebuild on demand. **Wiltshire stays
-undeployed:** it has no near-0 m ground, so the shared `site/live-sw.js` change is on main only to keep the code in sync.
+**Production (15 Nov 2026, Tim "Ok, make it live", pt2259u).** Built from this branch alone (no presets):
+`node scripts/build_site.mjs gb/config.js` changes only `live-sw.js` (SHA-256 `2ef1d262…`, VER v8; before it `11ae76c9…`);
+`index.html` and every asset stay byte-identical (`app.9fd53d20.js`, `app.a852a2b4.css`, `config.1fb6b29b.js`), so
+`check:gb-viewer` only needed the new `live-sw.js` pin. Production Worker `lidar-lens-gb` = `gb/worker/src/index.js` with the
+w2 change. Rollback: `/workspace/lidar-cvat/rollback-20261115-zerofix-prod/` (on the box). **Wiltshire stays undeployed:**
+it has no near-0 m ground, so the shared `site/live-sw.js` change is on main only to keep the code in sync.
 
 ## Known issues (14 Nov 2026)
 
