@@ -1,0 +1,233 @@
+diff --git a/site/index.html b/site/index.html
+index 1f52422..112bb2e 100644
+--- a/site/index.html
++++ b/site/index.html
+@@ -95,7 +95,7 @@ a.lookup{display:inline-block;margin:4px 0;padding:2px 8px;border:1px solid #1d4
+ @media (max-width:700px),(max-height:500px) and (pointer:coarse){#prof{top:auto;bottom:40px}}
+ @media (max-width:700px),(max-height:500px) and (pointer:coarse){#prof{height:200px}#panel details.sec>summary{padding:8px 0}#swatches button{height:22px}}
+ .leaflet-control-attribution .credbtn{display:none;border:0;background:none;color:#1d4ed8;font:inherit;cursor:pointer;padding:0}
+-@media (max-width:700px),(max-height:500px) and (pointer:coarse){.leaflet-control-attribution.short{max-width:none;white-space:nowrap}.leaflet-control-attribution.short>*:not(.credbtn){display:none}.leaflet-control-attribution.short .credbtn{display:inline}.leaflet-control-attribution:not(.short) .credbtn{display:inline;margin-left:4px}}
++@media (max-width:700px),(max-height:500px) and (pointer:coarse){.leaflet-control-attribution.short{max-width:none;white-space:nowrap}.leaflet-control-attribution.short>*:not(.credbtn){display:none}.leaflet-control-attribution.short{font-size:0}.leaflet-control-attribution.short .credbtn{font-size:12px}.leaflet-control-attribution.short .credbtn{display:inline}.leaflet-control-attribution:not(.short) .credbtn{display:inline;margin-left:4px}}
+ .compat{position:fixed;left:8px;right:8px;top:8px;z-index:3000;background:#fff7ed;color:#7c2d12;border:1px solid #fdba74;border-radius:8px;padding:10px 34px 10px 12px;font:14px/1.4 system-ui,sans-serif}.compat button{position:absolute;right:6px;top:4px;border:0;background:none;font-size:20px;cursor:pointer}
+ #lens:not([style]){visibility:hidden}
+ 
+diff --git a/site/layers.js b/site/layers.js
+index d01532a..ec4cece 100644
+--- a/site/layers.js
++++ b/site/layers.js
+@@ -15,6 +15,13 @@ const NHLE=HE+'National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/';
+ const NE='https://services.arcgis.com/JJzESW51TqeY9uat/arcgis/rest/services/';
+ const OGL='Open Government Licence';
+ const NHLE_C='© Historic England (National Heritage List). Contains OS data © Crown copyright and database right. '+OGL+'.';
++const HES='https://inspire.hes.scot/arcgis/rest/services/HES/HES_Designations/MapServer/';
++const HES_C='© Historic Environment Scotland. Contains OS data © Crown copyright and database right. '+OGL+'.';
++const NS='https://services1.arcgis.com/LM9GyVFsughzHdbO/arcgis/rest/services/';
++const NS_C=n=>n+' © NatureScot. Contains OS data © Crown copyright and database right. '+OGL+'.';
++function hesPopup(kind){return p=>{let h='<b>'+esc(p.DES_TITLE||kind)+'</b><br>'+esc(kind);const sub=[];if(p.CATEGORY&&String(p.CATEGORY).trim())sub.push('Category '+String(p.CATEGORY).trim());if(p.DES_REF)sub.push(p.DES_REF);
++  if(sub.length)h+='<br>'+esc(sub.join(' · '));if(p.LINK&&/^https?:\/\//i.test(p.LINK))h+='<br>'+alink(p.LINK,'HES designation record');return h}}
++function nsPopup(kind){return p=>{let h='<b>'+esc(p.NAME||kind)+'</b><br>'+esc(kind);if(p.PA_CODE)h+='<br>'+alink('https://sitelink.nature.scot/site/'+encodeURIComponent(p.PA_CODE),'NatureScot SiteLink');return h}}
+ const canvasR=L.canvas({padding:0.5});
+ let ate=false;
+ function nhlePopup(kind){return p=>{
+@@ -45,58 +52,75 @@ function bgs625Names(){if(!bgs625P)bgs625P=fetch('https://map.bgs.ac.uk/arcgis/s
+     while((m=re.exec(xml))){if(/Bedrock/i.test(m[2])&&!/Dyke/i.test(m[2])&&!bgs625.BedrockDone){bgs625.Bedrock=m[1];bgs625.BedrockDone=1}if(/Superficial/i.test(m[2])&&!bgs625.SuperficialDone){bgs625.Superficial=m[1];bgs625.SuperficialDone=1}}
+     return bgs625}).catch(()=>bgs625);return bgs625P}
+ const CATALOG=[
+- {id:'nhle-sm',group:'Historic England',name:'Scheduled monuments',kind:'fs',url:NHLE+'6',minZoom:12,cap:[400,200],
++ {id:'nhle-sm',group:'Historic England',c:'E',name:'Scheduled monuments',kind:'fs',url:NHLE+'6',minZoom:12,cap:[400,200],
+   fields:'ListEntry,Name,hyperlink',credit:NHLE_C,popup:nhlePopup('Scheduled monument'),
+   style:()=>({color:'#dc2626',weight:2,fill:false})},
+- {id:'nhle-lb',group:'Historic England',name:'Listed buildings',kind:'fs',url:NHLE+'0',minZoom:15,cap:[300,150],points:true,color:'#b45309',
++ {id:'nhle-lb',group:'Historic England',c:'E',name:'Listed buildings',kind:'fs',url:NHLE+'0',minZoom:15,cap:[300,150],points:true,color:'#b45309',
+   fields:'ListEntry,Name,Grade,hyperlink',credit:NHLE_C,popup:nhlePopup('Listed building')},
+- {id:'nhle-pg',group:'Historic England',name:'Parks and gardens',kind:'fs',url:NHLE+'7',minZoom:11,cap:[200,100],
++ {id:'nhle-pg',group:'Historic England',c:'E',name:'Parks and gardens',kind:'fs',url:NHLE+'7',minZoom:11,cap:[200,100],
+   fields:'ListEntry,Name,Grade,hyperlink',credit:NHLE_C,popup:nhlePopup('Registered park or garden'),
+   style:()=>({color:'#15803d',weight:2,fillColor:'#15803d',fillOpacity:.08})},
+- {id:'nhle-bf',group:'Historic England',name:'Battlefields',kind:'fs',url:NHLE+'8',minZoom:10,cap:[40,40],
++ {id:'nhle-bf',group:'Historic England',c:'E',name:'Battlefields',kind:'fs',url:NHLE+'8',minZoom:10,cap:[40,40],
+   fields:'ListEntry,Name,hyperlink',credit:NHLE_C,popup:nhlePopup('Registered battlefield'),
+   style:()=>({color:'#7c3aed',weight:2,fillColor:'#7c3aed',fillOpacity:.1})},
+- {id:'nhle-whs',group:'Historic England',name:'World Heritage Sites',kind:'fs',url:NHLE+'10',minZoom:9,cap:[20,20],
++ {id:'nhle-whs',group:'Historic England',c:'E',name:'World Heritage Sites',kind:'fs',url:NHLE+'10',minZoom:9,cap:[20,20],
+   fields:'ListEntry,Name,hyperlink',credit:NHLE_C,popup:nhlePopup('World Heritage Site'),
+   style:()=>({color:'#1d4ed8',weight:3,fillColor:'#1d4ed8',fillOpacity:.05})},
+- {id:'aim',group:'Historic England',name:'Aerial mapping (cropmarks and earthworks)',kind:'fs',
++ {id:'aim',group:'Historic England',c:'E',name:'Aerial mapping (cropmarks and earthworks)',kind:'fs',
+   url:HE+'HE_AIM_data/FeatureServer/0',minZoom:15,cap:[320,160],
+   fields:'MONUMENT_TYPE,PERIOD,LAYER,EVIDENCE_1,project,HE_UID,HE_URL1',
+   credit:'Aerial Archaeology Mapping © Historic England 2026. '+OGL+'.',
+   popup:aimPopup,style:aimStyle},
+- {id:'sssi',group:'Natural England',name:'SSSI',kind:'fs',url:NE+'SSSI_England/FeatureServer/0',minZoom:12,cap:[200,100],
++ {id:'sssi',group:'Natural England',c:'E',name:'SSSI',kind:'fs',url:NE+'SSSI_England/FeatureServer/0',minZoom:12,cap:[200,100],
+   fields:'NAME,REF_CODE',credit:'Sites of Special Scientific Interest © Natural England. Contains OS data © Crown copyright and database right. '+OGL+'.',
+   popup:p=>'<b>'+esc(p.NAME||'SSSI')+'</b>'+(p.REF_CODE?'<br>Ref '+esc(p.REF_CODE):''),
+   style:()=>({color:'#0f766e',weight:2,fillColor:'#0f766e',fillOpacity:.12})},
+- {id:'wood',group:'Natural England',name:'Ancient woodland',kind:'fs',url:NE+'Ancient_Woodland_England/FeatureServer/0',minZoom:13,cap:[300,150],
++ {id:'wood',group:'Natural England',c:'E',name:'Ancient woodland',kind:'fs',url:NE+'Ancient_Woodland_England/FeatureServer/0',minZoom:13,cap:[300,150],
+   fields:'NAME,THEME,THEMNAME',credit:'Ancient Woodland © Natural England. Contains OS data © Crown copyright and database right. © Woodland Trust. © Forestry Commission. © Getmapping plc and Bluesky International Ltd. '+OGL+'.',
+   popup:p=>{const n=(p.NAME||'').trim();return '<b>'+esc(p.THEMNAME||'Ancient woodland')+'</b>'+(n?'<br>'+esc(n):'')},
+   style:()=>({color:'#166534',weight:1,fillColor:'#166534',fillOpacity:.28})},
+- {id:'crow',group:'Natural England',name:'CRoW access land',kind:'fs',url:NE+'CRoW_Act_2000_Access_Layer/FeatureServer/0',minZoom:12,cap:[200,100],
++ {id:'crow',group:'Natural England',c:'E',name:'CRoW access land',kind:'fs',url:NE+'CRoW_Act_2000_Access_Layer/FeatureServer/0',minZoom:12,cap:[200,100],
+   fields:'Descrip,OC,RCL,S16',credit:'CRoW access land © Natural England. Contains OS data © Crown copyright and database right. '+OGL+'.',
+   popup:p=>{const bits=[];if(p.OC==='Yes')bits.push('open country');if(p.RCL==='Yes')bits.push('registered common');if(p.S16==='Yes')bits.push('section 16 dedication');return '<b>CRoW access land</b>'+(bits.length?'<br>'+esc(bits.join(', ')):'')},
+   style:()=>({color:'#a16207',weight:1,fillColor:'#ca8a04',fillOpacity:.18})},
+- {id:'nl',group:'Natural England',name:'National Landscapes (AONB)',kind:'fs',url:NE+'Areas_of_Outstanding_Natural_Beauty_England/FeatureServer/0',minZoom:8,cap:[30,30],
++ {id:'nl',group:'Natural England',c:'E',name:'National Landscapes (AONB)',kind:'fs',url:NE+'Areas_of_Outstanding_Natural_Beauty_England/FeatureServer/0',minZoom:8,cap:[30,30],
+   fields:'NAME,CODE,HOTLINK,DESIG_DATE',credit:'National Landscapes (Areas of Outstanding Natural Beauty) © Natural England. Contains OS data © Crown copyright and database right. '+OGL+'.',
+   popup:p=>{let h='<b>'+esc(p.NAME||'National Landscape')+'</b><br>National Landscape (AONB)';if(p.DESIG_DATE)h+='<br>Designated '+esc(p.DESIG_DATE);if(p.HOTLINK&&/^https?:\/\//i.test(p.HOTLINK))h+='<br>'+alink(p.HOTLINK,'Landscape partnership');return h},
+   style:()=>({color:'#0369a1',weight:2,dashArray:'6 4',fillColor:'#0369a1',fillOpacity:.05})},
+- {id:'fz3',group:'Environment Agency',name:'Flood Zone 3 (rivers and sea)',kind:'wms',minZoom:11,
++ {id:'fz3',group:'Environment Agency',c:'E',name:'Flood Zone 3 (rivers and sea)',kind:'wms',minZoom:11,
+   wms:'https://environment.data.gov.uk/spatialdata/flood-map-for-planning-flood-zones/wms',
+   wmsLayers:'Flood_Zones_2_3_Rivers_and_Sea',styles:'Flood_Zones_2_3_Rivers_and_Sea_21_10_2026',cql:"flood_zone='FZ3'",opacity:.55,z:3,
+   credit:'Flood Zone 3 (rivers and sea) © Environment Agency. '+OGL+'. The current WMS draws Zones 2 and 3 together; this tick asks only for Zone 3.'},
+- {id:'bgs50b',group:'British Geological Survey',name:'Bedrock, 1:50 000',kind:'wms',minZoom:12,wmsKind:'50k',which:'Bedrock',
++ {id:'bgs50b',group:'British Geological Survey',c:'GB',name:'Bedrock, 1:50 000',kind:'wms',minZoom:12,wmsKind:'50k',which:'Bedrock',
+   wms:'https://map.bgs.ac.uk/arcgis/services/BGS_Detailed_Geology/MapServer/WMSServer',wmsLayers:'BGS.50k.Bedrock',opacity:.62,z:6,
+   credit:'Contains British Geological Survey materials © UKRI. 1:50 000 bedrock. '+OGL+'. Tap the map for the unit name.'},
+- {id:'bgs50s',group:'British Geological Survey',name:'Superficial deposits, 1:50 000',kind:'wms',minZoom:12,wmsKind:'50k',which:'Superficial',
++ {id:'bgs50s',group:'British Geological Survey',c:'GB',name:'Superficial deposits, 1:50 000',kind:'wms',minZoom:12,wmsKind:'50k',which:'Superficial',
+   wms:'https://map.bgs.ac.uk/arcgis/services/BGS_Detailed_Geology/MapServer/WMSServer',wmsLayers:'BGS.50k.Superficial.deposits',opacity:.62,z:5,
+   credit:'Contains British Geological Survey materials © UKRI. 1:50 000 superficial deposits. '+OGL+'. Tap the map for the unit name.'},
+- {id:'bgs625b',group:'British Geological Survey',name:'Bedrock, 1:625 000 (overview)',kind:'wms',maxZoom:12,wmsKind:'625k',which:'Bedrock',
++ {id:'bgs625b',group:'British Geological Survey',c:'GB',name:'Bedrock, 1:625 000 (overview)',kind:'wms',maxZoom:12,wmsKind:'625k',which:'Bedrock',
+   wms:'https://map.bgs.ac.uk/arcgis/services/SDDS/Geology_625k/MapServer/WMSServer',wmsLayers:bgs625.Bedrock,opacity:.5,z:4,
+   credit:'Contains NERC materials © NERC. BGS Geology 625k bedrock, for when you are zoomed out. '+OGL+'. Tap the map for the unit name.'},
+- {id:'bgs625s',group:'British Geological Survey',name:'Superficial, 1:625 000 (overview)',kind:'wms',maxZoom:12,wmsKind:'625k',which:'Superficial',
++ {id:'bgs625s',group:'British Geological Survey',c:'GB',name:'Superficial, 1:625 000 (overview)',kind:'wms',maxZoom:12,wmsKind:'625k',which:'Superficial',
+   wms:'https://map.bgs.ac.uk/arcgis/services/SDDS/Geology_625k/MapServer/WMSServer',wmsLayers:bgs625.Superficial,opacity:.5,z:4,
+-  credit:'Contains NERC materials © NERC. BGS Geology 625k superficial deposits, for when you are zoomed out. '+OGL+'.'}
++  credit:'Contains NERC materials © NERC. BGS Geology 625k superficial deposits, for when you are zoomed out. '+OGL+'.'},
++ {id:'hes-lb',group:'Historic Environment Scotland',c:'S',noPage:true,name:'Listed buildings',kind:'fs',url:HES+'0',minZoom:15,cap:[300,150],points:true,color:'#b45309',
++  fields:'DES_REF,DES_TITLE,CATEGORY,LINK',credit:HES_C,popup:hesPopup('Listed building')},
++ {id:'hes-gdl',group:'Historic Environment Scotland',c:'S',noPage:true,name:'Gardens and designed landscapes',kind:'fs',url:HES+'4',minZoom:11,cap:[100,60],
++  fields:'DES_REF,DES_TITLE,LINK',credit:HES_C,popup:hesPopup('Garden and designed landscape'),style:()=>({color:'#15803d',weight:2,fillColor:'#15803d',fillOpacity:.08})},
++ {id:'hes-whs',group:'Historic Environment Scotland',c:'S',noPage:true,name:'World Heritage Sites',kind:'fs',url:HES+'6',minZoom:9,cap:[20,20],
++  fields:'DES_REF,DES_TITLE,LINK',credit:HES_C,popup:hesPopup('World Heritage Site'),style:()=>({color:'#1d4ed8',weight:3,fillColor:'#1d4ed8',fillOpacity:.05})},
++ {id:'hes-hmpa',group:'Historic Environment Scotland',c:'S',noPage:true,name:'Historic Marine Protected Areas',kind:'fs',url:HES+'1',minZoom:9,cap:[40,40],
++  fields:'DES_REF,DES_TITLE,LINK',credit:HES_C,popup:hesPopup('Historic Marine Protected Area'),style:()=>({color:'#0e7490',weight:2,dashArray:'5 4',fillColor:'#0e7490',fillOpacity:.06})},
++ {id:'ns-sssi',group:'NatureScot',c:'S',name:'SSSI',kind:'fs',url:NS+'Sites_of_Special_Scientific_Interest/FeatureServer/0',minZoom:11,cap:[200,100],
++  fields:'NAME,PA_CODE',credit:NS_C('Sites of Special Scientific Interest'),popup:nsPopup('Site of Special Scientific Interest'),style:()=>({color:'#16a34a',weight:2,fillColor:'#16a34a',fillOpacity:.08})},
++ {id:'ns-sac',group:'NatureScot',c:'S',name:'Special Areas of Conservation (SAC)',kind:'fs',url:NS+'Special_Areas_of_Conservation/FeatureServer/0',minZoom:10,cap:[100,60],
++  fields:'NAME,PA_CODE',credit:NS_C('Special Areas of Conservation'),popup:nsPopup('Special Area of Conservation'),style:()=>({color:'#ca8a04',weight:2,dashArray:'6 4',fillColor:'#ca8a04',fillOpacity:.05})},
++ {id:'ns-spa',group:'NatureScot',c:'S',name:'Special Protection Areas (SPA, birds)',kind:'fs',url:NS+'Special_Protection_Areas/FeatureServer/0',minZoom:10,cap:[100,60],
++  fields:'NAME,PA_CODE',credit:NS_C('Special Protection Areas'),popup:nsPopup('Special Protection Area'),style:()=>({color:'#9333ea',weight:2,dashArray:'2 4',fillColor:'#9333ea',fillOpacity:.04})}
+ ];
++const LCC=(LZ.LC&&LZ.LC.layerCountry)||'england';   // per-country layer list: 'england' (default, unchanged) or 'scotland'
++for(let i=CATALOG.length-1;i>=0;i--){const c=CATALOG[i].c||'E';if(!(c==='GB'||(LCC==='scotland'?c==='S':c==='E')))CATALOG.splice(i,1)}
++if(LCC==='scotland')CATALOG.sort((a,b)=>(a.c==='GB')-(b.c==='GB'));
+ const byId={};CATALOG.forEach(d=>{byId[d.id]=d;d.on=false});
+ function setStatus(d,t){if(!d.meta)return;d.meta.textContent=d.credit+(t?(' '+t):'')}
+ function explode(feats){const out=[];for(const f of feats){const g=f&&f.geometry;if(!g)continue;
+@@ -116,6 +140,7 @@ async function loadFs(d){if(!d.on)return;const z=map.getZoom();
+   const q=new URLSearchParams({where:'1=1',geometry:[pad.getWest(),pad.getSouth(),pad.getEast(),pad.getNorth()].join(','),
+     geometryType:'esriGeometryEnvelope',inSR:'4326',outSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:d.fields,
+     returnGeometry:'true',f:'geojson',resultRecordCount:String(cap),maxAllowableOffset:String(Math.max(1e-5,(mpp*2)/mdeg))});
++  if(d.noPage)q.delete('resultRecordCount');   // HES MapServer rejects pagination params
+   try{const r=await fetch(d.url+'/query?'+q,{signal:ac.signal});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();
+     if(ac.signal.aborted||!d.on)return;if(j.error)throw new Error(j.error.message||'query failed');
+     const feats=j.features||[];drawFeats(d,feats);d.have=pad;d.z=z;
+@@ -140,7 +165,7 @@ CATALOG.forEach(d=>{if(d.group!==group){group=d.group;const h=document.createEle
+   const lab=document.createElement('label'),cb=document.createElement('input');cb.type='checkbox';cb.id='ly_'+d.id;
+   cb.addEventListener('change',()=>setOn(d,cb.checked));const span=document.createElement('span');span.textContent=d.name;lab.appendChild(cb);lab.appendChild(span);host.appendChild(lab);
+   const meta=document.createElement('div');meta.className='laymeta';meta.textContent=d.credit;host.appendChild(meta);d.meta=meta;d.cb=cb});
+-const sug=$('laysuggest');if(sug)sug.textContent='Not added: Environment Agency historic landfill is Open Government Licence and can explain modern mounds. National soil maps (NATMAP and Soilscapes, Cranfield) are not published under the Open Government Licence, so they are left out.';
++const sug=$('laysuggest');if(sug)sug.textContent=LCC==='scotland'?'Scottish layers: Historic Environment Scotland designations and NatureScot protected areas, all Open Government Licence. Canmore and local HER/SMR records are not shown.':'Not added: Environment Agency historic landfill is Open Government Licence and can explain modern mounds. National soil maps (NATMAP and Soilscapes, Cranfield) are not published under the Open Government Licence, so they are left out.';
+ let mvT=null;map.on('moveend',()=>{clearTimeout(mvT);mvT=setTimeout(()=>{CATALOG.forEach(d=>{if(!d.on)return;if(d.kind==='fs')loadFs(d);else setStatus(d,wmsNote(d))})},350)});
+ function parseFields(xml){const m=String(xml).match(/<FIELDS\b([^>]*)\/?>/i);if(!m)return null;const o={},re=/([\w:.-]+)="([^"]*)"/g;let a;
+   const dec=s=>s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&');
+diff --git a/site/lens.js b/site/lens.js
+index 1f206dd..e03e280 100644
+--- a/site/lens.js
++++ b/site/lens.js
+@@ -34,8 +34,12 @@ function horizonN(){const p=phoneLike();if(R&&String(R.kind).indexOf('Canvas')==
+ const S=Object.assign({},DEF);
+ let lensC=null; // lens centre in container px
+ // ---------- hash ----------
+-function readHash(){const h=new URLSearchParams(location.hash.slice(1));const out={};
+-  for(const [k,v] of h){out[k]=v} return out}
++function readHash(){const raw=location.hash.slice(1);const out={};
++  const m=raw.match(/^(?:map=)?(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)/);   // also accept #zoom/lat/lng (OSM/Leaflet-hash style links)
++  if(m){out.c=m[2]+','+m[3]+','+m[1];return out}
++  const h=new URLSearchParams(raw);for(const [k,v] of h){out[k]=v}
++  if(!out.c&&out.lat&&(out.lng||out.lon))out.c=out.lat+','+(out.lng||out.lon)+','+(out.z||out.zoom||15);   // #lat=..&lng=..&z=..
++  return out}
+ const H0=readHash();
+ window.addEventListener('hashchange',()=>location.reload());   // a link pasted into an open tab: apply its view (the app's own saveHash uses replaceState, which doesn't fire this)
+ ['mode','az','el','ve','rad','ct','gm','op','ls'].forEach(k=>{if(H0[k]!==undefined&&!isNaN(+H0[k]))S[k]=+H0[k]});
+@@ -112,6 +116,8 @@ if(matchMedia('(max-width:700px),(max-height:500px) and (pointer:coarse)').match
+ (function initLens(){const [w,h]=mapSize();
+   if(H0.l){const p=H0.l.split(',').map(Number);if(p.length>=2&&p.every(isFinite)){const cp=map.latLngToContainerPoint([p[0],p[1]]);lensC=[cp.x,cp.y]}}
+   S.ls=Math.min(S.ls,Math.max(150,Math.min(w,h)-40));if(!lensC||lensC[0]<0||lensC[1]<0||lensC[0]>w||lensC[1]>h)lensC=defaultLensC();placeLens()})();
++// config startInLens: on first load (no #c in the link) pan so the start point sits at the lens centre, not the map centre
++if(LC.startInLens&&!H0.c&&!H0.l&&lensC){const cp=map.latLngToContainerPoint([start.lat,start.lng]);map.panBy([cp.x-lensC[0],cp.y-lensC[1]],{animate:false})}
+ let drag=null,justDragged=0;
+ function startDrag(e,resize){if(S.fs)return false;e.preventDefault();e.stopPropagation();try{e.target.setPointerCapture(e.pointerId)}catch(_){}
+   drag={resize,x:e.clientX,y:e.clientY,c:lensC.slice(),id:e.pointerId};lensEl.classList.add('dragging');return true}
+@@ -475,6 +481,9 @@ function drawProfile(hs,dist){const box=$('prof');box.style.display='block';cons
+ document.querySelector('#prof .x').onclick=()=>{clearProfile(true);if(tool==='profile')setTool(null)};
+ // ---------- go ----------
+ $('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
++// config creditsFull: the full credit text lives in About / data; a .credlink in the short attribution opens it
++if(LC.creditsFull){const c=document.createElement('div');c.className='credits';c.style.marginTop='6px';c.innerHTML='<b>Credits.</b> '+LC.creditsFull;$('about').appendChild(c)}
++document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a.credlink');if(!a)return;e.preventDefault();$('panel').classList.remove('hide');const d=$('about').closest('details');if(d)d.open=true;placeLens();requestRender();setTimeout(()=>$('about').scrollIntoView({block:'nearest',behavior:'smooth'}),50)});
+ Object.assign(window.__lens,{H0,saveHashSoon,RAMPS,syncUI,placeLens,requestRender,resetLens:()=>{lensC=defaultLensC();placeLens();requestRender()},tileData,heightAt,setTool,tool:()=>tool,toolHooks,profPts:()=>profPts.length,profShown:()=>$('prof').style.display==='block'&&!!profLine,updateToolButtons});
+ resizeCanvas();syncUI();if(S.sm)setSM(true);buildMosaic();
+ })();
+diff --git a/site/tools.js b/site/tools.js
+index dc46c3f..bb9abe3 100644
+--- a/site/tools.js
++++ b/site/tools.js
+@@ -345,6 +345,8 @@ function thumb(cv,W,a){const n=W.n,mpp=W.mpp,span=Math.min(n,Math.round(120/mpp)
+   g.putImageData(im,0,0);g.strokeStyle='#111';g.lineWidth=2;const c=S/2;g.beginPath();g.moveTo(c-9,c);g.lineTo(c-3,c);g.moveTo(c+3,c);g.lineTo(c+9,c);g.moveTo(c,c-9);g.lineTo(c,c-3);g.moveTo(c,c+3);g.lineTo(c,c+9);g.stroke();
+   g.fillStyle='rgba(255,255,255,.85)';g.fillRect(4,S-20,92,16);g.fillStyle='#111';g.font='12px system-ui';g.fillText('LRM, 120 m wide',8,S-8);if(a&&!a.nodata&&a.foot){g.fillStyle='rgba(255,255,255,.85)';g.fillRect(S-112,S-20,108,16);g.fillStyle='#111';g.fillText('yellow = outline',S-108,S-8)}}
+ let wiMk=null,wiSeq=0;const card=$('card');const TN=LZ.LC.toolName||'What is it?',SHOWG=LZ.LC.showGuess!==false;
++const srcHost=u=>{try{return new URL(u,location.href).hostname.replace(/^www\./,'')}catch(e){return 'Source record'}};   // unknown sources: show the site's name, not 'OSM'
++const hesLabel=u=>{const h=srcHost(u);return h==='portal.historicenvironment.scot'?'HES portal':h==='historicenvironment.scot'?'HES website':h};
+ const SRC=LZ.LC.recordSources||'NHLE (Historic England, scheduled + listed), HE Aerial Investigation & Mapping, OSM (community map)';
+ function compass8(b){return ['N–S','NNE–SSW','NE–SW','ENE–WSW','E–W','ESE–WNW','SE–NW','SSE–NNW'][Math.round(((b%180)+180)%180/22.5)%8]}
+ function q05(v){return Math.max(0.05,Math.round(v*20)/20)}
+@@ -453,7 +455,7 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
+   const hgLink=u=>{const m=/^https?:\/\/(?:www\.)?heritagegateway\.org\.uk\/Gateway\/Results_Single\.aspx\?uid=([^&#]+)&resourceID=19191\b/i.exec(u);return m?'https://historicengland.org.uk/listing/heritage-gateway/results?q='+encodeURIComponent(decodeURIComponent(m[1]))+'&filters%5B0%5D%5Bfield%5D=dataset&filters%5B0%5D%5Bvalues%5D%5B0%5D=Historic%20England%20research%20records&filters%5B1%5D%5Bfield%5D=layoutView&filters%5B1%5D%5Bvalues%5D%5B0%5D=list':u};
+   const BADGE={CADW:'Cadw',CADWLB:'Cadw',NMRW:'Coflein'};
+   const recRow=({f,d})=>{let h='';h+='<div class="rec"><span class="b '+f.s+'">'+(BADGE[f.s]||f.s)+'</span><b>'+esc(f.n||f.t||'(unnamed)')+'</b> <span class="m">&middot; '+(d<0.5?'here':Math.round(d)+' m')+'</span><div class="m">'+esc([f.t&&f.t!==f.n?f.t:'',f.p,f.s==='OSM'?'OSM '+f.id:f.s==='NHLE'||f.s==='LB'?'List entry '+f.id:f.s==='AIM'?(f.id&&!/none/i.test(f.id)?'HE UID '+f.id:''):f.s==='GAZ'?(/^\d+$/.test(f.id||'')?'NHLE '+f.id:''):f.s==='CADW'?'Cadw '+f.id:f.s==='CADWLB'?'Cadw listed building '+f.id:f.s==='NMRW'?'NPRN '+f.id:f.id].filter(Boolean).join(' · '))+
+-    (f.u?' &middot; <a href="'+esc(hgLink(f.u))+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':f.s==='CADW'||f.s==='CADWLB'?'Cadw report':f.s==='NMRW'?'Coflein':'OSM')+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
++    (f.u?' &middot; <a href="'+esc(hgLink(f.u))+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':f.s==='CADW'||f.s==='CADWLB'?'Cadw report':f.s==='NMRW'?'Coflein':f.s==='OSM'?'OSM':f.s==='HES'?hesLabel(f.u):srcHost(f.u))+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
+   h+='<h3>Recorded within 30 m</h3><div class="m snap" style="font-size:11px;margin:-2px 0 4px">'+esc(LZ.LC.recordsLine||('Records from the '+HLL+', NHLE, HE aerial mapping and OSM'))+'</div>';
+   if(pending)h+='<div class="m wiwait">Fetching records…</div>';
+   if(!pending&&LZ.recMissing&&LZ.recMissing.length)h+='<div class="m" style="font-size:12px;color:#b45309">'+esc(LZ.recMissing.join(' and '))+' records could not be fetched just now, so they are not listed. Click again in a minute.</div>';
+@@ -465,6 +467,7 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
+   if(LZ.LC.herLinks&&LZ.LC.herLinks.length){const gr=gridRef(E,N).replace(/\s+/g,''),dl=0.0027,dg=0.0043,v={e:Math.round(E),n:Math.round(N),gr,lat:ll.lat.toFixed(5),lng:ll.lng.toFixed(5),lat1:(ll.lat+dl).toFixed(5),lng1:(ll.lng-dg).toFixed(5),lat2:(ll.lat-dl).toFixed(5),lng2:(ll.lng+dg).toFixed(5)};
+     const fill=t=>t.replace(/\{(\w+)\}/g,(m,k)=>k in v?encodeURIComponent(v[k]):m);
+     h+='<div class="herlinks" style="margin-top:6px;font-size:13px">'+LZ.LC.herLinks.map(L=>'<a href="'+esc(fill(L.url))+'" target="_blank" rel="noopener noreferrer">'+esc(L.label)+' &#x2197;</a>'+(L.note?' <span class="m" style="font-size:11px">('+esc(fill(L.note).replace(/%20/g,' '))+')</span>':'')).join(' &middot; ')+'</div>'}
++  if(LZ.LC.canmore)h+='<div class="canmore" style="margin-top:6px;font-size:13px"><span class="m">Canmore records within '+(LZ.LC.canmore.radius||150)+' m: loading…</span></div>';
+   h+='<h3>Measured from the DTM</h3><div class="desc">'+esc(describe(a))+'</div><div class="meas">'+(a.nodata?'':'<canvas></canvas>');
+   if(!a.nodata&&cls.kind!=='flat'){const rows=[['Form',(a.sign>0?'Mound / bank':'Hollow / ditch')+(a.touches?' (extends beyond 60 m)':'')],['Size',a.elong<1.5&&!a.touches?'~'+a.eqD.toFixed(0)+' m across (area '+Math.round(a.area)+' m²)':a.len.toFixed(0)+' x '+a.wid.toFixed(0)+' m, long axis '+Math.round(a.axisDeg)+'°'],
+       [a.sign>0?'Height':'Depth',a.H.toFixed(2)+' m (vs. ground just outside)'],['Roundness','length/width '+a.elong.toFixed(2)+(a.rectness>0.86?', squarish':'')],['Profile',cls.prof+(a.sign<0&&a.rim>0.05?'; rim '+a.rim.toFixed(2)+' m on '+Math.round(a.rimFrac*100)+'% of sides':'')],
+@@ -472,9 +475,22 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
+     h+='<table>'+rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')+'</table>'}
+   h+='</div>';
+   if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
+-  h+='<div class="ft">Measurements from the '+esc(LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC)+'.</div></div>';
+-  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
++  h+='<div class="ft">Measurements from the '+esc(LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC.replace(/\.\s*$/,''))+'.</div></div>';
++  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);loadCanmore(card.querySelector('.canmore'),E,N);{const cv=card.querySelector('.meas canvas');if(cv)thumb(cv,W,a)}
+   LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
++// Canmore (National Record of the Historic Environment, HES, OGL) points near the click, live from HES's open ArcGIS service; links open trove.scot
++async function loadCanmore(el,E,N){if(!el||!LZ.LC.canmore)return;const C=LZ.LC.canmore,r=C.radius||150;
++  const q=new URLSearchParams({geometry:Math.round(E)+','+Math.round(N),geometryType:'esriGeometryPoint',inSR:'27700',distance:String(r),units:'esriSRUnit_Meter',
++    outFields:'CANMOREID,NMRSNAME,SITETYPE,URL,XCOORD,YCOORD',returnGeometry:'false',f:'json'});
++  try{const res=await fetch(C.url+'/query?'+q);if(!res.ok)throw 0;const j=await res.json();if(j.error)throw 0;
++    const fs=(j.features||[]).map(f=>f.attributes).map(a=>({a,d:Math.hypot(a.XCOORD-E,a.YCOORD-N)})).sort((x,y)=>x.d-y.d);
++    const tc=t=>String(t||'').toLowerCase().replace(/\b([a-z])/g,m=>m.toUpperCase());
++    let h='<b>Canmore records within '+r+' m</b> <span class="m" style="font-size:11px">(HES, OGL)</span>';
++    if(!fs.length)h+='<div class="m">None recorded here.</div>';
++    fs.slice(0,C.max||8).forEach(({a,d})=>{const u=/^https:\/\/(www\.)?trove\.scot\//.test(a.URL||'')?a.URL:'https://www.trove.scot/place/'+encodeURIComponent(a.CANMOREID);
++      h+='<div><a href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">'+esc(tc(a.NMRSNAME)||'Canmore '+a.CANMOREID)+' &#x2197;</a> <span class="m">&middot; '+(d<10?'here':Math.round(d)+' m')+(a.SITETYPE?' &middot; '+esc(tc(String(a.SITETYPE).split(',')[0])):'')+'</span></div>'});
++    if(fs.length>(C.max||8))h+='<div class="m">and '+(fs.length-(C.max||8))+' more on trove.scot.</div>';
++    el.innerHTML=h}catch(e){el.innerHTML='<span class="m">Canmore records could not be loaded; try trove.scot.</span>'}}
+ function compass(d){return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(d/45)%8]}
+ // live mode: while What's here? is on, fetch what a click at the lens centre needs ahead of the click (5 km cells, kept in the browser)
+ let preT=null;function prefetchRecs(){clearTimeout(preT);if(!LZ.LC.live||!(LZ.tool&&LZ.tool()==='whatis'))return;preT=setTimeout(()=>{if(map.getZoom()<(LZ.LC.live.minzoom||13))return;const lp=document.getElementById('lens').getBoundingClientRect(),mp=map.getContainer().getBoundingClientRect(),c=map.containerPointToLatLng([lp.left+lp.width/2-mp.left,lp.top+lp.height/2-mp.top]),[E,N]=ll2en(c.lat,c.lng);
