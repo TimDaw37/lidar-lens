@@ -27,8 +27,8 @@ const $=id=>document.getElementById(id);
 // config can replace it with LC.presets). One tap sets mode, sun, exaggeration, radius, colour ramp and contrast. ct is a multiple of
 // the view's own default look (MODE_LOOK, release 6), so a preset keeps each view's tuned contrast and gamma; Overview is the default.
 const PRESETS=LC.presets||{
-  overview:{name:'Overview',tip:'The general lie of the land',mode:1,az:315,el:35,ve:2,rad:10,ct:1,ramp:'grey'},
-  earthworks:{name:'Earthworks',tip:'Banks, ditches, barrows, enclosures',mode:6,az:315,el:35,ve:2,rad:10,ct:1.2,ramp:'rdbu'},
+  overview:{name:'Overview',short:'Over\u00adview',tip:'The general lie of the land',mode:1,az:315,el:35,ve:2,rad:10,ct:1,ramp:'grey'},
+  earthworks:{name:'Earthworks',short:'Earth\u00adworks',tip:'Banks, ditches, barrows, enclosures',mode:6,az:315,el:35,ve:2,rad:10,ct:1.2,ramp:'rdbu'},
   lowsun:{name:'Low sun',tip:'Faint banks and lynchets',mode:0,az:315,el:20,ve:3,rad:10,ct:1,ramp:'grey'},
   banks:{name:'Banks and hollows',short:'Banks / hollows',tip:'What is raised (red) and what is sunk (blue)',mode:3,az:315,el:35,ve:2,rad:20,ct:1.2,ramp:'rdbu'}};
 const PKEYS=['mode','az','el','ve','rad','ramp'];
