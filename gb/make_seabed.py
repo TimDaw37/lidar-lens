@@ -6,7 +6,10 @@ ODbL, used here only as a mask) and below +8 m MSL (intertidal ground up to abou
 sea level stay out because they are inside the land polygons). LiDAR and GEM-15 always come first: the worker only fills pixels they leave empty.
 Marker: blue = 1 mod 4 (LiDAR is 0 mod 4, GEM-15 2 mod 4; 3 mod 4 is used by the multibeam patches, gb/make_seabed_patch.py).
 Heights are metres relative to mean sea level, quantised to 1/16 m (EMODnet's own precision is far coarser).
-usage: python3 gb/make_seabed.py EMOD_VRT LAND_GPKG GEM_INDEX_JSON OUT_DIR"""
+usage: python3 gb/make_seabed.py EMOD_VRT LAND_GPKG GEM_INDEX_JSON OUT_DIR
+SEABED_WSEN=W,S,E,N overrides the extent. 16 Nov 2026 (Ireland tidy): the strip west of 11.25W (tiles D3, E3) was built on its own with
+SEABED_WSEN=-16.0,49.0,-11.26,61.5 (its tiles never share a zoom 5-10 tile with the main build, since 11.25W is a zoom 5 tile edge) and the
+two indexes merged (gb/ireland/merge_seabed_index.py)."""
 import sys, os, json, math, numpy as np, multiprocessing as mp
 import rasterio, geopandas as gpd
 from rasterio.vrt import WarpedVRT
@@ -15,7 +18,7 @@ from rasterio.transform import Affine
 from rasterio.features import rasterize
 from PIL import Image
 VRT, LAND, GEMI, OUT = sys.argv[1:5]
-Z = 10; W, S, E, N = -11.0, 49.0, 9.0, 61.5; R0 = 6378137 * math.pi; Q = 16; MARK = 1; HMAX = 8.0; SS = 4
+Z = 10; W, S, E, N = [float(v) for v in os.environ.get('SEABED_WSEN', '-11.0,49.0,9.0,61.5').split(',')]; R0 = 6378137 * math.pi; Q = 16; MARK = 1; HMAX = 8.0; SS = 4
 def tx(lon, z): return int((lon + 180) / 360 * 2 ** z)
 def ty(lat, z): r = math.radians(lat); return int((1 - math.log(math.tan(r) + 1 / math.cos(r)) / math.pi) / 2 * 2 ** z)
 X0, X1, Y0, Y1 = tx(W, Z), tx(E, Z), ty(N, Z), ty(S, Z)
