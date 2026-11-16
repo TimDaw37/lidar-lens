@@ -552,8 +552,24 @@ function fbIn(zt,x,y,c){if(S.fs||!lensC)return true;if(!c)return tileInLens(zt,x
   for(let q=0;q<256;q++)if(c[q]){const x0=(x*256+(q&15)*16-tl.x)*sc,y0=(y*256+(q>>4)*16-tl.y)*sc;
     if(Math.hypot(x0+cs/2-lensC[0],y0+cs/2-lensC[1])<=r&&(fbA+=c[q]*sc*sc)>=Math.max(300,r*r*0.016))return true}   // cell centre in the lens; about 0.5% of the lens area
   return false}
+// Ireland (LC.ireland, 16 Nov 2026, Tim t2301u): the 1 m Irish LiDAR covers patches, with GEM-15 round them, so a sliver of GEM-15 at the edge of the
+// view must not raise the note. There it shows only when the view centre (lens centre, or the screen centre full screen) is GEM-15, or GEM-15 fills
+// at least half the view. A centre tile the page has not read yet is judged from the Irish LiDAR pack index (LC.ireland.lidarIndex, as the worker uses).
+// Elsewhere (Scotland, the Isle of Man, the Channel Islands) the note keeps the rule above: any GEM-15 past a sliver in the lens.
+var IEX=null,IEXp=null;function ieIdx(){if(IEX||IEXp||!LC.ireland||!LC.ireland.lidarIndex)return IEX;IEXp=fetch(LC.ireland.lidarIndex).then(r=>r.ok?r.json():null).then(j=>{IEX=j;fbOn=null;fbCheck()}).catch(()=>{IEXp=null});return null}
+function ieHas(z,x,y){const I=ieIdx();if(!I)return null;if(z<I.minz||z>I.maxz)return false;const o=I.p[z]&&I.p[z][(x>>3)+'_'+(y>>3)];if(!o)return false;const sl=(y&7)*8+(x&7);return !!((parseInt(o[sl>>2],16)>>(sl&3))&1)}
+function fbIE(){const w=MZ;if(!w)return false;const fs=S.fs||!lensC,sz=map.getSize(),cx=fs?sz.x/2:lensC[0],cy=fs?sz.y/2:lensC[1],r=S.ls/2;
+  const sc=Math.pow(2,map.getZoom()-w.zt),tl=map.containerPointToLayerPoint([0,0]).add(map.getPixelOrigin()),area=fs?sz.x*sz.y:Math.PI*r*r;
+  const px=(tl.x+cx)/sc,py=(tl.y+cy)/sc,tx=Math.floor(px/256),ty=Math.floor(py/256),ck=w.zt+'/'+tx+'/'+ty,cc=FB.get(ck);   // centre in zoom-zt tile pixels
+  if(cc){if(cc[((Math.floor(py)&255)>>4)*16+((Math.floor(px)&255)>>4)]>=128)return true}
+  else if(FB.has(ck)&&ieHas(w.zt,tx,ty)===false)return true;   // the worker says GEM-15 is in the centre tile, not read yet: the index says if LiDAR covers it
+  let g=0;for(let j=0;j<w.ny;j++)for(let i=0;i<w.nx;i++){const x=w.x0+i,y=w.y0+j,c=FB.get(w.zt+'/'+x+'/'+y);if(!c)continue;
+    for(let q=0;q<256;q++)if(c[q]){const ex=((x*256+(q&15)*16+8)*sc)-tl.x,ey=((y*256+(q>>4)*16+8)*sc)-tl.y;   // cell centre, container px
+      if(fs?(ex>=0&&ey>=0&&ex<=sz.x&&ey<=sz.y):Math.hypot(ex-cx,ey-cy)<=r)g+=c[q]*sc*sc}}
+  return g>=area*0.5}
 function fbCheck(){if(LC.seabed)sbCheck();if(!LC.fallback||!FB)return;const w=MZ;let on=false;fbA=0;
-  if(w&&lensC)for(let j=0;j<w.ny&&!on;j++)for(let i=0;i<w.nx&&!on;i++){const x=w.x0+i,y=w.y0+j,k=w.zt+'/'+x+'/'+y;if(FB.has(k)&&fbIn(w.zt,x,y,FB.get(k)))on=true}
+  if(LC.ireland&&ctryName()==='ireland')on=fbIE();
+  else if(w&&lensC)for(let j=0;j<w.ny&&!on;j++)for(let i=0;i<w.nx&&!on;i++){const x=w.x0+i,y=w.y0+j,k=w.zt+'/'+x+'/'+y;if(FB.has(k)&&fbIn(w.zt,x,y,FB.get(k)))on=true}
   if(on===fbOn)return;fbOn=on;let el=$('fbnote');
   if(!el){el=document.createElement('div');el.id='fbnote';el.setAttribute('role','status');el.innerHTML='<span class="fl">'+LC.fallback.label+'</span><span class="fs">'+(LC.fallback.short||LC.fallback.label)+'</span>';document.body.appendChild(el)}
   el.hidden=!on;document.documentElement.dataset.fb=on?'1':'';
