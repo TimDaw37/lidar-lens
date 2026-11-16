@@ -10,13 +10,15 @@
 // 'ie' rows of gem15/mask-v2.json, gb/make_gem_mask.py). Used for the Irish Grid/ITM readout, Irish records, layers and LiDAR text.
 const IE_POLY=[[52.142,-10.816],[52.316,-10.722],[52.49,-10.262],[52.594,-10.276],[52.687,-10.213],[52.902,-9.814],[52.988,-10.056],[53.079,-10.143],[53.178,-10.148],[53.247,-10.391],[53.36,-10.515],[53.625,-10.527],[53.754,-10.28],[53.815,-10.493],[53.937,-10.612],[54.054,-10.598],[54.146,-10.48],[54.31,-10.448],[54.477,-10.21],[54.542,-9.877],[54.494,-9.124],[54.502,-9.02],[54.6,-9.135],[54.77,-9.134],[54.918,-8.912],[55.018,-8.926],[55.104,-8.88],[55.337,-8.482],[55.482,-7.714],[55.594,-7.435],[55.55,-7.096],[55.416,-6.72],[55.47,-6.063],[55.293,-5.96],[54.999,-5.501],[54.825,-5.408],[54.476,-5.079],[54.282,-5.146],[54.156,-5.286],[53.839,-5.882],[53.745,-5.882],[53.586,-5.732],[53.379,-5.702],[53.257,-5.75],[52.922,-5.654],[52.615,-5.87],[52.482,-5.884],[52.338,-6.016],[52.268,-5.984],[52.143,-6.015],[52.007,-6.176],[51.978,-6.694],[51.918,-6.887],[51.926,-7.27],[51.835,-7.364],[51.598,-8.08],[51.414,-8.415],[51.282,-9.155],[51.29,-9.55],[51.238,-9.852],[51.453,-10.423],[51.602,-10.492],[51.811,-10.743],[51.979,-10.732]];
 window.LENS_CONFIG={
-  title:'LiDAR Lens - Great Britain',
-  pageTitle:'LiDAR Lens - Great Britain',
+  title:'LiDAR Lens: Britain and Ireland',
+  pageTitle:'LiDAR Lens: Britain and Ireland',
+  siteName:'LiDAR Lens: Britain and Ireland',   // (16 Nov 2026, Tim t2297u) build_site.mjs: static <title>, og:title / og:site_name and the web app manifest name
+  metaDescription:'Explore open LiDAR for Britain and Ireland through a movable lens: 1 m terrain for England, Wales and Scotland, the 1 m-and-finer Irish surveys, GEM-15 and seabed elsewhere, with hillshade, slope, local relief and sky-view modes, historic maps and open heritage records.',
   link:null,
   linksNote:null,
   links:[],                                        // GB: slim title box (title + search only)
   tries:[],
-  areaName:'Great Britain',
+  areaName:'Britain and Ireland',
   private:false,
   repoUrl:'https://github.com/TimDaw37/lidar-lens',
   geographApi:'api/geograph',

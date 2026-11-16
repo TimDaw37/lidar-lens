@@ -48,7 +48,7 @@ const EXPECT = {
   'assets/app.f66759dc.css': 'f66759dc8e4e2862bcbf6aeab5eefbbdefcbf6b5785d6abbc09450fd645bf403',
   'assets/compat.912d81c4.js': '912d81c41e1699925ff6e4861a318a4d7c89c21decb126ac4fd301da43c3452c',
 };
-const CONFIG_SHA = 'dcf49afce32771b68b30d66715704fd0f2b711e0ac8c3ad94567876049836c5f';   // Ireland release 16 Nov 2026; before it 1fb6b29b... (seabed release 15 Nov 2026), before that abc55743..., before the 13 Nov 2026 zoom-out release: 1b3453eb..., before the GEM-15 release: 93c04c53...
+const CONFIG_SHA = 'feffa6314afb321efbb1aa2e45ce181810f5d45e25381840ef20fcd7a32c909d';   // Ireland release 16 Nov 2026; before it 1fb6b29b... (seabed release 15 Nov 2026), before that abc55743..., before the 13 Nov 2026 zoom-out release: 1b3453eb..., before the GEM-15 release: 93c04c53...
 const REJECTED_CANDIDATE_SHA = 'a02cae18df35d633340bf2b1aa30d298def06752d04c317e75a6c34adc3c7301';
 
 function mustInclude(rel, needles) {
@@ -87,10 +87,10 @@ try {
     const got = sha(fs.readFileSync(path.join(tmp, 'dist', rel)));
     if (got !== expect) fail(rel + ' sha256 ' + got + ' != live ' + expect);
   }
-  const builtCfg = fs.readFileSync(path.join(tmp, 'dist', 'assets', 'config.dcf49afc.js'));
+  const builtCfg = fs.readFileSync(path.join(tmp, 'dist', 'assets', 'config.feffa631.js'));
   if (!builtCfg.equals(cfgBytes)) fail('built config bytes differ from gb/config.js');
   const html = fs.readFileSync(path.join(tmp, 'dist', 'index.html'), 'utf8');
-  for (const name of ['assets/compat.912d81c4.js', 'assets/config.dcf49afc.js', 'assets/app.94aea9d9.js', 'assets/app.f66759dc.css']) {
+  for (const name of ['assets/compat.912d81c4.js', 'assets/config.feffa631.js', 'assets/app.94aea9d9.js', 'assets/app.f66759dc.css']) {
     if (!html.includes(name)) fail('built index.html does not reference ' + name);
   }
   // 3D view: must stay a separate, additive script (the main bundle above must not change because of it)
@@ -116,7 +116,7 @@ try {
   console.log('live-sw.js (gb/make_sw.mjs), towns-ie.json, towns.json (gb/towns.json) and nhle_places.json (gb/places.json) match the release');
   if (html.includes('config.198ea3a0.js')) fail('build renamed the config to the live MD5 filename; that step is not in this source');
   console.log('gb viewer source reproduces the Ireland release build (' + Object.keys(EXPECT).join(', ') + ')');
-  console.log('config bytes match gb/config.js; build filename is config.dcf49afc.js (SHA-256), the Ireland release config');
+  console.log('config bytes match gb/config.js; build filename is config.feffa631.js (SHA-256), the Ireland release config');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
