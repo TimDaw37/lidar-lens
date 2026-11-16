@@ -49,8 +49,9 @@ window.LENS_CONFIG={
       noLidarText:'Little or no LiDAR here: England\'s Environment Agency LiDAR survey does not cover this spot, or it is sea.'},
     wales:{dtmName:'1 m Welsh Government LiDAR DTM (DataMapWales)',minzoom:6,zoomHint:'',lidarAttribution:'LiDAR: Welsh Government LiDAR DTM 1 m (DataMapWales, OGL); records Cadw, RCAHMW (OGL)',
       noLidarText:'Little or no LiDAR here: the Welsh Government LiDAR (DataMapWales) does not cover this spot, or it is sea.'},
-    ireland:{dtmName:'no LiDAR yet (GEM-15 estimate only)',minzoom:6,zoomHint:'',lidarAttribution:'Ireland: GEM-15 &copy; Google, CC BY 4.0 (no Irish LiDAR yet); records NMS (CC BY 4.0), HED (OGL)',
-      noLidarText:'No LiDAR in Ireland yet in this test: the sepia ground is GEM-15, coarse 15 m terrain (Google, experimental).'},
+    ireland:{dtmName:'Geological Survey Ireland open LiDAR DTM, 1 m and finer, where surveyed (heights OD Malin Head); GEM-15 estimate elsewhere',minzoom:6,zoomHint:'',
+      lidarAttribution:'Ireland: LiDAR (1 m and finer, from zoom 13) &copy; Geological Survey Ireland open data with DCHG / the Discovery Programme, OPW and Westmeath County Council, CC BY 4.0, heights OD Malin Head; elsewhere GEM-15 &copy; Google, CC BY 4.0; records NMS (CC BY 4.0), HED (OGL)',
+      noLidarText:'No Irish LiDAR at this spot in this test (only the 1 m-and-finer surveys are in so far, from zoom 13): the sepia ground is GEM-15, coarse 15 m terrain (Google, experimental).'},
     scotland:{dtmName:'Scottish public LiDAR DTM (Scottish Remote Sensing Portal)',minzoom:6,zoomHint:'',lidarAttribution:'LiDAR &copy; Scottish Government, SEPA, HES, OIC (OGL) via the Scottish Remote Sensing Portal',
       noLidarText:'Little or no LiDAR here: the Scottish public LiDAR surveys (Scottish Remote Sensing Portal) do not cover this spot, or it is sea.'}},
   // TEST (16 Nov 2026, t2277u): Ireland, Phase A. No Irish LiDAR yet: GEM-15 fills the island (fallback above), EMODnet the sea.

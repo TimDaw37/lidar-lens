@@ -275,3 +275,17 @@ Off the coast, where neither LiDAR nor GEM-15 has a pixel, the live-test service
 - All Ireland behaviour is keyed on `LENS_CONFIG.ireland`, so the production config builds without it; but `gb/gem15-route.js`
   and `gb/seabed-route.js` now expect `gem15/mask-v2.json`, `gem15/ie/` and `coastmask3/`, so those must be copied under `gb/`
   before any production build. `tests/gb-viewer-sync.mjs` fails on this branch (the shared bundle changed), as expected.
+
+## Ireland, Phase B step 1: 1 m-and-finer Irish LiDAR (live-test only, 16 Nov 2026, Tim pt2289u; branch `grok/ireland-phase-b1`, not on production)
+
+- Sources (Geological Survey Ireland open data, CC BY 4.0; heights OD Malin Head): GSI DCHG / Discovery Programme sites (1 m, and 0.1 / 0.25 m
+  site grids), GSI Phase 2 (1 m, 2018), OPW Cork (0.125 m, block-averaged to 0.5 m), Westmeath County Council (0.25 m, block-averaged to 0.5 m).
+  Not included: NYU Dublin (surface model only), OPW NASC, OPW 2 m and TII (2 m; deferred).
+- Pipeline `gb/ireland/lidar/`: `dl.py` (803 zips, 10.3 GB) -> `convert.py` (DTM only, nodata/-99 to NaN, finer than 0.5 m averaged to ~0.5 m,
+  whole-site rasters cropped to their 2 km index tile, 20 m ITM valid-fraction grid) -> `keep.py` (patches with under 1 km2 of ground dropped)
+  -> `build.py` (zoom 17, one pack per zoom 14 tile; finer source first, then newer; edges within 16 px of a large gap blended into GEM-15
+  with a smoothstep, pixels mostly GEM-15 carry the GEM-15 marker) -> `pyramid.py` (zoom 16-13 packs and `ie/lidar/index.json`).
+- Packs: `ie/lidar/{z}/{X}_{Y}.pak` = the 64 zoom-z tiles under zoom z-3 tile X,Y: a 512-byte header of 64 x (offset, length) uint32 LE,
+  slot = row*8 + col, then lossless Terrarium WebP tiles (1/64 m, blue 0 mod 4 = LiDAR). The service worker (`gb/gem15-route.js`, IEL)
+  reads one tile with an HTTP range request (the Worker passes ranges through) and caches it; GEM-15 fills the rest of the tile as before.
+- The readout and the What's here? card say "m OD Malin Head" inside the Irish outline (`odL` in `site/tools.js`).

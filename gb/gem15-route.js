@@ -126,14 +126,50 @@ function heal(px) { const D = 3, A = new Uint8Array(65536), H = new Float32Array
     if (h !== h) continue; const vv = Math.round(h * 64) / 64, vi = Math.floor(vv), o = q * 4;
     px[o] = vi >> 8; px[o + 1] = vi & 255; px[o + 2] = Math.round((vv - vi) * 256) & 252; px[o + 3] = 255; f++ }
   return f }
-const OUT = 'gem15-out-v5';   // v5: Ireland and mask-v2 (16 Nov 2026); v4: more zoom 13 tiles in gem15/index.json (14 Nov 2026); v3: bicubic zoom 14-17 (v2 tiles were bilinear)
+// Irish LiDAR (live TEST, Phase B step 1, 16 Nov 2026, Tim pt2289u): the 1 m-and-finer GSI bare-earth surveys (DCHG / Discovery
+// Programme sites, Phase 2, OPW Cork resampled, Westmeath), heights OD Malin Head, zoom 13-17, built by gb/ireland/lidar/ (edges already
+// blended into GEM-15 there, with the GEM-15 marker on the pixels that are mostly GEM-15). 64 tiles per R2 object: ie/lidar/{z}/{X}_{Y}.pak
+// holds the zoom z tiles under zoom z-3 tile X,Y; a 512-byte header of 64 x (offset, length) uint32 LE (slot = row*8 + col), then the
+// lossless WebP tiles, each read with an HTTP range request (the Worker passes ranges through). Index ie/lidar/index.json lists the
+// packs per zoom with a 64-bit occupancy (16 hex digits; slot s = bit s & 3 of digit s >> 2), so absent tiles cost no request.
+const IEL = (() => {
+  const LC_ = 'ie-lidar-v1'; let ix = null, ixP = null, ixT = 0; const hd = new Map();
+  function index() {
+    if (ix) return Promise.resolve(ix);
+    if (!ixP && Date.now() - ixT > 30000) { ixT = Date.now();
+      ixP = fetch(new URL('ie/lidar/index.json', self.registration.scope)).then(r => r.ok ? r.json() : null).then(j => { if (j) ix = j; return j }).catch(() => null).finally(() => { ixP = null }) }
+    return ixP || Promise.resolve(null) }
+  function head(u) {
+    if (hd.has(u)) return hd.get(u);
+    const p = (async () => { const c = await caches.open(LC_), hk = u + '#h'; let b = null, r = await c.match(hk);
+      if (r) b = new Uint8Array(await r.arrayBuffer());
+      else { const f = await fetch(u, { headers: { Range: 'bytes=0-511' } }); if (f.status !== 206 && f.status !== 200) throw new Error('pack ' + f.status);
+        b = new Uint8Array(await f.arrayBuffer()).slice(0, 512); if (b.length < 512) throw new Error('short header'); try { await c.put(hk, new Response(b)) } catch (e) {} }
+      return new DataView(b.buffer, b.byteOffset, 512) })();
+    hd.set(u, p); p.catch(() => hd.delete(u)); if (hd.size > 4000) hd.clear(); return p }
+  async function tile(z, x, y) {
+    if (z < 13 || z > 17) return null; const I = await index(); if (!I || z < I.minz || z > I.maxz) return null;
+    const X = x >> 3, Y = y >> 3, o = I.p[z] && I.p[z][X + '_' + Y]; if (!o) return null; const sl = (y & 7) * 8 + (x & 7);
+    if (!((parseInt(o[sl >> 2], 16) >> (sl & 3)) & 1)) return null;
+    const u = new URL(`ie/lidar/${z}/${X}_${Y}.pak`, self.registration.scope).href, tk = u + '#' + sl, c = await caches.open(LC_), hit = await c.match(tk);
+    if (hit) return hit;
+    try { const H = await head(u), off = H.getUint32(sl * 8, true), len = H.getUint32(sl * 8 + 4, true); if (!len) return null;
+      const f = await fetch(u, { headers: { Range: `bytes=${off}-${off + len - 1}` } }); if (f.status !== 206) return null;
+      const b = await f.arrayBuffer(); if (b.byteLength !== len) return null;
+      const res = new Response(b, { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'max-age=86400' } });
+      try { await c.put(tk, res.clone()); if (Math.random() < 0.01) { const ks = await c.keys(); if (ks.length > 6000) for (const q of ks.slice(0, ks.length - 6000)) await c.delete(q) } } catch (e) {}
+      return res } catch (e) { return null } }
+  return { tile };
+})();
+const OUT = 'gem15-out-v6';   // v6: Irish LiDAR (Phase B step 1, 16 Nov 2026); v5: Ireland and mask-v2 (16 Nov 2026); v4: more zoom 13 tiles in gem15/index.json (14 Nov 2026); v3: bicubic zoom 14-17 (v2 tiles were bilinear)
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('gem15-out-') && k !== OUT).map(k => caches.delete(k)))).catch(() => {})));   // drop older finished-tile caches
 async function fbRoute(z, x, y, ev) {
   if (z < 6 || z > 17) return route(z, x, y, ev);   // zoom 6-7: only the Irish tiles are in an index (Britain has the gbov overview)
-  const [I, M] = await Promise.all([load(), mask()]); if (!I || !M || !has(I, z, x, y) || !tileClass(M, z, x, y)) return route(z, x, y, ev);
+  const L = await IEL.tile(z, x, y);   // Irish LiDAR (zoom 13-17), or null
+  const [I, M] = await Promise.all([load(), mask()]); if (!I || !M || !has(I, z, x, y) || !tileClass(M, z, x, y)) return L || route(z, x, y, ev);
   const ck = `https://gem15-out.invalid/m1/${z}/${x}/${y}.png`, oc = await caches.open(OUT), hit = await oc.match(ck);
   if (hit) { tell({ fb: z + '/' + x + '/' + y }); return hit }
-  const nob = inBox(z, x, y) || ieTile(M, z, x, y), r = nob ? none() : await route(z, x, y, ev); let edge = false, healed = 0;
+  const nob = inBox(z, x, y) || ieTile(M, z, x, y), r = L ? L : nob ? none() : await route(z, x, y, ev); let edge = false, healed = 0;
   if (r.status !== 404 && !r.ok) return r;               // busy (503): the page asks again
   let base = null;
   if (r.ok) { try { base = await rgba(await r.clone().blob()) } catch (e) { return r }
@@ -147,7 +183,7 @@ async function fbRoute(z, x, y, ev) {
   else { for (let i = 3; i < 262144; i += 4) if (g[i] >= 128) n++; if (!n) return r; base = g }
   tell({ fb: z + '/' + x + '/' + y });
   const res = await png(base);
-  const n2 = 2 ** z, still = !r.ok || z <= 10 || (z <= 13 && inScot(tile2lat(y + 0.5, n2), tile2lng(x + 0.5, n2)) && !(z >= 11 && typeof straddles === 'function' && straddles(z, x, y)));   // Scottish overview tiles (z8-13) are static too
+  const n2 = 2 ** z, still = !r.ok || !!L || z <= 10 || (z <= 13 && inScot(tile2lat(y + 0.5, n2), tile2lng(x + 0.5, n2)) && !(z >= 11 && typeof straddles === 'function' && straddles(z, x, y)));   // Scottish overview tiles (z8-13) are static too
   if (still) { try { await oc.put(ck, res.clone());
     if (Math.random() < 0.02) { const ks = await oc.keys(); if (ks.length > 3000) for (const q of ks.slice(0, ks.length - 3000)) await oc.delete(q) } } catch (e) {} }
   return res;
