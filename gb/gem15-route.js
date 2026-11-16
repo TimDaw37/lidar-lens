@@ -144,8 +144,10 @@ function heal(px) { const D = 3, A = new Uint8Array(65536), H = new Float32Array
 // holds the zoom z tiles under zoom z-3 tile X,Y; a 512-byte header of 64 x (offset, length) uint32 LE (slot = row*8 + col), then the
 // lossless WebP tiles, each read with an HTTP range request (the Worker passes ranges through). Index ie/lidar/index.json lists the
 // packs per zoom with a 64-bit occupancy (16 hex digits; slot s = bit s & 3 of digit s >> 2), so absent tiles cost no request.
+// Cache Storage ignores the #fragment of a key URL, so per-tile keys must differ in the path or query (ie-lidar-v3 keyed them pack#slot: every slot of a pack collided)
+const IELC = 'ie-lidar-v4';
 const IEL = (() => {
-  const LC_ = 'ie-lidar-v3'; let ix = null, ixP = null, ixT = 0; const hd = new Map();
+  const LC_ = IELC; let ix = null, ixP = null, ixT = 0; const hd = new Map();
   function index() {
     if (ix) return Promise.resolve(ix);
     if (!ixP && Date.now() - ixT > 30000) { ixT = Date.now();
@@ -153,9 +155,9 @@ const IEL = (() => {
     return ixP || Promise.resolve(null) }
   function head(u) {
     if (hd.has(u)) return hd.get(u);
-    const p = (async () => { const c = await caches.open(LC_), hk = u + '#h'; let b = null, r = await c.match(hk);
+    const p = (async () => { const c = await caches.open(LC_), hk = u + '?h=1'; let b = null, r = await c.match(hk);
       if (r) b = new Uint8Array(await r.arrayBuffer());
-      else { const f = await fetch(u, { headers: { Range: 'bytes=0-511' } }); if (f.status !== 206 && f.status !== 200) throw new Error('pack ' + f.status);
+      else { const f = await fetch(u, { headers: { Range: 'bytes=0-511' }, cache: 'no-store' }); if (f.status !== 206 && f.status !== 200) throw new Error('pack ' + f.status);
         b = new Uint8Array(await f.arrayBuffer()).slice(0, 512); if (b.length < 512) throw new Error('short header'); try { await c.put(hk, new Response(b)) } catch (e) {} }
       return new DataView(b.buffer, b.byteOffset, 512) })();
     hd.set(u, p); p.catch(() => hd.delete(u)); if (hd.size > 4000) hd.clear(); return p }
@@ -163,18 +165,18 @@ const IEL = (() => {
     if (z < 13 || z > 17) return null; const I = await index(); if (!I || z < I.minz || z > I.maxz) return null;
     const X = x >> 3, Y = y >> 3, o = I.p[z] && I.p[z][X + '_' + Y]; if (!o) return null; const sl = (y & 7) * 8 + (x & 7);
     if (!((parseInt(o[sl >> 2], 16) >> (sl & 3)) & 1)) return null;
-    const u = new URL(`ie/lidar3/${z}/${X}_${Y}.pak`, self.registration.scope).href, tk = u + '#' + sl, c = await caches.open(LC_), hit = await c.match(tk);
+    const u = new URL(`ie/lidar3/${z}/${X}_${Y}.pak`, self.registration.scope).href, tk = u + '?s=' + sl, c = await caches.open(LC_), hit = await c.match(tk);
     if (hit) return hit;
     try { const H = await head(u), off = H.getUint32(sl * 8, true), len = H.getUint32(sl * 8 + 4, true); if (!len) return null;
-      const f = await fetch(u, { headers: { Range: `bytes=${off}-${off + len - 1}` } }); if (f.status !== 206) return null;
+      const f = await fetch(u, { headers: { Range: `bytes=${off}-${off + len - 1}` }, cache: 'no-store' }); if (f.status !== 206) return null;
       const b = await f.arrayBuffer(); if (b.byteLength !== len) return null;
       const res = new Response(b, { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'max-age=86400' } });
       try { await c.put(tk, res.clone()); if (Math.random() < 0.01) { const ks = await c.keys(); if (ks.length > 6000) for (const q of ks.slice(0, ks.length - 6000)) await c.delete(q) } } catch (e) {}
       return res } catch (e) { return null } }
   return { tile };
 })();
-const OUT = 'gem15-out-v9';   // v9: zoom 14-17 enlarged across zoom 13 tile edges without creases (16 Nov 2026, tidy); v8: Irish LiDAR packs rebuilt with trimmed survey edges and the blend on the GEM-15 side, ie/lidar3/ (16 Nov 2026, tidy; v7 was a first try, ie/lidar2/); v6: Irish LiDAR (Phase B step 1, 16 Nov 2026); v5: Ireland and mask-v2 (16 Nov 2026); v4: more zoom 13 tiles in gem15/index.json (14 Nov 2026); v3: bicubic zoom 14-17 (v2 tiles were bilinear)
-self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('gem15-out-') && k !== OUT).map(k => caches.delete(k)))).catch(() => {})));   // drop older finished-tile caches
+const OUT = 'gem15-out-v10';   // v10: Irish LiDAR tiles were cached under URL fragments, which Cache Storage ignores, so every tile of a pack showed the first one (16 Nov 2026, fixed); v9: zoom 14-17 enlarged across zoom 13 tile edges without creases (16 Nov 2026, tidy); v8: Irish LiDAR packs rebuilt with trimmed survey edges and the blend on the GEM-15 side, ie/lidar3/ (16 Nov 2026, tidy; v7 was a first try, ie/lidar2/); v6: Irish LiDAR (Phase B step 1, 16 Nov 2026); v5: Ireland and mask-v2 (16 Nov 2026); v4: more zoom 13 tiles in gem15/index.json (14 Nov 2026); v3: bicubic zoom 14-17 (v2 tiles were bilinear)
+self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => (k.startsWith('gem15-out-') && k !== OUT) || (k.startsWith('ie-lidar-') && k !== IELC)).map(k => caches.delete(k)))).catch(() => {})));   // drop older finished-tile caches
 async function fbRoute(z, x, y, ev) {
   if (z < 6 || z > 17) return route(z, x, y, ev);   // zoom 6-7: only the Irish tiles are in an index (Britain has the gbov overview)
   const L = await IEL.tile(z, x, y);   // Irish LiDAR (zoom 13-17), or null

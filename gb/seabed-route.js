@@ -15,7 +15,7 @@
 // coastline the seabed is drawn instead (or nothing, where the seabed model has no pixel); inside it, LiDAR holes are left empty.
 // Islands (Lundy, Flat Holm, Steep Holm...) are land polygons and keep their LiDAR. Tiles of the open sea do not ask for LiDAR at all.
 const SEA = (() => {
-const C = 'seabed-tiles-v1', CM = 'seabed-mask-v5', OUT = 'seabed-out-v12', MBZ = 15, SZ = 10;   // out v12: GEM-15 without zoom 13 tile-edge creases; out v11: Irish LiDAR packs rebuilt with trimmed survey edges and the blend on the GEM-15 side (ie/lidar3/) and seabed out to 16W (16 Nov 2026, tidy); CM v5 / out v9: inland Ireland made land in the zoom 5-9 overviews (16 Nov 2026); CM v4: coastmask3 = the island of Ireland added (live TEST, 16 Nov 2026, t2277u); v3: mask rebuilt 15 Nov 2026 (Isle of Man, then south Cornwall / Beauly Firth fix), older mask copies in C dropped on activate
+const C = 'seabed-tiles-v1', CM = 'seabed-mask-v5', OUT = 'seabed-out-v13', MBZ = 15, SZ = 10;   // out v13: Irish LiDAR tile cache keys fixed (pack#slot collided in Cache Storage); out v12: GEM-15 without zoom 13 tile-edge creases; out v11: Irish LiDAR packs rebuilt with trimmed survey edges and the blend on the GEM-15 side (ie/lidar3/) and seabed out to 16W (16 Nov 2026, tidy); CM v5 / out v9: inland Ireland made land in the zoom 5-9 overviews (16 Nov 2026); CM v4: coastmask3 = the island of Ireland added (live TEST, 16 Nov 2026, t2277u); v3: mask rebuilt 15 Nov 2026 (Isle of Man, then south Cornwall / Beauly Firth fix), older mask copies in C dropped on activate
 const inner = typeof GEM !== 'undefined' ? GEM.route : route;
 function jload(path) { let v = null, p = null, t = 0;
   return () => { if (v) return Promise.resolve(v);
