@@ -60,6 +60,7 @@ window.LENS_CONFIG={
   ireland:{
     poly:IE_POLY,
     gridNote:'Irish Grid (lettered, TM65 / Irish Grid, EPSG:29903, about 1 m from WGS84) and Irish Transverse Mercator (ITM, EPSG:2157). The British National Grid does not apply in Ireland.',
+    lidarIndex:'ie/lidar3/index.json',   // Irish LiDAR pack index (gb/gem15-route.js reads it too): the page uses it for the 'Not LiDAR here' note in Ireland
     towns:'towns-ie.json',   // OpenStreetMap place names (ODbL), English name first; gb/ireland/build_towns.py
     smr:{index:'ie/smr/index.json',url:'ie/smr/{key}.json'},   // gb/ireland/build_smr.py, 10 km ITM cells (gb/ie/smr/ in R2 for production, gb-live-test/ie/smr/ for live-test; not under layers/, which the Worker serves from the shared bucket root)
     smrCredit:'Ireland: SMR, National Monuments Service, Department of Housing, Local Government and Heritage (CC BY 4.0). Northern Ireland: NI Sites and Monuments Record, Historic Environment Division, Department for Communities (OGL v3.0). Non-site records left out.',
