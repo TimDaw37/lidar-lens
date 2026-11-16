@@ -10,12 +10,12 @@
 // Coastline mask (15 Nov 2026, Tim's steer after t2241u: "coastline defined explicitly, no LiDAR beyond it"): the EA and Welsh LiDAR
 // blocks ran out over the sea as flat water surfaces and survey flight-line dots. LiDAR and GEM-15 are now kept only on land, as given
 // by OS Boundary-Line mean high water (OGL) in Great Britain and the OpenStreetMap land polygons (ODbL) elsewhere (Isle of Man, Channel
-// Islands), baked into coastmask2/ (gb/make_coastmask.py, packed by
+// Islands; since 16 Nov 2026 on live TEST the island of Ireland, OSM), baked into coastmask2/ (coastmask3/ with Ireland; gb/make_coastmask.py, gb/merge_coastmask_ie.py, packed by
 // gb/pack_coastmask.py): 8-bit land coverage for the tiles the coast crosses, zoom 14 detail (about 6 m), land where coverage >= 50 %. Beyond the
 // coastline the seabed is drawn instead (or nothing, where the seabed model has no pixel); inside it, LiDAR holes are left empty.
 // Islands (Lundy, Flat Holm, Steep Holm...) are land polygons and keep their LiDAR. Tiles of the open sea do not ask for LiDAR at all.
 const SEA = (() => {
-const C = 'seabed-tiles-v1', CM = 'seabed-mask-v3', OUT = 'seabed-out-v7', MBZ = 15, SZ = 10;   // CM v3: mask rebuilt 15 Nov 2026 (Isle of Man, then south Cornwall / Beauly Firth fix), older mask copies in C dropped on activate
+const C = 'seabed-tiles-v1', CM = 'seabed-mask-v5', OUT = 'seabed-out-v9', MBZ = 15, SZ = 10;   // CM v5 / out v9: inland Ireland made land in the zoom 5-9 overviews (16 Nov 2026); CM v4: coastmask3 = the island of Ireland added (live TEST, 16 Nov 2026, t2277u); v3: mask rebuilt 15 Nov 2026 (Isle of Man, then south Cornwall / Beauly Firth fix), older mask copies in C dropped on activate
 const inner = typeof GEM !== 'undefined' ? GEM.route : route;
 function jload(path) { let v = null, p = null, t = 0;
   return () => { if (v) return Promise.resolve(v);
@@ -28,7 +28,7 @@ const sIdx = jload('seabed/index.json'), mIdx = jload('seabed/mb/index.json');
 let cmV = null, cmP = null, cmT = 0;   // coastline mask index: {b10: Set, m: {z: Set}, l: {z: Set}, top, maxz}
 function cIdx() { if (cmV) return Promise.resolve(cmV);
   if (!cmP && Date.now() - cmT > 30000) { cmT = Date.now();
-    cmP = fetch(new URL('coastmask2/index.json', self.registration.scope)).then(r => r.ok ? r.json() : null).then(j => { if (!j) return null;
+    cmP = fetch(new URL('coastmask3/index.json', self.registration.scope)).then(r => r.ok ? r.json() : null).then(j => { if (!j) return null;
       const S = a => new Set(a || []), o = { b10: S(j.b10), m: {}, l: {}, top: j.top || 5, maxz: j.maxz || 14 };
       for (const z in j.m) o.m[z] = S(j.m[z]); for (const z in j.l) o.l[z] = S(j.l[z]); cmV = o; return o }).catch(() => null).finally(() => { cmP = null }) }
   return cmP || Promise.resolve(null) }
@@ -42,7 +42,7 @@ function coastClass(C, z, x, y) {
   return 'mixed' }
 const cmem = new Map();   // decoded mask tiles: zoom 5-10 single 256 px tiles, zoom 11-14 one 2048 px pack per zoom 11 tile (gb/pack_coastmask.py)
 function cget(z, x, y, n) { const k = z + '/' + x + '/' + y; if (cmem.has(k)) return cmem.get(k);
-  const p = (async () => { const u = new URL(`coastmask2/${z}/${x}/${y}.png`, self.registration.scope).href, c = await caches.open(CM);
+  const p = (async () => { const u = new URL(`coastmask3/${z}/${x}/${y}.png`, self.registration.scope).href, c = await caches.open(CM);
     let r = await c.match(u); if (!r) { r = await fetch(u); if (!r.ok) return null; await c.put(u, r.clone()) }
     const bm = await createImageBitmap(await r.blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
     const cv = new OffscreenCanvas(n, n), g = cv.getContext('2d', { willReadFrequently: true }); g.drawImage(bm, 0, 0); if (bm.close) bm.close();

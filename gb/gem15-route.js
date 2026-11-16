@@ -10,35 +10,44 @@ const GEM = (() => {
 const C = 'gem15-tiles-v1', HOLE = 655;
 const BOX = [[54.02, -4.88, 54.45, -4.28], [48.85, -2.80, 49.77, -1.85]];   // Isle of Man, Channel Islands: no open LiDAR at all
 let idx = null, idxP = null, idxT = 0;
+// Ireland (live TEST, 16 Nov 2026, Tim t2277u): the island of Ireland (Republic and Northern Ireland) and its 12 nm belt are a second
+// tile set, gem15/ie/{z}/{x}/{y}.webp (gb/gem15/stage_ie.py) with its own index (zoom 6-13). Where a key is in both indexes the Irish
+// copy keeps every published pixel and adds the Irish ones, so it is read instead. idx = { z: Set } of both, idx.ie = { z: Set } Irish.
+const sets = j => { const s = {}; if (j) for (const z in j) if (Array.isArray(j[z])) s[z] = new Set(j[z]); return s };
 function load() {
   if (idx) return Promise.resolve(idx);
   if (!idxP && Date.now() - idxT > 30000) { idxT = Date.now();
-    idxP = fetch(new URL('gem15/index.json', self.registration.scope)).then(r => r.ok ? r.json() : null).then(j => {
-      if (!j) return null; const s = {}; for (const z in j) if (Array.isArray(j[z])) s[z] = new Set(j[z]); idx = s; return s })
+    const gj = p => fetch(new URL(p, self.registration.scope)).then(r => r.ok ? r.json() : null);
+    idxP = Promise.all([gj('gem15/index.json'), gj('gem15/ie/index.json').catch(() => null)]).then(([j, k]) => {
+      if (!j) return null; const s = sets(j), e = sets(k); for (const z in e) { if (!s[z]) s[z] = new Set(); for (const t of e[z]) s[z].add(t) }
+      s.ie = e; idx = s; return s })
       .catch(() => null).finally(() => { idxP = null }) }
   return idxP || Promise.resolve(null);
 }
 // Where GEM-15 may show (13 Nov 2026, Tim pt2180u / pt2182u): Scotland, the Isle of Man and the Channel Islands with their 12-nautical-
 // mile territorial sea, split at the median line where Northern Ireland, Ireland, France, England or Wales is nearer (so none on those),
-// plus the RAF Fylingdales gap in the EA LiDAR. gem15/mask-v1.json (gb/make_gem_mask.py, Natural Earth 10 m): a 0.004 x 0.006 degree
+// plus the RAF Fylingdales gap in the EA LiDAR; since 16 Nov 2026 (live TEST, t2277u) also the whole island of Ireland, Republic and
+// Northern Ireland, with its 12 nm belt cut at the median line with Britain (France still excluded): gem15/mask-v2.json, whose 'ie' rows
+// mark the island and its belt (no open LiDAR is served there yet, so those tiles do not ask the LiDAR pipelines).
+// gem15/mask-v1.json / mask-v2.json (gb/make_gem_mask.py, Natural Earth 10 m): a 0.004 x 0.006 degree
 // lat/lng grid as run-length rows. Each tile is first classed from the grid (all in / all out / partial) and the class is remembered;
 // only a partial tile is masked pixel by pixel (a table lookup). No mask, no GEM-15.
 let MK = null, mkP = null; const tcls = new Map();
 function mask() {
   if (MK) return Promise.resolve(MK);
-  if (!mkP) mkP = fetch(new URL('gem15/mask-v1.json', self.registration.scope)).then(r => r.ok ? r.json() : null).then(j => {
-    if (!j) { mkP = null; return null } const a = new Uint8Array(j.nr * j.nc);
-    j.rows.forEach((r, i) => { for (let k = 0; k < r.length; k += 2) a.fill(1, i * j.nc + r[k], i * j.nc + r[k + 1]) });
-    MK = { a, nr: j.nr, nc: j.nc, lat1: j.lat1, lng0: j.lng0, dlat: j.dlat, dlng: j.dlng }; return MK }).catch(() => { mkP = null; return null });
+  if (!mkP) mkP = fetch(new URL('gem15/mask-v2.json', self.registration.scope)).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j) { mkP = null; return null } const rl = rows => { const a = new Uint8Array(j.nr * j.nc);
+      (rows || []).forEach((r, i) => { for (let k = 0; k < r.length; k += 2) a.fill(1, i * j.nc + r[k], i * j.nc + r[k + 1]) }); return a };
+    MK = { a: rl(j.rows), ie: rl(j.ie), nr: j.nr, nc: j.nc, lat1: j.lat1, lng0: j.lng0, dlat: j.dlat, dlng: j.dlng }; return MK }).catch(() => { mkP = null; return null });
   return mkP;
 }
 const mRow = (M, la) => Math.floor((M.lat1 - la) / M.dlat), mCol = (M, lo) => Math.floor((lo - M.lng0) / M.dlng);
-function tileClass(M, z, x, y) {   // 0 none, 1 all, 2 partial
-  const k = z + '/' + x + '/' + y; let c = tcls.get(k); if (c !== undefined) return c;
+function tileClass(M, z, x, y, ie) {   // 0 none, 1 all, 2 partial (ie: of the Irish rows, not the allowed area)
+  const k = (ie ? 'i' : '') + z + '/' + x + '/' + y; let c = tcls.get(k); if (c !== undefined) return c; const A = ie ? M.ie : M.a;
   const n = 2 ** z, r0 = Math.max(0, mRow(M, tile2lat(y, n))), r1 = Math.min(M.nr - 1, mRow(M, tile2lat(y + 1, n))),
     c0 = Math.max(0, mCol(M, tile2lng(x, n))), c1 = Math.min(M.nc - 1, mCol(M, tile2lng(x + 1, n)));
   let on = 0, all = 0;
-  if (r1 >= r0 && c1 >= c0) for (let r = r0; r <= r1; r++) { const o = r * M.nc; for (let q = c0; q <= c1; q++) { all++; on += M.a[o + q] } }
+  if (r1 >= r0 && c1 >= c0) for (let r = r0; r <= r1; r++) { const o = r * M.nc; for (let q = c0; q <= c1; q++) { all++; on += A[o + q] } }
   c = !on ? 0 : on === all && mRow(M, tile2lat(y, n)) >= 0 && mRow(M, tile2lat(y + 1, n)) < M.nr ? 1 : 2;
   tcls.set(k, c); if (tcls.size > 20000) tcls.clear(); return c;
 }
@@ -50,6 +59,7 @@ function clip(M, z, x, y, g) {
     for (let i = 0; i < 256; i++) { const p = (j * 256 + i) * 4; if (out[p + 3] < 128) continue; if (ok && ci[i] >= 0 && M.a[o + ci[i]]) n2++; else out[p + 3] = 0 } }
   return n2 ? out : null;
 }
+function ieTile(M, z, x, y) { return !!M.ie && tileClass(M, z, x, y, true) === 1 }   // wholly the island of Ireland / its belt
 function has(I, z, x, y) { if (z <= 13) return !!(I[z] && I[z].has(x + '_' + y)); const d = z - 13; return !!(I[13] && I[13].has((x >> d) + '_' + (y >> d))) }
 function inBox(z, x, y) { const n = 2 ** z, la1 = tile2lat(y, n), la0 = tile2lat(y + 1, n), lo0 = tile2lng(x, n), lo1 = tile2lng(x + 1, n);
   return BOX.some(b => la0 >= b[0] && la1 <= b[2] && lo0 >= b[1] && lo1 <= b[3]) }
@@ -65,7 +75,7 @@ const mem = new Map();
 async function get(z, x, y) {
   const k = z + '/' + x + '/' + y; if (mem.has(k)) return mem.get(k);
   const p = (async () => {
-    const u = new URL(`gem15/${z}/${x}/${y}.webp`, self.registration.scope).href, c = await caches.open(C);
+    const ie = idx && idx.ie && idx.ie[z] && idx.ie[z].has(x + '_' + y), u = new URL(`gem15/${ie ? 'ie/' : ''}${z}/${x}/${y}.webp`, self.registration.scope).href, c = await caches.open(C);
     let r = await c.match(u);
     if (!r) { r = await fetch(u); if (!r.ok) return null; await c.put(u, r.clone());
       if (Math.random() < 0.02) { const ks = await c.keys(); if (ks.length > 4000) for (const q of ks.slice(0, ks.length - 4000)) await c.delete(q) } }
@@ -116,14 +126,14 @@ function heal(px) { const D = 3, A = new Uint8Array(65536), H = new Float32Array
     if (h !== h) continue; const vv = Math.round(h * 64) / 64, vi = Math.floor(vv), o = q * 4;
     px[o] = vi >> 8; px[o + 1] = vi & 255; px[o + 2] = Math.round((vv - vi) * 256) & 252; px[o + 3] = 255; f++ }
   return f }
-const OUT = 'gem15-out-v4';   // v4: more zoom 13 tiles in gem15/index.json (14 Nov 2026); v3: bicubic zoom 14-17 (v2 tiles were bilinear)
+const OUT = 'gem15-out-v5';   // v5: Ireland and mask-v2 (16 Nov 2026); v4: more zoom 13 tiles in gem15/index.json (14 Nov 2026); v3: bicubic zoom 14-17 (v2 tiles were bilinear)
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('gem15-out-') && k !== OUT).map(k => caches.delete(k)))).catch(() => {})));   // drop older finished-tile caches
 async function fbRoute(z, x, y, ev) {
-  if (z < 8 || z > 17) return route(z, x, y, ev);
+  if (z < 6 || z > 17) return route(z, x, y, ev);   // zoom 6-7: only the Irish tiles are in an index (Britain has the gbov overview)
   const [I, M] = await Promise.all([load(), mask()]); if (!I || !M || !has(I, z, x, y) || !tileClass(M, z, x, y)) return route(z, x, y, ev);
   const ck = `https://gem15-out.invalid/m1/${z}/${x}/${y}.png`, oc = await caches.open(OUT), hit = await oc.match(ck);
   if (hit) { tell({ fb: z + '/' + x + '/' + y }); return hit }
-  const nob = inBox(z, x, y), r = nob ? none() : await route(z, x, y, ev); let edge = false, healed = 0;
+  const nob = inBox(z, x, y) || ieTile(M, z, x, y), r = nob ? none() : await route(z, x, y, ev); let edge = false, healed = 0;
   if (r.status !== 404 && !r.ok) return r;               // busy (503): the page asks again
   let base = null;
   if (r.ok) { try { base = await rgba(await r.clone().blob()) } catch (e) { return r }
