@@ -21,7 +21,7 @@ R0 = 6378137 * math.pi; SS = 4; ZT = 14
 if OSG: SS = 2   # 2 x 2 supersampling with the OS faces (face ids as int32 would not fit at 4 x 4)
 def lon(x, z): return x / 2 ** z * 360 - 180
 def lat(y, z): return math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / 2 ** z))))
-def keep(x, y):   # Great Britain, Isle of Man and the Channel Islands only (no LiDAR in Lens elsewhere): skip the Continent and Ireland
+def keep(x, y):   # Great Britain, Isle of Man and the Channel Islands only (no LiDAR in Lens elsewhere): skip the Continent and Ireland (Ireland: COAST_TILES run, 16 Nov 2026)
     lo, la = lon(x + 0.5, 10), lat(y + 0.5, 10)
     if lo > 2.0: return False
     if -6.0 < lo < -4.9 and 49.8 < la < 50.0: return True            # Land's End, Mount's Bay and the Lizard (south of 50.0 N; was missed until 15 Nov 2026)
@@ -88,6 +88,8 @@ if __name__ == '__main__':
     I = json.load(open(SIDX)); op = set(I['open10'])
     T = [tuple(map(int, k.split('_'))) for k in I['10'] if k not in op]
     T = [t for t in T if keep2(*t)]
+    if os.environ.get('COAST_TILES'):   # Ireland (16 Nov 2026, t2277u): build only the listed zoom 10 tiles (gb/make_coastmask_ie.py merges them into the published mask)
+        T = [tuple(map(int, k.split('_'))) for k in json.load(open(os.environ['COAST_TILES']))]
     print('zoom 10 tiles', len(T), flush=True)
     CL = {}; C10 = {}
     with mp.Pool(4 if OSG else 6) as pool:
