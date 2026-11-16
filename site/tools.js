@@ -42,6 +42,42 @@ function parseGridRef(s){const m=s.toUpperCase().replace(/[^A-Z0-9]/g,' ').trim(
   const h=de.length;if(h>5)return null;const unit=Math.pow(10,5-h),E=e1*1e5+(h?(+de)*unit:0)+unit/2,N=n1*1e5+(h?(+dn)*unit:0)+unit/2;
   return {E,N,prec:unit,label:gridRef(E,N,Math.max(2,h*2))}}
 LZ.osgb={ll2en,en2ll,gridRef,parseGridRef};
+// ===================== Ireland (live TEST, 16 Nov 2026, Tim t2277u): Irish Grid and ITM =====================
+// Over the island of Ireland (LC.ireland.poly: the island and its 12 nm belt) British grid refs do not apply. The readout shows the
+// lettered Irish Grid (TM65 / Irish Grid, EPSG:29903: Airy Modified 1849, 7-parameter Helmert from WGS84 as in EPSG:1641, about 1 m)
+// e.g. 'O 15954 34237', with Irish Transverse Mercator (ITM, EPSG:2157, on ETRS89; WGS84 used as ETRS89, under 1 m here) and lat/long.
+const IEC=LZ.LC.ireland||null;
+// Irish LiDAR heights are on the Malin Head datum (GSI); British ones on Newlyn (shown as plain m OD, as before)
+function odL(ll){return inIE(ll)?' m OD Malin Head':' m OD'}
+function inIE(ll){if(!IEC||!ll)return false;const P=IEC.poly,la=ll.lat,lo=ll.lng;let c=false;
+  for(let i=0,j=P.length-1;i<P.length;j=i++){const a=P[i],b=P[j];if((a[0]>la)!==(b[0]>la)&&lo<(b[1]-a[1])*(la-a[0])/(b[0]-a[0])+a[1])c=!c}return c}
+const AIRYM={a:6377340.189,b:6356034.447},GRS80={a:6378137,b:6356752.314140};
+const H_IE={tx:-482.5,ty:130.6,tz:-564.6,s:-8.15,rx:1.042,ry:0.214,rz:0.631};   // WGS84 -> Ireland 1965 (EPSG:1641 reversed)
+const TM_IG={e:AIRYM,F0:1.000035,lat0:53.5*D2R,lng0:-8*D2R,E0:200000,N0:250000},TM_ITM={e:GRS80,F0:0.99982,lat0:53.5*D2R,lng0:-8*D2R,E0:600000,N0:750000};
+function gM(f,P){const a=P.e.a,b=P.e.b,n=(a-b)/(a+b),n2=n*n,n3=n2*n,L0=P.lat0;return b*P.F0*((1+n+1.25*n2+1.25*n3)*(f-L0)-(3*n+3*n2+21/8*n3)*Math.sin(f-L0)*Math.cos(f+L0)+(15/8*n2+15/8*n3)*Math.sin(2*(f-L0))*Math.cos(2*(f+L0))-35/24*n3*Math.sin(3*(f-L0))*Math.cos(3*(f+L0)))}
+function gFwd(lat,lng,P){const a=P.e.a,b=P.e.b,F0=P.F0,f=lat*D2R,l=lng*D2R,e2=1-b*b/(a*a),sf=Math.sin(f),cf=Math.cos(f),tf=Math.tan(f);
+  const nu=a*F0/Math.sqrt(1-e2*sf*sf),rho=a*F0*(1-e2)/Math.pow(1-e2*sf*sf,1.5),eta2=nu/rho-1,M=gM(f,P);
+  const I=M+P.N0,II=nu/2*sf*cf,III=nu/24*sf*cf**3*(5-tf*tf+9*eta2),IIIA=nu/720*sf*cf**5*(61-58*tf*tf+tf**4),IV=nu*cf,V=nu/6*cf**3*(nu/rho-tf*tf),VI=nu/120*cf**5*(5-18*tf*tf+tf**4+14*eta2-58*tf*tf*eta2);
+  const dl=l-P.lng0;return [P.E0+IV*dl+V*dl**3+VI*dl**5,I+II*dl*dl+III*dl**4+IIIA*dl**6]}
+function gInv(E,N,P){const a=P.e.a,b=P.e.b,F0=P.F0,e2=1-b*b/(a*a);let f=P.lat0,M=0;do{f=(N-P.N0-M)/(a*F0)+f;M=gM(f,P)}while(Math.abs(N-P.N0-M)>=1e-5);
+  const sf=Math.sin(f),cf=Math.cos(f),tf=Math.tan(f),nu=a*F0/Math.sqrt(1-e2*sf*sf),rho=a*F0*(1-e2)/Math.pow(1-e2*sf*sf,1.5),eta2=nu/rho-1;
+  const VII=tf/(2*rho*nu),VIII=tf/(24*rho*nu**3)*(5+3*tf*tf+eta2-9*tf*tf*eta2),IX=tf/(720*rho*nu**5)*(61+90*tf*tf+45*tf**4),X=1/(cf*nu),XI=1/(cf*6*nu**3)*(nu/rho+2*tf*tf),XII=1/(cf*120*nu**5)*(5+28*tf*tf+24*tf**4),XIIA=1/(cf*5040*nu**7)*(61+662*tf*tf+1320*tf**4+720*tf**6);
+  const dE=E-P.E0;return [(f-VII*dE*dE+VIII*dE**4-IX*dE**6)/D2R,(P.lng0+X*dE-XI*dE**3+XII*dE**5-XIIA*dE**7)/D2R]}
+function ll2ig(lat,lng){const c=helm(toCart(lat,lng,WGS),H_IE,1),[la,lo]=fromCart(c[0],c[1],c[2],AIRYM);return gFwd(la,lo,TM_IG)}
+function ig2ll(E,N){const [la,lo]=gInv(E,N,TM_IG),c=helm(toCart(la,lo,AIRYM),H_IE,-1);return fromCart(c[0],c[1],c[2],WGS)}
+function ll2itm(lat,lng){return gFwd(lat,lng,TM_ITM)}
+function itm2ll(E,N){return gInv(E,N,TM_ITM)}
+const IGL='ABCDEFGHJKLMNOPQRSTUVWXYZ';
+function igRef(E,N,digits){digits=digits||10;const c=Math.floor(E/1e5),r=Math.floor(N/1e5);if(!(c>=0&&c<5&&r>=0&&r<5))return '';const h=digits/2,div=Math.pow(10,5-h);
+  const pad=v=>String(Math.floor(((v+0.01)%1e5)/div)).padStart(h,'0');return IGL[(4-r)*5+c]+' '+pad(E)+' '+pad(N)}
+function parseIgRef(s){const m=s.toUpperCase().replace(/[^A-Z0-9]/g,' ').trim().match(/^([A-HJ-Z])\s*([\d ]+)$/);if(!m)return null;const i=IGL.indexOf(m[1]);if(i<0)return null;
+  const c=i%5,r=4-Math.floor(i/5),groups=m[2].trim().split(/\s+/).filter(Boolean);let de,dn;
+  if(groups.length===2&&groups[0].length===groups[1].length){de=groups[0];dn=groups[1]}else{const all=groups.join('');if(!all.length||all.length%2||all.length>10)return null;de=all.slice(0,all.length/2);dn=all.slice(all.length/2)}
+  const h=de.length;if(h<1||h>5)return null;const unit=Math.pow(10,5-h),E=c*1e5+(+de)*unit+unit/2,N=r*1e5+(+dn)*unit+unit/2;return {E,N,prec:unit,label:igRef(E,N,h*2)+' (Irish Grid)'}}
+function ieGrid(ll,digits){const [e,n]=ll2ig(ll.lat,ll.lng),[ie,in_]=ll2itm(ll.lat,ll.lng);return {ig:igRef(e,n,digits||10),itm:'ITM '+Math.round(ie)+' '+Math.round(in_),E:e,N:n,iE:ie,iN:in_}}
+LZ.ieGrid={inIE,ll2ig,ig2ll,ll2itm,itm2ll,igRef,parseIgRef,ieGrid};
+// grid ref text for any spot: Irish Grid over Ireland, British National Grid elsewhere ('' where neither applies)
+LZ.gridAt=(ll,digits)=>{try{if(inIE(ll))return ieGrid(ll,digits).ig;const en=ll2en(ll.lat,ll.lng);return gridRef(en[0],en[1],digits)}catch(e){return ''}};
 // ===================== Go to =====================
 const gores=$('gores');let lastNom=0,gotoMk=null;const geoCache=new Map();
 function showRes(items){gores.innerHTML='';items.forEach(it=>{const d=document.createElement('div');if(it.err){d.className='err';d.textContent=it.err}else{d.textContent=it.label;d.onclick=()=>{goto(it.lat,it.lng,it.z,it.name||it.label);gores.innerHTML=''}}gores.appendChild(d)})}
@@ -51,6 +87,8 @@ function goto(lat,lng,z,label){if(typeof closeCard==='function')closeCard();map.
 function parseLatLng(q){const t=q.trim().toUpperCase().replace(/°/g,' ');const m=t.match(/^(-?\d+(?:\.\d+)?)\s*([NS])?\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*([EW])?$/);if(!m)return null;
   let a=+m[1],b=+m[3];if(m[2]==='S')a=-a;if(m[4]==='W')b=-b;return [a,b,!!(m[2]||m[4])]}
 async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
+  if(IEC){const ig=parseIgRef(q);if(ig){const [la,lo]=ig2ll(ig.E,ig.N);goto(la,lo,ig.prec<=10?18:ig.prec<=100?17:15,ig.label+' (±'+ig.prec/2+' m)');return}
+    const im=q.trim().match(/^ITM\s*[:]?\s*(\d{6}(?:\.\d+)?)[\s,]+(\d{6}(?:\.\d+)?)$/i);if(im){const a=+im[1],b=+im[2],[la,lo]=itm2ll(a,b);if(inIE({lat:la,lng:lo})){goto(la,lo,18,'ITM '+a+' '+b+' ('+igRef(...ll2ig(la,lo))+')');return}showRes([{err:'ITM easting/northing outside Ireland'}]);return}}
   const gr=parseGridRef(q);if(gr){const [la,lo]=en2ll(gr.E,gr.N);goto(la,lo,gr.prec<=10?18:gr.prec<=100?17:15,gr.label+' (±'+gr.prec/2+' m)');return}
   const nums=q.replace(/[,;]/g,' ').trim().split(/\s+/);
   if(nums.length===2&&nums.every(x=>/^-?\d+(\.\d+)?$/.test(x))){const a=+nums[0],b=+nums[1];
@@ -70,7 +108,7 @@ async function doGoto(q){q=q.trim();if(!q)return;gores.innerHTML='';
    const part=hit.length?hit:qq.length>=3?P.filter(f=>{const p=f.properties;return [p.cy,p.en,p.alt].some(v=>v&&nq(v).includes(qq))}):[];
    if(part.length){const items=part.slice(0,8).map(f=>({lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],label:f.properties.n+' · '+(f.properties.te||''),z:f.properties.te==='Settlement'?15:16}));
      if(!hit.length&&FBK){pre=items}else{if(items.length===1){goto(items[0].lat,items[0].lng,items[0].z,items[0].label);gores.innerHTML=''}else showRes(items);return}}}   // fallback lenses: names that only contain the words (e.g. 'Douglas' in monument names) still ask the geocoder, so island towns are found
-  await loadLocalPlaces();const hits=pre.concat(localHits(q));
+  await loadLocalPlaces();if(IEC&&IEC.towns&&!ieTowns&&!townHits(q).some(h=>h.exact))await loadIeTowns();const hits=pre.concat(localHits(q));
   {const ex=hits.filter(h=>h.exact);if(ex.length===1&&!pre.length){goto(ex[0].lat,ex[0].lng,ex[0].z,ex[0].label);gores.innerHTML='';return}}   // one town of exactly that name: go there
   if(hits.length)showRes(hits); // monuments and local names stay on screen while the geocoder answers, and rank above it
   const key=q.toLowerCase();
@@ -104,13 +142,17 @@ async function nearMiss(q){try{const norm=t=>t.toLowerCase().replace(/[^a-z0-9 ]
 let localPlaces=null,localP=null;
 function loadLocalPlaces(){const url=LZ.LC.localSearch;if(!url&&!LZ.LC.townSearch)return Promise.resolve([]);
   if(!localP)localP=Promise.all([url?fetch(url).then(r=>r.ok?r.json():[]).catch(()=>[]):[],LZ.LC.townSearch?fetch(LZ.LC.townSearch).then(r=>r.ok?r.json():[]).catch(()=>[]):[]])
-    .then(([a,t])=>{localPlaces=a||[];localTowns=(t||[]).map(o=>(o.n=[tnorm(o[0])].concat(o[6]?[tnorm(o[6])]:[]),o));return localPlaces});return localP}
+    .then(([a,t])=>{localPlaces=a||[];localTowns=(t||[]).map(tprep);return localPlaces});if(IEC&&IEC.towns&&inIE(map.getCenter()))loadIeTowns();return localP}
+function tprep(o){const v=[o[0]].concat(o[6]?[o[6]]:[]);o.n=[...new Set(v.concat(...v.map(x=>x.includes('/')?x.split('/'):[])).map(tnorm).filter(Boolean))];return o}
+// Ireland (live TEST): towns, villages, hamlets and islands of the island of Ireland from OpenStreetMap (ODbL), English name first, in their
+// own shard (LC.ireland.towns), fetched only when the map is over Ireland or a search finds nothing in Great Britain
+let ieTowns=null,ieTP=null;function loadIeTowns(){if(!IEC||!IEC.towns)return Promise.resolve([]);if(!ieTP)ieTP=fetch(IEC.towns).then(r=>r.ok?r.json():[]).catch(()=>{ieTP=null;return []}).then(t=>(ieTowns=(t||[]).map(tprep)));return ieTP}
 // LC.townSearch: towns, villages and islands (GeoNames, CC BY 4.0) for areas the monument list does not cover (Scotland, Isle of Man,
 // Channel Islands): [name, lat, lng, kind, area, population, alt name]; offered first while typing, and an exact name goes straight there
-let localTowns=null;const TZ={city:12,town:13,village:14,district:15,island:11,islands:10},TR={city:0,town:1,islands:2,island:2,village:3,district:4};
+let localTowns=null;const TZ={city:12,town:13,village:14,hamlet:15,district:15,island:11,islands:10},TR={city:0,town:1,islands:2,island:2,village:3,hamlet:4,district:4};
 function tnorm(v){return v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\bsaint\b/g,'st').replace(/[^a-z0-9]+/g,' ').trim()}
-function townHits(q){if(!localTowns)return [];const n=tnorm(q);if(n.length<2)return [];const sc=[];
-  for(const o of localTowns){let rank=9;for(const v of o.n){const r=v===n?0:v.startsWith(n)?1:v.split(' ').some(w=>w.startsWith(n))?2:9;if(r<rank)rank=r}if(rank<9)sc.push([rank,o])}
+function townHits(q){if(!localTowns&&!ieTowns)return [];const n=tnorm(q);if(n.length<2)return [];const sc=[];
+  for(const o of (localTowns||[]).concat(ieTowns||[])){let rank=9;for(const v of o.n){const r=v===n?0:v.startsWith(n)?1:v.split(' ').some(w=>w.startsWith(n))?2:9;if(r<rank)rank=r}if(rank<9)sc.push([rank,o])}
   sc.sort((a,b)=>a[0]-b[0]||TR[a[1][3]]-TR[b[1][3]]||b[1][5]-a[1][5]);
   return sc.slice(0,5).map(([r,o])=>({lat:o[1],lng:o[2],z:TZ[o[3]]||14,label:o[0]+' · '+o[3]+', '+o[4],exact:r===0}))}
 function localHits(q){const th=townHits(q);return th.concat(monHits(q)).slice(0,8)}
@@ -127,12 +169,13 @@ function monHits(q){if(!localPlaces||q.length<2)return [];const n=q.toLowerCase(
 let taT=null;
 $('gotoq').addEventListener('focus',()=>loadLocalPlaces());
 $('gotoq').addEventListener('input',()=>{clearTimeout(taT);const q=$('gotoq').value.trim();if(q.length<2){gores.innerHTML='';return}
-  taT=setTimeout(async()=>{await loadLocalPlaces();if($('gotoq').value.trim()!==q)return;const hits=localHits(q);if(hits.length)showRes(hits);else gores.innerHTML=''},120)});
+  taT=setTimeout(async()=>{await loadLocalPlaces();if(IEC&&IEC.towns&&!ieTowns&&(inIE(map.getCenter())||!townHits(q).length))await loadIeTowns();if($('gotoq').value.trim()!==q)return;const hits=localHits(q);if(hits.length)showRes(hits);else gores.innerHTML=''},120)});
 $('goto').addEventListener('submit',e=>{e.preventDefault();clearTimeout(taT);if(matchMedia('(pointer:coarse)').matches)$('gotoq').blur();doGoto($('gotoq').value)});   // touch: drop the on-screen keyboard so the map shows
 LZ.doGoto=doGoto;
 // ===================== Where am I =====================
 let wPos=null,wSrc='Centre',wT=null,hoverOK=false;
-function fmtPos(ll){const [E,N]=ll2en(ll.lat,ll.lng);return {gr:gridRef(E,N),ll:ll.lat.toFixed(5)+', '+ll.lng.toFixed(5),E,N}}
+function fmtPos(ll){const lls=ll.lat.toFixed(5)+', '+ll.lng.toFixed(5);if(inIE(ll)){const g=ieGrid(ll);return {gr:g.ig,itm:g.itm,ie:1,ll:lls,E:g.E,N:g.N}}   // Ireland: lettered Irish Grid + ITM
+  const [E,N]=ll2en(ll.lat,ll.lng);return {gr:gridRef(E,N),ll:lls,E,N}}
 // GEM-15 fallback (LC.fallback): a height estimate where only GEM-15 covers the spot, never labelled m OD; island record notes
 const FBK=LZ.LC.fallback||null;
 function gemLabel(g,short){return (short?FBK.estShort:FBK.estLabel).replace('{h}',Math.round(g.h)).replace('{e}',g.e)+(!short&&g.warn&&FBK.estWarn?' '+FBK.estWarn:'')}
@@ -142,8 +185,8 @@ async function gemAt(ll){return FBK&&LZ.gemHeightAt?LZ.gemHeightAt(ll):null}
 const SBK=LZ.LC.seabed||null;
 async function seaAt(ll){return SBK&&LZ.seaDepthAt?LZ.seaDepthAt(ll):null}
 function seaLabel(s,short){const B=SBK,d=s.h<0?(short?B.depthShort:B.depthLabel):(short?B.aboveShort:B.aboveLabel),r=s.mb?Math.abs(s.h).toFixed(1):String(Math.round(Math.abs(s.h)));return d.replace('{d}',r).replace('{src}',s.mb?B.srcMb:B.srcEmod)}
-function updWhere(ll,src){wPos=ll;wSrc=src;const f=fmtPos(ll);$('wlab').textContent=src;{const R=!f.gr&&fbRegion(ll);$('wgr').textContent=f.gr||(R&&FBK.noGridShort?FBK.noGridShort:'outside GB grid');$('wgr').title=R&&FBK.noGrid?FBK.noGrid:''}$('wll').textContent=f.ll;
-  clearTimeout(wT);wT=setTimeout(async()=>{const h=await LZ.heightAt(ll);const g=h==null?await gemAt(ll):null,sb=h==null&&g==null?await seaAt(ll):null;if(wPos!==ll)return;const e=$('wh');e.textContent=h!=null?h.toFixed(1)+' m OD':g!=null?gemLabel(g,1):sb!=null?seaLabel(sb,1):'';e.title=h==null&&g!=null?gemLabel(g):sb!=null?seaLabel(sb):''},120)}
+function updWhere(ll,src){wPos=ll;wSrc=src;const f=fmtPos(ll);$('wlab').textContent=src;{const R=!f.gr&&fbRegion(ll);$('wgr').textContent=f.ie?f.gr+' · '+f.itm:f.gr||(R&&FBK.noGridShort?FBK.noGridShort:'outside GB grid');$('wgr').title=f.ie?(IEC.gridNote||'Irish Grid and ITM'):R&&FBK.noGrid?FBK.noGrid:''}$('wll').textContent=f.ll;
+  clearTimeout(wT);wT=setTimeout(async()=>{const h=await LZ.heightAt(ll);const g=h==null?await gemAt(ll):null,sb=h==null&&g==null?await seaAt(ll):null;if(wPos!==ll)return;const e=$('wh');e.textContent=h!=null?h.toFixed(1)+odL(ll):g!=null?gemLabel(g,1):sb!=null?seaLabel(sb,1):'';e.title=h==null&&g!=null?gemLabel(g):sb!=null?seaLabel(sb):''},120)}
 // show the cursor position for a real mouse/pen; touch devices show the map centre instead
 // Pin: a click on the map (with no tool on) fixes the readout there, so the pointer can go to Copy without moving it.
 // Clicking again moves the pin; Esc or clicking the 'Pinned' label releases it.
@@ -162,7 +205,7 @@ map.getContainer().addEventListener('pointermove',e=>{hoverOK=e.pointerType==='m
 map.getContainer().addEventListener('mouseleave',()=>{if(!pinned)updWhere(map.getCenter(),'Centre')});
 map.on('move',()=>{if(pinned)return;if(wSrc!=='Cursor'||!hoverOK)updWhere(map.getCenter(),'Centre')});
 updWhere(map.getCenter(),'Centre');
-$('wcopy').onclick=()=>{if(!wPos)return;const f=fmtPos(wPos),t=f.gr+' ('+f.ll+')';(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>msg('Copied: '+t,2000),()=>prompt('Copy:',t))};
+$('wcopy').onclick=()=>{if(!wPos)return;const f=fmtPos(wPos),t=f.ie?f.gr+' (Irish Grid) · '+f.itm+' ('+f.ll+')':f.gr+' ('+f.ll+')';(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>msg('Copied: '+t,2000),()=>prompt('Copy:',t))};
 // ===================== GPS =====================
 let gpsMk=null,gpsAcc=null;
 let covPoly=null;if(window.__outlineP)window.__outlineP.then(g=>{covPoly=g}).catch(()=>{});
@@ -205,6 +248,22 @@ async function nmrwNear(E,N,R){const LV=LZ.LC.liveNmrw;if(!LV)return [];const x0
       const nprn=cl(p.nprn).replace(/[^0-9]/g,''),ty=tt(p.site_type),nm=cl(p.name).split(';').map(s=>s.trim()).filter(Boolean);
       out.push({s:NMRW_SRC,id:nprn,n:nm[0]||ty,t:ty+(nm.length>1?' (also '+nm.slice(1).join('; ')+')':''),p:cl(p.period),d:'',u:'https://coflein.gov.uk/en/site/'+nprn+'/',g:G})}
     return prep(out)}catch(e){LZ.recMissing=[...new Set([...(LZ.recMissing||[]),'Coflein'])];return []}}
+// Ireland (live TEST): the Republic's SMR (National Monuments Service) and the NI SMR (Historic Environment Division), as static
+// 10 km ITM cells (gb/ireland/build_smr.py; non-site classes dropped). Positions are turned into the same E/N frame as the click.
+const SMRI=IEC&&IEC.smr;let smrIdx=null;const smrCell=new Map();
+function smrIndex(){if(!smrIdx)smrIdx=fetch(SMRI.index).then(r=>r.ok?r.json():null).then(j=>j?new Set(j.keys):null).catch(()=>{smrIdx=null;return null});return smrIdx}
+function smrLoad(k){if(!smrCell.has(k))smrCell.set(k,fetch(SMRI.url.replace('{key}',k)).then(r=>{if(!r.ok)throw r.status;return r.json()}).then(j=>j.f||[]).catch(e=>{smrCell.delete(k);LZ.recErr=e||1;return null}));return smrCell.get(k)}
+const SMR_ROI='https://heritagedata.maps.arcgis.com/apps/webappviewer/index.html?id=0c9eb9575b544081b0d296436d8f60f8&query=18a4b61b268-layer-9%2CSMRS%2C';
+function smrRec(a){const roi=a[0]==='SMR';return {s:a[0],id:a[1],n:a[2],t:a[3],p:a[4],d:'',u:roi?SMR_ROI+encodeURIComponent((a[1]+'-------------').slice(0,13)):'https://apps.communities-ni.gov.uk/NISMR-public/Details.aspx?MonID='+a[7],lat:a[5],lng:a[6]}}
+async function smrInBox(s,w,n,e){const keys=await smrIndex();if(!keys)return null;const c=[ll2itm(s,w),ll2itm(s,e),ll2itm(n,w),ll2itm(n,e)],out=[],jobs=[];
+  const x0=Math.floor(Math.min(...c.map(p=>p[0]))/1e4),x1=Math.floor(Math.max(...c.map(p=>p[0]))/1e4),y0=Math.floor(Math.min(...c.map(p=>p[1]))/1e4),y1=Math.floor(Math.max(...c.map(p=>p[1]))/1e4);
+  if((x1-x0+1)*(y1-y0+1)>64)return null;
+  for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){const k=x+'_'+y;if(keys.has(k))jobs.push(smrLoad(k))}
+  for(const L of await Promise.all(jobs))if(L)for(const a of L)if(a[5]>=s&&a[5]<=n&&a[6]>=w&&a[6]<=e)out.push(a);return out}
+LZ.smrInBox=SMRI?smrInBox:null;LZ.smrRec=smrRec;
+async function ieNear(E,N,R){if(!SMRI)return {recs:[],ctx:{}};const [la,lo]=en2ll(E,N),dla=(R+50)/111320,dlo=dla/Math.cos(la*D2R);
+  const A=await smrInBox(la-dla,lo-dlo,la+dla,lo+dlo);if(!A)return {recs:[],ctx:{}};
+  return {recs:prep(A.map(a=>{const f=smrRec(a),en=ll2en(f.lat,f.lng);f.g=['P',[Math.round(en[0]*10)/10,Math.round(en[1]*10)/10]];return f})),ctx:{}}}
 async function dataNear(E,N,R){const liveP=nmrwNear(E,N,R);await loadIndex();if(!IDX)return {recs:[],ctx:{}};const c=IDX.cell,keys=[];
   // live: one small query round the point; the worker answers from its 5 km cells when it holds them and fills them behind
   if(LZ.LC.live&&IDX.built==='live'&&LCF.names.length===1){const j=await loadChunk(LCF.names[0],'near/'+Math.round(E)+'_'+Math.round(N)+'_'+R);chunkP.delete(LCF.names[0]+'/near/'+Math.round(E)+'_'+Math.round(N)+'_'+R);
@@ -384,6 +443,7 @@ let wiMk=null,wiSeq=0;const card=$('card');const TN=LZ.LC.toolName||'What is it?
 const srcHost=u=>{try{return new URL(u,location.href).hostname.replace(/^www\./,'')}catch(e){return 'Source record'}};   // unknown sources: show the site's name, not 'OSM'
 const hesLabel=u=>{const h=srcHost(u);return h==='portal.historicenvironment.scot'?'HES portal':h==='historicenvironment.scot'?'HES website':h};
 const SRC=LZ.LC.recordSources||'NHLE (Historic England, scheduled + listed), HE Aerial Investigation & Mapping, OSM (community map)';
+{const ab=$('about');if(ab)ab.insertAdjacentHTML('beforeend','<br><br><b>'+esc(TN)+' card.</b> Measurements from the '+esc(LZ.LC.dtmName||'1 m EA LiDAR DTM')+' (or the local survey named in the credits) at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC.replace(/\.\s*$/,''))+'.')}
 function compass8(b){return ['N–S','NNE–SSW','NE–SW','ENE–WSW','E–W','ESE–WNW','SE–NW','SSE–NNW'][Math.round(((b%180)+180)%180/22.5)%8]}
 function q05(v){return Math.max(0.05,Math.round(v*20)/20)}
 function describe(a){if(a.nodata)return 'No LiDAR data here (outside the tile coverage or a data gap).';
@@ -453,10 +513,10 @@ function loadPhotos(el,lat,lng){if(!el)return;el.replaceChildren();const wait=do
 // (10 Nov 2026) the press-and-hold / right-click place pop-up (grid ref and Geograph photos) was removed at Tim's request; What's here? (W) is unchanged.
 const CTX_NAMES={building:'a building',wood:'woodland',water:'mapped water',stream:'a stream/drain',road:'a road',track:'a track/path',fieldedge:'a field edge',settled:'a settlement/farmyard',rail:'railway',embankment:'a mapped embankment'};
 async function whatIs(ll){const seq=++wiSeq;if(wiMk)map.removeLayer(wiMk);wiMk=L.circleMarker(ll,{radius:6,color:'#facc15',weight:3,fill:false,interactive:false}).addTo(map);
-  const [E,N]=ll2en(ll.lat,ll.lng);const gr0=gridRef(E,N);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gr0)+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small><br>'+lookLink('',gr0)+'</div><div class="bd"><div class="photostrip"></div>Looking at the LiDAR and records…</div>';
+  const [E,N]=ll2en(ll.lat,ll.lng);const IEH=inIE(ll),gr0=IEH?ieGrid(ll).ig:gridRef(E,N);card.style.display='block';card.innerHTML='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+esc(gr0)+' &middot; '+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+'</small><br>'+lookLink('',gr0)+'</div><div class="bd"><div class="photostrip"></div>Looking at the LiDAR and records…</div>';
   card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);
-  const HA=LZ.LC.herApi;const herP=HA?fetch(HA.url+'?e='+Math.round(E)+'&n='+Math.round(N),{credentials:'same-origin'}).then(r=>r.ok?r.json():{r:[],err:r.status}).catch(()=>({r:[],err:1})):Promise.resolve(null);
-  LZ.recErr=0;LZ.recMissing=null;const both=Promise.all([fbRegion(ll)?Promise.resolve({recs:[],ctx:{}}):dataNear(E,N,180),herP]);const W=await dtmWindow(ll,100);if(seq!==wiSeq)return;
+  const HA=LZ.LC.herApi;const herP=HA&&!IEH?fetch(HA.url+'?e='+Math.round(E)+'&n='+Math.round(N),{credentials:'same-origin'}).then(r=>r.ok?r.json():{r:[],err:r.status}).catch(()=>({r:[],err:1})):Promise.resolve(null);
+  LZ.recErr=0;LZ.recMissing=null;const both=Promise.all([IEH?ieNear(E,N,180):fbRegion(ll)?Promise.resolve({recs:[],ctx:{}}):dataNear(E,N,180),herP]);const W=await dtmWindow(ll,100);if(seq!==wiSeq)return;
   // records can take seconds (live Historic England queries): show the LiDAR measurements at once, then fill the records in
   const early=await Promise.race([both,new Promise(r=>setTimeout(()=>r(null),400))]);if(seq!==wiSeq)return;
   if(early)return wiRender(ll,E,N,W,early[0],early[1],false,seq);
@@ -476,43 +536,46 @@ async function wiRender(ll,E,N,W,D,HJ,pending,seq){const CTX=D.ctx;
   const ctxList=Object.entries(ctx).filter(([k,v])=>v.d<=100).sort((x,y)=>x[1].d-y[1].d).slice(0,4).map(([k,v])=>v.d<1?(k==='wood'||k==='settled'||k==='water'?'in '+CTX_NAMES[k]:'on '+CTX_NAMES[k]):Math.round(v.d)+' m from '+CTX_NAMES[k]);
   const confTxt={low:'low confidence',moderate:'moderate confidence',na:''}[cls.conf];
   const siteName=(atSpot.find(r=>r.f.s!=='OSM'&&r.f.s!=='HER'&&(r.f.n||r.f.t))||atSpot.find(r=>r.f.n||r.f.t)||{f:{}}).f;
-  const placeName=siteName.n||siteName.t||'this spot';const grH=gridRef(E,N);
-  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+(grH?esc(grH)+' &middot; ':REG?esc((FBK.noGridCard||'no British National Grid ref ({r})').replace('{r}',REG.name))+' &middot; ':'')+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+' m OD':gelev!=null?' &middot; <span class="gemest" style="color:#f6ad3c">'+esc(gemLabel(gelev))+'</span>':selev!=null?' &middot; <span class="seaest" style="color:#7cc0ee">'+esc(seaLabel(selev))+'</span>':'')+'</small><br>'+lookLink(REG&&placeName==='this spot'?REG.look||REG.name:placeName,grH||(REG?REG.look||REG.name:''))+'</div><div class="bd">'+(LZ.LC.tidyUI?'':'<div class="photostrip"></div>');
+  const placeName=siteName.n||siteName.t||'this spot';const IEW=inIE(ll),grH=IEW?(g=>g.ig+' (Irish Grid) · '+g.itm)(ieGrid(ll)):gridRef(E,N);
+  let h='<div class="hd"><span class="x" title="close">&times;</span><b>'+esc(TN)+'</b><br><small>'+(grH?esc(grH)+' &middot; ':REG?esc((FBK.noGridCard||'no British National Grid ref ({r})').replace('{r}',REG.name))+' &middot; ':'')+ll.lat.toFixed(5)+', '+ll.lng.toFixed(5)+(elev!=null?' &middot; '+elev.toFixed(1)+odL(ll):gelev!=null?' &middot; <span class="gemest" style="color:#f6ad3c">'+esc(gemLabel(gelev))+'</span>':selev!=null?' &middot; <span class="seaest" style="color:#7cc0ee">'+esc(seaLabel(selev))+'</span>':'')+'</small><br>'+lookLink(REG&&placeName==='this spot'?REG.look||REG.name:placeName,(IEW?grH.split(' (')[0]:grH)||(REG?REG.look||REG.name:''))+'</div><div class="bd">'+(LZ.LC.tidyUI?'':'<div class="photostrip"></div>');
   // Heritage Gateway retired its Results_Single.aspx pages; go straight to the new search for that HE research record (saves a redirect)
   const hgLink=u=>{const m=/^https?:\/\/(?:www\.)?heritagegateway\.org\.uk\/Gateway\/Results_Single\.aspx\?uid=([^&#]+)&resourceID=19191\b/i.exec(u);return m?'https://historicengland.org.uk/listing/heritage-gateway/results?q='+encodeURIComponent(decodeURIComponent(m[1]))+'&filters%5B0%5D%5Bfield%5D=dataset&filters%5B0%5D%5Bvalues%5D%5B0%5D=Historic%20England%20research%20records&filters%5B1%5D%5Bfield%5D=layoutView&filters%5B1%5D%5Bvalues%5D%5B0%5D=list':u};
-  const BADGE={CADW:'Cadw',CADWLB:'Cadw',NMRW:'Coflein'};
+  const BADGE={CADW:'Cadw',CADWLB:'Cadw',NMRW:'Coflein',SMR:'SMR',NISMR:'NI SMR'};
   const recRow=({f,d})=>{let h='';h+='<div class="rec"><span class="b '+f.s+'">'+(BADGE[f.s]||f.s)+'</span><b>'+esc(f.n||f.t||'(unnamed)')+'</b> <span class="m">&middot; '+(d<0.5?'here':Math.round(d)+' m')+'</span><div class="m">'+esc([f.t&&f.t!==f.n?f.t:'',f.p,f.s==='OSM'?'OSM '+f.id:f.s==='NHLE'||f.s==='LB'?'List entry '+f.id:f.s==='AIM'?(f.id&&!/none/i.test(f.id)?'HE UID '+f.id:''):f.s==='GAZ'?(/^\d+$/.test(f.id||'')?'NHLE '+f.id:''):f.s==='CADW'?'Cadw '+f.id:f.s==='CADWLB'?'Cadw listed building '+f.id:f.s==='NMRW'?'NPRN '+f.id:f.id].filter(Boolean).join(' · '))+
-    (f.u?' &middot; <a href="'+esc(hgLink(f.u))+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':f.s==='CADW'||f.s==='CADWLB'?'Cadw report':f.s==='NMRW'?'Coflein':f.s==='OSM'?'OSM':f.s==='HES'?hesLabel(f.u):srcHost(f.u))+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
+    (f.u?' &middot; <a href="'+esc(hgLink(f.u))+'" target="_blank" rel="noopener noreferrer">'+(f.s==='HER'?'Heritage Gateway':f.s==='NHLE'||f.s==='LB'?'NHLE list entry':f.s==='AIM'?'HE record':f.s==='GAZ'?'Source record':f.s==='CADW'||f.s==='CADWLB'?'Cadw report':f.s==='NMRW'?'Coflein':f.s==='SMR'?'Historic Environment Viewer':f.s==='NISMR'?'NI SMR record':f.s==='OSM'?'OSM':f.s==='HES'?hesLabel(f.u):srcHost(f.u))+' &#x2197;</a>':'')+'</div></div>';return h};const near30=recs.filter(r=>r.d<=30),far=recs.filter(r=>r.d>30);
   if(REG)h+='<h3>Heritage records</h3><div class="m fbrec" style="font-size:12px">'+REG.records+'</div>';
   else{
-  h+='<h3>Recorded within 30 m</h3><div class="m snap" style="font-size:11px;margin:-2px 0 4px">'+esc(LZ.LC.recordsLine||('Records from the '+HLL+', NHLE, HE aerial mapping and OSM'))+'</div>';
+  h+='<h3>Recorded within 30 m</h3><div class="m snap" style="font-size:11px;margin:-2px 0 4px">'+esc(IEW&&IEC.recordsLine||LZ.LC.recordsLine||('Records from the '+HLL+', NHLE, HE aerial mapping and OSM'))+'</div>';
   if(pending)h+='<div class="m wiwait">Fetching records…</div>';
   if(!pending&&LZ.recMissing&&LZ.recMissing.length)h+='<div class="m" style="font-size:12px;color:#b45309">'+esc(LZ.recMissing.join(' and '))+' records could not be fetched just now, so they are not listed. Click again in a minute.</div>';
   else if(LZ.recErr&&!recs.length)h+='<div class="m">The records could not be fetched just now. Click again in a minute.</div>';
-  else if(!near30.length)h+='<div class="m">Nothing in '+(LZ.LC.recordsNone?esc(LZ.LC.recordsNone):LZ.LC.live?'Historic England\'s records (NHLE, aerial mapping)':'the '+esc(HL)+', NHLE, HE aerial mapping or OSM')+' within 30 m'+(far.length?'':' (or within 100 m)')+'.</div>';
+  else if(!near30.length)h+='<div class="m">Nothing in '+(IEW&&IEC.recordsNone?esc(IEC.recordsNone):LZ.LC.recordsNone?esc(LZ.LC.recordsNone):LZ.LC.live?'Historic England\'s records (NHLE, aerial mapping)':'the '+esc(HL)+', NHLE, HE aerial mapping or OSM')+' within 30 m'+(far.length?'':' (or within 100 m)')+'.</div>';
   near30.forEach(r=>{h+=recRow(r)});
   if(far.length)h+='<details class="more"><summary>+ '+far.length+' more within 100 m</summary>'+far.map(recRow).join('')+'</details>';
   if(HJ&&HJ.err)h+='<div class="m" style="font-size:11px">HER lookup unavailable just now'+(HJ.err===429?' (too many lookups; wait a minute)':'')+'.</div>';
-  if(LZ.LC.herLinks&&LZ.LC.herLinks.length){const gr=gridRef(E,N).replace(/\s+/g,''),dl=0.0027,dg=0.0043,v={e:Math.round(E),n:Math.round(N),gr,lat:ll.lat.toFixed(5),lng:ll.lng.toFixed(5),lat1:(ll.lat+dl).toFixed(5),lng1:(ll.lng-dg).toFixed(5),lat2:(ll.lat-dl).toFixed(5),lng2:(ll.lng+dg).toFixed(5)};
+  if(!IEW&&LZ.LC.herLinks&&LZ.LC.herLinks.length){const gr=gridRef(E,N).replace(/\s+/g,''),dl=0.0027,dg=0.0043,v={e:Math.round(E),n:Math.round(N),gr,lat:ll.lat.toFixed(5),lng:ll.lng.toFixed(5),lat1:(ll.lat+dl).toFixed(5),lng1:(ll.lng-dg).toFixed(5),lat2:(ll.lat-dl).toFixed(5),lng2:(ll.lng+dg).toFixed(5)};
     const fill=t=>t.replace(/\{(\w+)\}/g,(m,k)=>k in v?encodeURIComponent(v[k]):m);
     h+='<div class="herlinks" style="margin-top:6px;font-size:13px">'+LZ.LC.herLinks.map(L=>'<a href="'+esc(fill(L.url))+'" target="_blank" rel="noopener noreferrer">'+esc(L.label)+' &#x2197;</a>'+(L.note?' <span class="m" style="font-size:11px">('+esc(fill(L.note).replace(/%20/g,' '))+')</span>':'')).join(' &middot; ')+'</div>'}
   }
   const CANM=!REG&&LZ.LC.canmore&&(!LZ.country||!LZ.LC.countryText||LZ.country()==='scotland');if(CANM)h+='<div class="canmore" style="margin-top:6px;font-size:13px"><span class="m">Canmore records within '+(LZ.LC.canmore.radius||150)+' m: loading…</span></div>';
   if(LZ.LC.tidyUI)h+='<div class="photostrip" style="margin-top:8px"></div>';
+  // 'Light from the other side' and three questions (presets trial): kept above the folded measurements so they show at once
+  if(!a.nodata){const fs=LZ.flipState(),tip=fs.on?'Put the sun back where it was':fs.usesSun?'Turn the lens sun round 180°':'This view has no sun: switches to hillshade first, then turns the sun round 180°';
+    h+='<div class="opp"><button type="button" class="oppbtn'+(fs.on?' on':'')+'" aria-pressed="'+fs.on+'" title="'+esc(tip)+'">Light from the other side</button><ul><li>Does it still show with the light from the other side?</li><li>Does an old map show a boundary, track or pit here?</li><li>Does it follow the slope or the geology?</li></ul></div>'}
   const mStart=h.length;
   h+='<h3>Measured from the DTM</h3>'+(LZ.LC.dtmGroundNote?'<div class="m" style="font-size:11px;margin-bottom:3px">'+esc(LZ.LC.dtmGroundNote)+'</div>':'')+'<div class="desc">'+esc(describe(a))+'</div><div class="meas">'+(a.nodata?'':'<canvas></canvas>');
   if(!a.nodata&&cls.kind!=='flat'){const rows=[['Form',(a.sign>0?'Mound / bank':'Hollow / ditch')+(a.touches?' (extends beyond 60 m)':'')],['Size',a.elong<1.5&&!a.touches?'~'+a.eqD.toFixed(0)+' m across (area '+Math.round(a.area)+' m²)':a.len.toFixed(0)+' x '+a.wid.toFixed(0)+' m, long axis '+Math.round(a.axisDeg)+'°'],
       [a.sign>0?'Height':'Depth',a.H.toFixed(2)+' m (vs. ground just outside)'],['Roundness','length/width '+a.elong.toFixed(2)+(a.rectness>0.86?', squarish':'')],['Profile',cls.prof+(a.sign<0&&a.rim>0.05?'; rim '+a.rim.toFixed(2)+' m on '+Math.round(a.rimFrac*100)+'% of sides':'')],
-      ['Edges',cls.edges+' (90th pct slope '+a.sl90.toFixed(0)+'°)'],['Setting','ground slopes '+a.regSlope.toFixed(1)+'°'+(a.regSlope>1?' to the '+compass(a.regAspect):'')+(elev!=null?', '+elev.toFixed(0)+' m OD':'')],['Scale used','relief model σ '+a.sigm+' m']];
+      ['Edges',cls.edges+' (90th pct slope '+a.sl90.toFixed(0)+'°)'],['Setting','ground slopes '+a.regSlope.toFixed(1)+'°'+(a.regSlope>1?' to the '+compass(a.regAspect):'')+(elev!=null?', '+elev.toFixed(0)+odL(ll):'')],['Scale used','relief model σ '+a.sigm+' m']];
     h+='<table>'+rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')+'</table>'}
   h+='</div>';
   if(SHOWG)h+='<details class="heur"><summary>Heuristic pointer (not an identification)</summary><div class="gt">'+esc(cls.text)+'</div>'+(confTxt?'<span class="conf '+cls.conf+'">'+confTxt+'</span>':'')+'<div class="m" style="margin-top:6px;font-size:12px">'+recLine+(ctxList.length?'; '+esc(ctxList.join('; ')):'')+'.</div><div class="m" style="font-size:11px;margin-top:4px">Rule-of-thumb from shape and mapped context; often wrong. Use it as a prompt to check records and the ground.</div></details>';
-  h+='<div class="ft">Measurements from the '+esc((LZ.country&&LZ.LC.countryText&&(LZ.LC.countryText[LZ.country()]||{}).dtmName)||LZ.LC.dtmName||'1 m EA LiDAR DTM')+' at the spot you clicked; '+(SHOWG?'the pointer is automatic and ':'')+'not a field identification. Records: '+esc(SRC.replace(/\.\s*$/,''))+'.</div></div>';
+  h+='<div class="ft">Measurements, not an identification. Sources: About / data.</div></div>';
   // measurements on demand (LC.measureOnDemand): the DTM analysis section stays folded behind a button until asked for
   if(a.nodata&&selev!=null&&!REG){h=h.slice(0,mStart)+'<div class="m sbmeas" style="font-size:12px;margin-top:8px">'+esc(SBK.noMeasure)+'</div>'}
   else if(a.nodata&&(gelev!=null||REG)){h=h.slice(0,mStart)+'<div class="m fbmeas" style="font-size:12px;margin-top:8px">'+esc(FBK.noMeasure)+'</div>'}
   else if(LZ.LC.measureOnDemand){const mh=h.slice(mStart);h=h.slice(0,mStart)+'<div class="measwrap"><button type="button" class="measbtn" style="margin:8px 0 4px;padding:5px 10px;cursor:pointer">Measure this feature from the DTM</button><div class="measbody" hidden>'+mh+'</div></div>'}
-  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);loadCanmore(card.querySelector('.canmore'),E,N);{const cv=card.querySelector('.meas canvas'),mb=card.querySelector('.measbtn');if(mb)mb.onclick=()=>{card.querySelector('.measbody').hidden=false;mb.remove();if(cv)thumb(cv,W,a)};else if(cv)thumb(cv,W,a)}
+  const st=card.scrollTop;card.innerHTML=h;card.scrollTop=st;card.querySelector('.x').onclick=closeCard;{const ob=card.querySelector('.oppbtn');if(ob)ob.onclick=()=>{const on=LZ.flipSun(),fs=LZ.flipState();ob.classList.toggle('on',on);ob.setAttribute('aria-pressed',on);ob.title=on?'Put the sun back where it was':fs.usesSun?'Turn the lens sun round 180°':'This view has no sun: switches to hillshade first, then turns the sun round 180°'}}placeCard();loadPhotos(card.querySelector('.photostrip'),ll.lat,ll.lng);loadCanmore(card.querySelector('.canmore'),E,N);{const cv=card.querySelector('.meas canvas'),mb=card.querySelector('.measbtn');if(mb)mb.onclick=()=>{card.querySelector('.measbody').hidden=false;mb.remove();if(cv)thumb(cv,W,a)};else if(cv)thumb(cv,W,a)}
   LZ.lastWhatIs={desc:describe(a),cls,a:a.nodata?a:Object.fromEntries(Object.entries(a).filter(([k,v])=>typeof v!=='object')),recs:recs.map(r=>({s:r.f.s,id:r.f.id,n:r.f.n,t:r.f.t,d:Math.round(r.d)})),ctx:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,Math.round(v.d)])),recLine,gr:gridRef(E,N),elev}}
 // Canmore (National Record of the Historic Environment, HES, OGL) points near the click, live from HES's open ArcGIS service; links open trove.scot
 async function loadCanmore(el,E,N){if(!el||!LZ.LC.canmore||(LZ.country&&LZ.LC.countryText&&LZ.country()!=='scotland'))return;const C=LZ.LC.canmore,r=C.radius||150;

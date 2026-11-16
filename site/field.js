@@ -134,7 +134,7 @@ function distBear(a,b){const R=6371008.8,p1=a.lat*D2R,p2=b.lat*D2R,dp=p2-p1,dl=(
   const h=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2,d=2*R*Math.asin(Math.min(1,Math.sqrt(h)));
   const y=Math.sin(dl)*Math.cos(p2),x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl);return {d,b:(Math.atan2(y,x)/D2R+360)%360}}
 const fmtD=d=>d<1000?Math.round(d)+' m':d<10000?(d/1000).toFixed(2)+' km':Math.round(d/1000)+' km';
-const gr=ll=>{try{const o=LZ.osgb;if(!o)return '';const en=o.ll2en(ll.lat,ll.lng);return o.gridRef(en[0],en[1],10)}catch(e){return ''}};
+const gr=ll=>{try{if(LZ.gridAt)return LZ.gridAt(ll,10);const o=LZ.osgb;if(!o)return '';const en=o.ll2en(ll.lat,ll.lng);return o.gridRef(en[0],en[1],10)}catch(e){return ''}};
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 // ---- view: hillshade / VAT over the whole screen, or the old map with the LiDAR put away ----

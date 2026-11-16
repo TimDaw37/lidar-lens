@@ -65,6 +65,15 @@ Visualisation 12, "Local dominance" (key L), after Hesse (2016). An observer sta
 
 Test: open the viewer at Normanton Down (SU 115 413), mode 12. Each barrow, including the low ploughed ones, should be a bright spot. Automated: `node tests/modes.test.mjs <url> 12`.
 
+## Presets trial (live-test only, 15 Nov 2026; branch `grok/presets-trial`, not on production or Wiltshire)
+
+Ported from `grok/presets-prefetch` (12c1d0c, brief `briefs/2026-11-04-presets-checks-prefetch.md`) onto main `ac6eca6`. Built with `node scripts/build_site.mjs gb/config-live-test.js`; only `index.html` and the app JS/CSS differ from main's live-test build.
+- Presets: four buttons at the top of Visualisation (Overview = multi-direction hillshade, the new default; Earthworks = red relief; Low sun = hillshade at 20°, VE 3; Banks and hollows = local relief, radius 20 m). The mode list, ramps, contrast, gamma, opacity, lens size and full screen fold into a closed Advanced section; the sun dial and elevation stay visible. Contrast is the view's own default look (MODE_LOOK) times the brief's factor, so the release 6 per-view looks are kept. Any hand change clears the highlight; Reset to defaults returns to Overview; share links add `p=<preset>`. Phones: the number strip becomes the four presets plus VAT.
+- What's here?: a "Light from the other side" button (sun +180°, again to undo; views without a sun switch to hillshade and back) and three check questions, above the folded measurements. The footer is one short line; the full note is in About / data.
+- Idle prefetch (item 4 of the brief): dropped by Tim on 15 Nov 2026 after a first live-test deploy. Most GB tiles now come from the Worker's tile cache (`tc/`), so prefetched relay blocks (about 0.5 MB per stop) were rarely used. `site/live-sw.js` is the same as main, so Wiltshire and the GB workers are unaffected.
+- `npm run check:gb-viewer` fails on this branch by design: it pins the production build, which this trial does not change.
+- Rollback: `/workspace/lidar-cvat/rollback-20261115-presets-livetest/` (on the box).
+
 ## Field mode (trial on live-test 11 Nov 2026)
 
 A Field / Lab switch (Lab is the full research view): in the panel header on desktop, floating at the top right on a phone, beside the search box in field mode. The choice is remembered on the device (localStorage `lidarlens.field.v1`) and carried in links: `ui=field`, or `ui=research` / `ui=lab` (`mode` is already the visualisation number). A link without `ui=` follows the device's last choice.
@@ -253,3 +262,58 @@ it has no near-0 m ground, so the shared `site/live-sw.js` change is on main onl
 ### Seabed (live on production and live-test since 15 Nov 2026)
 
 Off the coast, where neither LiDAR nor GEM-15 has a pixel, the live-test service worker fills tiles from EMODnet Digital Bathymetry DTM 2024 (mean-sea-level version, about 115 m, CC BY 4.0, not for navigation), cut at the coast with the OSM land polygons. `gb/seabed_prepare.py` and `gb/make_seabed.py` build Terrarium WebP tiles at zoom 5-10 (3,910 objects, about 125 MB, `gb-live-test/seabed/` in R2, index `seabed/index.json`); above zoom 10 the worker enlarges them. `gb/make_seabed_patch.py` levels the JNCC/Cefas Dogger Bank 2008 2 m multibeam strips (OGL) to EMODnet and builds zoom 12-15 patch tiles (5,475 objects, about 16 MB, `gb-live-test/seabed/mb/`). Markers in the blue channel: EMODnet 1 mod 4, multibeam 3 mod 4 (LiDAR 0, GEM-15 2). The page tints them blue-grey / grey-teal, shows "Seabed: about 115 m detail, not LiDAR, not for navigation", gives depth estimates relative to mean sea level in What's here? and the readout, and keeps them out of OD heights, measurements, profiles and the viewshed. `gb/config.js` and `gb/config-live-test.js` both have the `seabed` block, so `gb/make_sw.mjs` adds `gb/seabed-route.js` to both workers (production tiles under `gb/`, live-test under `gb-live-test/`). Coastline: `gb/make_coastmask.py` (OS Boundary-Line mean high water in Great Britain, OSM land polygons elsewhere) and `gb/pack_coastmask.py` build `coastmask2/` (8-bit land coverage, zoom 14 detail): LiDAR and GEM-15 are shown only on land, the seabed beyond. Isle of Man fix (15 Nov 2026): an OS outline whose bounding box merely covered a tile (Scotland's around the Isle of Man) used to turn the whole zoom 10 tile into one face, all land or all sea; such tiles now fall back to OSM (about 100 mask files changed: the Isle of Man, the Northern Ireland and French coasts, the Eddystone). South Cornwall / Beauly Firth fix (15 Nov 2026, Tim: "very south of cornwall penzance area looks odd"): the zoom 10 tile filter dropped every tile whose centre is south of 50 N outside the Channel Islands, so Land's End, the south of Mount's Bay and the Lizard (tiles 495-497_347) had no mask: grey slabs of unmasked LiDAR sea at zoom 10+, and aerial instead of LiDAR on land at zoom 5-9. Those tiles, the Smalls and Les Minquiers are now kept. A scan of every skipped tile with OSM land found no other British ones (the rest are Ireland and France). Separately, OS lines were cut exactly at a rounded tile box, so their ends could miss the box outline and leave no closed faces: the Beauly Firth (tile 499_311) became one land face. Lines are now cut to a larger box and noded with a square tile outline (small corrections also in Swansea Bay, the Humber and the Hebrides; 86 mask files changed in all). The worker keeps mask tiles in the `seabed-mask-v3` cache and finished tiles in `seabed-out-v6`, dropping older copies on activate. `npm run check:gb-viewer` pins the production build. Known data artefacts: survey-patch steps in EMODnet (e.g. west of Guernsey). Rollbacks: `/workspace/lidar-cvat/rollback-20261115-seabed-livetest/`, `/workspace/lidar-cvat/rollback-20261115-seabed-prod/`.
+
+## Ireland, Phase A (live-test only, 16 Nov 2026, Tim t2277u; branch `grok/ireland-phase-a`, not on production)
+- Terrain: GEM-15 over the whole island of Ireland (Republic and Northern Ireland) plus a 12 nm belt cut at the median line with
+  Britain (France stays out). `gb/make_gem_mask.py` (MASKV=2) writes `gem15/mask-v2.json` = the published v1 cells (Britain
+  unchanged, 0 removed) plus `ie` rows; `gb/gem15/stage_ie.py` warps the 26 GEM-15 COGs to zoom 13 (pyramid 12-6) under
+  `gem15/ie/` (14,738 tiles, 588 MB), merging the published tiles where the two sets share a key. `gb/gem15-route.js` reads both
+  indexes, starts GEM-15 at zoom 6 and never asks the LiDAR route for a wholly Irish tile. No Irish LiDAR yet (Phase B).
+- Coast: `gb/make_coastmask.py` (COAST_TILES) over 130 Irish zoom 10 tiles with OSM land polygons, merged into a copy of the
+  published mask by `gb/merge_coastmask_ie.py` as `coastmask3/` (coastmask2 left as it is); seabed stays EMODnet.
+- Records: `gb/ireland/fetch_smr.py` + `build_smr.py` -> `ie/smr/{E10k}_{N10k}.json` (ITM 10 km cells, 164,989 records): the
+  National Monuments Service SMR (CC BY 4.0) less 'Excavation - miscellaneous', '(present location)' moved objects and 27 records
+  whose notes say redundant/duplicate; the NI SMR (HED, OGL) less non-antiquity, natural, findspot, folklore, place-name,
+  duplicate and unlocated records. Shown in What's here? and as the 'Recorded monuments (SMR)' layer from zoom 12.
+  Kept under `ie/`, not `layers/`, because the live-test Worker serves `layers/` from the shared bucket root.
+- Search: `gb/towns-ie.json` (4,013 OSM places, ODbL; `gb/ireland/towns_ie.py`, `islands_rel.py`, `build_towns.py`), its own
+  shard, fetched only over Ireland or when Great Britain has no match; Nominatim country codes add `ie`.
+- Grid: over Ireland (config `ireland.poly`) the readout, copy, What's here?, field mode, 3D export and viewshed give the lettered
+  Irish Grid (EPSG:29903, Helmert EPSG:1641) and ITM (EPSG:2157); search accepts 'O 15900 34671' and 'ITM 715827 734698'.
+  Checked against pyproj to a few mm.
+- All Ireland behaviour is keyed on `LENS_CONFIG.ireland`, so the production config builds without it; but `gb/gem15-route.js`
+  and `gb/seabed-route.js` now expect `gem15/mask-v2.json`, `gem15/ie/` and `coastmask3/`, so those must be copied under `gb/`
+  before any production build. `tests/gb-viewer-sync.mjs` fails on this branch (the shared bundle changed), as expected.
+
+## Ireland, Phase B step 1: 1 m-and-finer Irish LiDAR (live-test only, 16 Nov 2026, Tim pt2289u; branch `grok/ireland-phase-b1`, not on production)
+
+- Sources (Geological Survey Ireland open data, CC BY 4.0; heights OD Malin Head): GSI DCHG / Discovery Programme sites (1 m, and 0.1 / 0.25 m
+  site grids), GSI Phase 2 (1 m, 2018), OPW Cork (0.125 m, block-averaged to 0.5 m), Westmeath County Council (0.25 m, block-averaged to 0.5 m).
+  Not included: NYU Dublin (surface model only), OPW NASC, OPW 2 m and TII (2 m; deferred).
+- Pipeline `gb/ireland/lidar/`: `dl.py` (803 zips, 10.3 GB) -> `convert.py` (DTM only, nodata/-99 to NaN, finer than 0.5 m averaged to ~0.5 m,
+  whole-site rasters cropped to their 2 km index tile, 20 m ITM valid-fraction grid) -> `keep.py` (patches with under 1 km2 of ground dropped)
+  -> `build.py` (zoom 17, one pack per zoom 14 tile; finer source first, then newer; edges within 16 px of a large gap blended into GEM-15
+  with a smoothstep, pixels mostly GEM-15 carry the GEM-15 marker) -> `pyramid.py` (zoom 16-13 packs and `ie/lidar/index.json`).
+- Packs: `ie/lidar/{z}/{X}_{Y}.pak` = the 64 zoom-z tiles under zoom z-3 tile X,Y: a 512-byte header of 64 x (offset, length) uint32 LE,
+  slot = row*8 + col, then lossless Terrarium WebP tiles (1/64 m, blue 0 mod 4 = LiDAR). The service worker (`gb/gem15-route.js`, IEL)
+  reads one tile with an HTTP range request (the Worker passes ranges through) and caches it; GEM-15 fills the rest of the tile as before.
+- The readout and the What's here? card say "m OD Malin Head" inside the Irish outline (`odL` in `site/tools.js`).
+
+## Ireland tidy (16 Nov 2026, before the production release, Tim pt2291u)
+
+- Far-west streaks: the lens stretched the last column of its tile mosaic (texture clamp in the final shader, `site/lens.js`) wherever the
+  view ran past the mosaic, which showed as horizontal streaks west of 11W. The shader now discards pixels outside the mosaic. The seabed
+  also now reaches 16W: `gb/make_seabed.py` with `SEABED_WSEN=-16.0,49.0,-11.26,61.5` on EMODnet DTM 2024 MSL tiles D3 and E3
+  (1,206 tiles, zoom 5-10; 11.25W is a zoom 5 tile edge, so none is shared with the main build), indexes merged with
+  `gb/ireland/merge_seabed_index.py`; `bounds` west to -16.0.
+- Ragged survey edges: `gb/ireland/lidar/build.py` now trims 2 px off every survey edge and drops LiDAR fragments under 20,000 px
+  (about 1 ha at zoom 17) that do not reach the block margin. The seam blend moved to the GEM-15 side: no LiDAR pixel is changed; the
+  LiDAR - GEM-15 offset at the edge (smoothed along it) is added to GEM-15 in the gap and fades out over 64 px (about 46 m), so the
+  coarser zoom 13-15 packs still have a few pixels of blend. Those fill pixels carry the GEM-15 marker. Rebuilt packs go to
+  `ie/lidar3/` (cache `ie-lidar-v3`, GEM out cache `gem15-out-v8`, seabed out `seabed-out-v11`); the step 1 packs under `ie/lidar/`
+  are left as they were (rollback), and `ie/lidar2/` holds an unused first try (blend inside the LiDAR, which ate river banks).
+- GEM-15 at zoom 14-17 (`gb/gem15-route.js`, everywhere, Scotland included): the zoom 13 tile is padded from its neighbours before the
+  Catmull-Rom enlargement, so zoom 13 tile edges no longer show as crease lines in the relief views. Caches `gem15-out-v9`, `seabed-out-v12`.
+- Texts: the GEM-15 and Ireland notes no longer say Irish LiDAR is still to come; the data note mentions the Irish LiDAR; the seabed
+  label names the OSM coastline outside Great Britain. `gb/config.js` now carries Ireland for production; `tests/gb-viewer-sync.mjs`
+  pins that build.
