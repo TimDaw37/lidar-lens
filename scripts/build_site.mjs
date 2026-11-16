@@ -49,11 +49,17 @@ html=html.replace(/<script src="compat\.js"><\/script>\s*<script src="config\.js
 let pre='';if(cfg){const c=fs.readFileSync(cfg,'utf8');const m=c.match(/url:\s*'(https:\/\/[^/'{]+)/);if(m)pre='<link rel="preconnect" href="'+m[1]+'">\n';
   const h=c.match(/link:\{[^}]*href:'(https:[^']+)'/);if(h)pre+='<link rel="canonical" href="'+h[1]+'">\n<meta property="og:url" content="'+h[1]+'">\n';
   const tn=c.match(/toolName:\s*'((?:[^'\\]|\\.)*)'/);if(tn){const n=tn[1].replace(/\\'/g,"'").replace(/&/g,'&amp;');html=html.split('What is it?').join(n)}
+  // siteName / metaDescription (GB config, 16 Nov 2026, Tim t2297u): the static <title>, description, og tags and the manifest name; areas without them keep the shared defaults
+  const sn=c.match(/siteName:\s*'((?:[^'\\]|\\.)*)'/),md=c.match(/metaDescription:\s*'((?:[^'\\]|\\.)*)'/),esc=t=>t.replace(/\\'/g,"'").replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  if(sn){html=html.replace('<title>LiDAR Lens</title>','<title>'+esc(sn[1])+'</title>');pre+='<meta property="og:title" content="'+esc(sn[1])+'">\n<meta property="og:site_name" content="'+esc(sn[1])+'">\n<meta property="og:type" content="website">\n';
+    globalThis.__siteName=sn[1].replace(/\\'/g,"'")}
+  if(md){html=html.replace(/<meta name="description" content="[^"]*">/,'<meta name="description" content="'+esc(md[1])+'">');pre+='<meta property="og:description" content="'+esc(md[1])+'">\n'}
   const at=c.match(/analyticsToken:\s*'([0-9a-f]{32})'/);if(at)html=html.replace('</body>','<script defer src=\'https://static.cloudflareinsights.com/beacon.min.js\' data-cf-beacon=\'{"token": "'+at[1]+'"}\'></script>\n</body>');   // Cloudflare Web Analytics
   const cn=c.match(/cname:\s*'([^']+)'/);if(cn)fs.writeFileSync(OUT+'/CNAME',cn[1]+'\n');   // GitHub Pages custom domain
   const cfgName='config.'+hash(c)+'.js';fs.writeFileSync(OUT+'/assets/'+cfgName,c);fs.copyFileSync(cfg,OUT+'/config.js');
   html=html.replace('<script defer src="config.js"></script>','<script defer src="assets/'+cfgName+'"></script>')}
 if(fs.existsSync(SITE+'/icons'))for(const f of fs.readdirSync(SITE+'/icons'))fs.copyFileSync(SITE+'/icons/'+f,OUT+'/'+f);   // favicon + manifest at the site root
+if(globalThis.__siteName&&fs.existsSync(OUT+'/site.webmanifest')){const j=JSON.parse(fs.readFileSync(OUT+'/site.webmanifest','utf8'));j.name=globalThis.__siteName;fs.writeFileSync(OUT+'/site.webmanifest',JSON.stringify(j))}   // siteName: the installed app's name
 if(!NOMODELS&&fs.existsSync(SITE+'/models.json'))fs.copyFileSync(SITE+'/models.json',OUT+'/models.json');
 // An area's OSTN15 correction grid can sit next to its config as <config>-ostn_grid.json (e.g. configs/england-ostn_grid.json);
 // it is written as whole cm, delta-coded (about half the download), and tools.js and live-sw.js decode it
