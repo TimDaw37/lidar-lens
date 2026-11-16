@@ -197,7 +197,7 @@ async function run(ll){ll=L.latLng(ll);ensurePane();clear(true);const seq=runSeq
   if(seq!==runSeq)return null;busy=null;
   const S=sweep(rings);
   if(!S){LZ.msg('View from here: there is no LiDAR height at that spot',4500);return null}
-  const rast=rings.map((r,i)=>raster(S,i));let gr='';try{const en=LZ.osgb.ll2en(ll.lat,ll.lng);gr=LZ.osgb.gridRef(en[0],en[1],8)}catch(e){}
+  const rast=rings.map((r,i)=>raster(S,i));let gr='';try{if(LZ.gridAt)gr=LZ.gridAt(ll,8);else{const en=LZ.osgb.ll2en(ll.lat,ll.lng);gr=LZ.osgb.gridRef(en[0],en[1],8)}}catch(e){}
   cur={ll,S,rast,imgs:[],lines:[],gr,slow:job.slow||0};LZ.msg('',0);
   box.hidden=false;box.style.bottom=$('prof')&&$('prof').style.display==='block'?'264px':'';
   drawOverlays();drawSkyline();summary();drawChart(null);$('vfhread').textContent='Move over the map or the chart to read the skyline on any bearing.';
