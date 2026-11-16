@@ -137,15 +137,18 @@ const CATALOG=[
  {id:'nrw-aw',group:'Natural Resources Wales',c:'W',name:'Ancient woodland inventory',kind:'wms',minZoom:11,wms:'https://datamap.gov.wales/geoserver/ows',wmsLayers:'inspire-nrw:NRW_ANCIENT_WOODLAND_INVENTORY_2021',opacity:.5,z:3,
   credit:'Ancient woodland inventory 2021: Natural Resources Wales, DataMapWales. '+OGL+'.'},
  {id:'nrw-fz',group:'Natural Resources Wales',c:'W',name:'Flood Map for Planning, zones 2 and 3',kind:'wms',minZoom:11,wms:'https://datamap.gov.wales/geoserver/ows',wmsLayers:'inspire-nrw:FloodMapforPlanningFloodZones2and3',opacity:.5,z:3,
-  credit:'Flood Map for Planning: Natural Resources Wales, DataMapWales. '+OGL+'.'}
+  credit:'Flood Map for Planning: Natural Resources Wales, DataMapWales. '+OGL+'.'},
+ ...((LZ.LC&&LZ.LC.ireland&&LZ.LC.ireland.smr)?[{id:'ie-smr',group:'Sites and Monuments Records (Ireland)',c:'IE',name:'Recorded monuments (SMR), Ireland and Northern Ireland',kind:'smr',minZoom:12,cap:[2500,1200],points:true,color:'#9d174d',
+   popup:p=>'<b>'+esc(p.n)+'</b>'+(p.t?'<br>'+esc(p.t):'')+(p.p?'<br>'+esc(p.p):'')+'<br>'+esc((p.s==='SMR'?'SMR ':'NI SMR ')+p.id)+'<br>'+alink(p.u,p.s==='SMR'?'Historic Environment Viewer':'NI SMR record'),
+   credit:LZ.LC.ireland.smrCredit||'Sites and Monuments Records: National Monuments Service (CC BY 4.0); Historic Environment Division, DfC (OGL).'}]:[])
 ];
 // Per-country layer list. layerCountry: 'england' (default, unchanged) | 'scotland' | 'auto'.
 // 'auto' (multi-country lens): the list shows the layers of the country under the map centre (+ GB-wide ones) and switches as you pan.
 // Country = first LC.countryRegions entry ({c:'scotland',poly:[[lat,lng],...]}) containing the centre, else LC.defaultCountry||'england'.
-const LCC=(LZ.LC&&LZ.LC.layerCountry)||'england', AUTO=LCC==='auto', CCODE={england:'E',scotland:'S',wales:(LZ.LC&&LZ.LC.walesLayers)?'W':'E'};
+const LCC=(LZ.LC&&LZ.LC.layerCountry)||'england', AUTO=LCC==='auto', CCODE={england:'E',scotland:'S',wales:(LZ.LC&&LZ.LC.walesLayers)?'W':'E',ireland:'IE'};
 function inPoly(lat,lng,P){let ins=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const a=P[i],b=P[j];
   if(((a[0]>lat)!==(b[0]>lat))&&(lng<(b[1]-a[1])*(lat-a[0])/(b[0]-a[0])+a[1]))ins=!ins}return ins}
-function countryAt(ll){for(const r of (LZ.LC.countryRegions||[]))if(inPoly(ll.lat,ll.lng,r.poly))return r.c;return LZ.LC.defaultCountry||'england'}
+function countryAt(ll){const IE=LZ.LC.ireland;if(IE&&IE.poly&&inPoly(ll.lat,ll.lng,IE.poly))return 'ireland';for(const r of (LZ.LC.countryRegions||[]))if(inPoly(ll.lat,ll.lng,r.poly))return r.c;return LZ.LC.defaultCountry||'england'}
 if(!AUTO)for(let i=CATALOG.length-1;i>=0;i--){const c=CATALOG[i].c||'E';if(!(c==='GB'||(LCC==='scotland'?c==='S':c==='E')))CATALOG.splice(i,1)}
 if(LCC!=='england')CATALOG.sort((a,b)=>(a.c==='GB')-(b.c==='GB'));
 const byId={};CATALOG.forEach(d=>{byId[d.id]=d;d.on=false});
@@ -174,6 +177,13 @@ async function loadFs(d){if(!d.on)return;const z=map.getZoom();
     const trunc=feats.length>=cap||j.exceededTransferLimit||(j.properties&&j.properties.exceededTransferLimit);
     setStatus(d,trunc?('Showing '+feats.length+' in view. Zoom in for the rest.'):(feats.length?feats.length+' in view':'Nothing in this view.'))}
   catch(e){if(e.name==='AbortError')return;setStatus(d,'Could not load.');LZ.msg('Could not load '+d.name,4000)}}
+// Ireland SMR points (live TEST): static 10 km ITM cells via tools.js (LZ.smrInBox), drawn from zoom 12
+async function loadSmr(d){if(!d.on)return;const z=map.getZoom();
+  if(z+0.01<(d.minZoom||0)){if(d.layer){map.removeLayer(d.layer);d.layer=null;d.have=null}setStatus(d,'Zoom to '+d.minZoom+'+ to load.');return}
+  const view=map.getBounds(),pad=view.pad(0.25);if(d.have&&d.have.contains(view)&&d.layer)return;if(!LZ.smrInBox){setStatus(d,'Could not load.');return}
+  setStatus(d,'Loading…');const tok=d.tok=(d.tok||0)+1;const A=await LZ.smrInBox(pad.getSouth(),pad.getWest(),pad.getNorth(),pad.getEast());if(tok!==d.tok||!d.on)return;
+  if(!A){setStatus(d,'Could not load.');return}const cap=phone()?d.cap[1]:d.cap[0],feats=A.slice(0,cap).map(a=>{const p=LZ.smrRec(a);return {type:'Feature',properties:p,geometry:{type:'Point',coordinates:[p.lng,p.lat]}}});
+  drawFeats(d,feats);d.have=A.length>cap?null:pad;d.z=z;setStatus(d,A.length>cap?'Showing '+cap+' of '+A.length+' in view. Zoom in for the rest.':A.length?A.length+' in view':'Nothing in this view (outside Ireland, or no records).')}
 function ensureWms(d){if(d.layer)return d.layer;
   const layer=L.tileLayer.wms(d.wms,{layers:d.wmsLayers,styles:d.styles||'',format:'image/png',transparent:true,version:'1.1.1',
     opacity:d.opacity==null?0.6:d.opacity,minZoom:d.minZoom||0,maxZoom:d.maxZoom==null?22:d.maxZoom,attribution:d.credit,zIndex:d.z||4});
@@ -185,21 +195,21 @@ function wmsNote(d){const z=map.getZoom();
 async function setOn(d,on){d.on=on;if(!on){if(d.abort)d.abort.abort();if(d.layer)map.removeLayer(d.layer);d.have=null;setStatus(d,'');save();return}
   if(d.kind==='wms'){if(d.wmsKind==='625k'){setStatus(d,'Loading…');await bgs625Names();if(!d.on)return;d.wmsLayers=bgs625[d.which]||d.wmsLayers;if(d.layer){map.removeLayer(d.layer);d.layer=null}}
     ensureWms(d);if(d.on)d.layer.addTo(map);setStatus(d,wmsNote(d))}
-  else loadFs(d);save()}
+  else if(d.kind==='smr')loadSmr(d);else loadFs(d);save()}
 function save(){LZ.saveHashSoon&&LZ.saveHashSoon()}
 const host=$('laylist');let group='',curH=null;
 CATALOG.forEach(d=>{if(d.group!==group){group=d.group;const h=document.createElement('div');h.className='lg';h.textContent=group;host.appendChild(h);curH=h}
   const lab=document.createElement('label'),cb=document.createElement('input');cb.type='checkbox';cb.id='ly_'+d.id;
   cb.addEventListener('change',()=>setOn(d,cb.checked));const span=document.createElement('span');span.textContent=d.name;lab.appendChild(cb);lab.appendChild(span);host.appendChild(lab);
   const meta=document.createElement('div');meta.className='laymeta';meta.textContent=d.credit;host.appendChild(meta);d.meta=meta;d.cb=cb;d.els=[lab,meta];;d.gh=curH});
-const sug=$('laysuggest');function sugText(cc){if(sug)sug.textContent=cc==='wales'&&CCODE.wales==='W'?'Welsh layers: Cadw designations, RCAHMW (Coflein) sites and Natural Resources Wales protected areas and flood zones, all from DataMapWales under the Open Government Licence.':cc==='scotland'?'Scottish layers: Historic Environment Scotland designations and NatureScot protected areas, all Open Government Licence. Canmore and local HER/SMR records are not shown.':'Not added: Environment Agency historic landfill is Open Government Licence and can explain modern mounds. National soil maps (NATMAP and Soilscapes, Cranfield) are not published under the Open Government Licence, so they are left out.';}
+const sug=$('laysuggest');function sugText(cc){if(sug)sug.textContent=cc==='ireland'?((LZ.LC.ireland&&LZ.LC.ireland.layersNote)||'Irish layers: the Sites and Monuments Records only.'):cc==='wales'&&CCODE.wales==='W'?'Welsh layers: Cadw designations, RCAHMW (Coflein) sites and Natural Resources Wales protected areas and flood zones, all from DataMapWales under the Open Government Licence.':cc==='scotland'?'Scottish layers: Historic Environment Scotland designations and NatureScot protected areas, all Open Government Licence. Canmore and local HER/SMR records are not shown.':'Not added: Environment Agency historic landfill is Open Government Licence and can explain modern mounds. National soil maps (NATMAP and Soilscapes, Cranfield) are not published under the Open Government Licence, so they are left out.';}
 const FBR=(LZ.LC.fallback&&LZ.LC.fallback.regions)||[],regAt=ll=>FBR.find(r=>r.layers&&ll.lat>=r.box[0]&&ll.lat<=r.box[2]&&ll.lng>=r.box[1]&&ll.lng<=r.box[3])||null;
 let CUR=null;function applyCountry(){const RG=AUTO&&regAt(map.getCenter()),cc=RG?'reg:'+RG.name:AUTO?countryAt(map.getCenter()):LCC;if(cc===CUR)return;CUR=cc;
   if(RG){if(sug)sug.textContent=(RG.layers==='GB'?LZ.LC.fallback.layersGB:LZ.LC.fallback.layersNone).replace('{r}',RG.name==='Isle of Man'?'The Isle of Man':RG.name);}else sugText(cc);if(!AUTO)return;const k=RG?(RG.layers==='GB'?'GB':'-'):CCODE[cc]||'E';
   host.querySelectorAll('.lg').forEach(h=>h.style.display='none');
   CATALOG.forEach(d=>{const show=d.on||(k!=='-'&&((d.c||'E')==='GB'||(d.c||'E')===k));d.els.forEach(e=>e.style.display=show?'':'none');if(show&&d.gh)d.gh.style.display=''})}
 applyCountry();if(AUTO)map.on('moveend',applyCountry);
-let mvT=null;map.on('moveend',()=>{clearTimeout(mvT);mvT=setTimeout(()=>{CATALOG.forEach(d=>{if(!d.on)return;if(d.kind==='fs')loadFs(d);else setStatus(d,wmsNote(d))})},350)});
+let mvT=null;map.on('moveend',()=>{clearTimeout(mvT);mvT=setTimeout(()=>{CATALOG.forEach(d=>{if(!d.on)return;if(d.kind==='fs')loadFs(d);else if(d.kind==='smr')loadSmr(d);else setStatus(d,wmsNote(d))})},350)});
 function parseFields(xml){const m=String(xml).match(/<FIELDS\b([^>]*)\/?>/i);if(!m)return null;const o={},re=/([\w:.-]+)="([^"]*)"/g;let a;
   const dec=s=>s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&');
   while((a=re.exec(m[1])))o[a[1]]=dec(a[2]);return o}

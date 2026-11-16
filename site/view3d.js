@@ -132,7 +132,7 @@ function credit(ll){
   const a=document.querySelector('.leaflet-control-attribution'),t=a?a.textContent:'';
   const m=t.match(/LiDAR:\s*([^;|]+)/);if(m)return m[1].split(/,\s*LiDAR Lens code|\s*\u24d8|\s*Credits/)[0].replace(/[,\s]+$/,'').trim();
   const e=plain(LC.elevationNote||'').replace(/^Elevation:\s*/i,'').replace(/,\s*$/,'').trim();return e||'open LiDAR DTM (Open Government Licence)'}
-function gridRef(ll){const o=LZ.osgb;if(!o)return null;try{const en=o.ll2en(ll.lat,ll.lng);return o.gridRef(en[0],en[1],10)||null}catch(e){return null}}   // the lens centre, not the map centre
+function gridRef(ll){if(LZ.gridAt)return LZ.gridAt(ll,10)||null;const o=LZ.osgb;if(!o)return null;try{const en=o.ll2en(ll.lat,ll.lng);return o.gridRef(en[0],en[1],10)||null}catch(e){return null}}   // the lens centre, not the map centre
 function modeName(){const s=$('mode');return s&&s.selectedOptions[0]?s.selectedOptions[0].textContent:'LiDAR'}
 const fmt=(v,d)=>v>=100?v.toFixed(0):v.toFixed(d==null?1:d);
 
