@@ -109,7 +109,7 @@ try {
   }
   // the live-mode service worker and the monument names production serves at the site root (checked against the live files 10 Nov 2026;
   // live-sw.js: Ireland release 16 Nov 2026 (Irish LiDAR packs, ie/lidar2/); before it 2ef1d262... (zero-height fix 15 Nov 2026, Tim pt2259u), before that 11ae76c9... (seabed release))
-  for (const [rel, expect] of [['live-sw.js', '89e2788abc24214bc669a8e96214953237e3600ad8d821a34ad3c9ef335a39a1'], ['towns-ie.json', 'b44c07bd78e972f185409eba458b930c40a99e115b4fa836bfbb2ca2f1a38fbb'], ['towns.json', '9a1cc317f58cdcbb3a40bcdfe10d9276b2c6ecb11c2b5de57331d5deb2c20ab5'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
+  for (const [rel, expect] of [['live-sw.js', '9eb3bc74bba440e622a056f72aa8f6f2cf4002322a14d96fbf3a4a82a3a1a1b1'], ['towns-ie.json', 'b44c07bd78e972f185409eba458b930c40a99e115b4fa836bfbb2ca2f1a38fbb'], ['towns.json', '9a1cc317f58cdcbb3a40bcdfe10d9276b2c6ecb11c2b5de57331d5deb2c20ab5'], ['nhle_places.json', '5fdbbbbb43410fdbc3c44be935ce77d03e039f1e782cc0fc178884fe442d2911']]) {
     const got = sha(fs.readFileSync(path.join(tmp, 'dist', rel)));
     if (got !== expect) fail(rel + ' sha256 ' + got + ' != live ' + expect);
   }
