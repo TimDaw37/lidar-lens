@@ -491,22 +491,20 @@ function rampBytes(name){const hex=(RAMPS[name]||RAMPS.grey);const st=hex.map(h=
     else{const t=i/255*(st.length-1),k=Math.min(st.length-2,Math.floor(t)),f=t-k;const c=oklabToRgb(st[k][0]*(1-f)+st[k+1][0]*f,st[k][1]*(1-f)+st[k+1][1]*f,st[k][2]*(1-f)+st[k+1][2]*f);R=c[0];G=c[1];B=c[2]}
     a[i*4]=R;a[i*4+1]=G;a[i*4+2]=B;a[i*4+3]=255}return a}
 // ---------- renderer ----------
-let R=null; const forceCPU=/[?&]cpu=1/.test(location.search); const forceHitFail=/[?&]hittest=fail/.test(location.search); let heightTest={ok:null,label:'height test not run'};
+let R=null; const forceCPU=/[?&](?:cpu=1|renderer=cpu)\b/i.test(location.search); const forceHitFail=/[?&]hittest=fail/.test(location.search); let heightTest={ok:null,label:'height test not run'};
 function msg(t,ms){const m=$('msg');m.textContent=t;m.style.display=t?'block':'none';if(ms)setTimeout(()=>{if(m.textContent===t)m.style.display='none'},ms)}
 // ===== WebGL2 =====
 function glOK(){try{const t=document.createElement('canvas').getContext('webgl2');return !!(t&&t.getExtension('EXT_color_buffer_float'))}catch(e){return false}}
-function makeGL(){if(!glOK())return null;const gl=cv.getContext('webgl2',{premultipliedAlpha:false,preserveDrawingBuffer:true,antialias:false,alpha:true});
-  if(!gl)return null; if(!gl.getExtension('EXT_color_buffer_float'))return null;
-  const VS=`#version 300 es
+const GL_VS=`#version 300 es
 void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.0-1.0,0.0,1.0);}`;
-  const HEAD=`#version 300 es
+const GL_HEAD=`#version 300 es
 precision highp float;precision highp int;out vec4 o;`;
   const DEC=HEAD+`uniform sampler2D T;void main(){ivec2 p=ivec2(gl_FragCoord.xy);vec4 c=texelFetch(T,p,0);
 float h=c.a<0.5?-9999.0:(round(c.r*255.0)*256.0+round(c.g*255.0)+round(c.b*255.0)/256.0-32768.0);o=vec4(h,0.0,0.0,1.0);}`;
   const BLUR=HEAD+`uniform sampler2D H;uniform ivec2 dir;uniform float sig;uniform int rad,box;void main(){ivec2 p=ivec2(gl_FragCoord.xy);ivec2 sz=textureSize(H,0);
 float s=0.0,w=0.0;for(int k=-rad;k<=rad;k++){ivec2 q=clamp(p+dir*k,ivec2(0),sz-1);float h=texelFetch(H,q,0).r;if(h>-9000.0){float g=box==1?1.0:exp(-float(k*k)/(2.0*sig*sig));s+=g*h;w+=g;}}
 o=vec4(w>0.0?s/w:-9999.0,0.0,0.0,1.0);}`;
-  const VAL=HEAD+`uniform sampler2D H;uniform sampler2D B;uniform sampler2D B4;uniform int mode,hnd,hns,msi;uniform float msd;uniform float mpp,ve,az,el,radpx,cr1,cr2,ld0,ld1,ldh;uniform int ldn;
+const GL_VAL=GL_HEAD+`uniform sampler2D H;uniform sampler2D B;uniform sampler2D B4;uniform int mode,hnd,hns,msi;uniform float msd;uniform float mpp,ve,az,el,radpx,cr1,cr2,ld0,ld1,ldh;uniform int ldn;
 ivec2 SZ;float hh(ivec2 q){return texelFetch(H,clamp(q,ivec2(0),SZ-1),0).r;}
 float shade(vec3 n,float a,float e){return max(0.0,dot(n,vec3(sin(a)*cos(e),cos(a)*cos(e),sin(e))));}
 // One horizon search (Zaksek, Ostir, Kokalj 2011; Yokoyama, Shirasawa, Pike 2002). hnd/hns are smaller on a phone.
@@ -565,6 +563,10 @@ else if(mode==10){vec3 n1=normalize(vec3(-gx,-gn,1.0));float s1=degrees(atan(len
  float vg=vat(shade(n1,A1,radians(35.0)),s1,hz.y,hz.x,50.0,68.0,93.0,0.7);float vf=vat(shade(n1,A1,radians(15.0)),s1,hz.w,hz.z,15.0,85.0,93.0,0.9);
  r=0.5*vg+0.5*vf;G=s1;}
 o=vec4(r,G,Bc,1.0);}`;
+
+function makeGL(){if(!glOK())return null;const gl=cv.getContext('webgl2',{premultipliedAlpha:false,preserveDrawingBuffer:true,antialias:false,alpha:true});
+  if(!gl)return null; if(!gl.getExtension('EXT_color_buffer_float'))return null;
+  const VS=GL_VS,HEAD=GL_HEAD,VAL=GL_VAL;
   const SAMP=HEAD+`uniform sampler2D V;uniform sampler2D TR;uniform vec2 b0,bs,lc;uniform int mode,fs,n,sfb;uniform float rad;
 void main(){vec2 mp=b0+(gl_FragCoord.xy/float(max(n,1)))*bs;if(fs==0&&distance(mp,lc)>rad){o=vec4(0.0);return;}
 ivec2 sz=textureSize(V,0);ivec2 ip=ivec2(floor(mp));if(ip.x<0||ip.y<0||ip.x>=sz.x||ip.y>=sz.y){o=vec4(0.0);return;}
@@ -713,21 +715,62 @@ function makeCPU(){const ctx=cv.getContext('2d');const mc=document.createElement
       ctx.globalAlpha=S.op;ctx.imageSmoothingEnabled=vw.sc<1;ctx.translate(-vw.tl[0],-vw.tl[1]);ctx.scale(vw.sc,vw.sc);ctx.drawImage(oc,vw.org[0]+box.x,vw.org[1]+box.y);ctx.restore()},
     clear(){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height)}}}
 
-// Start-up check (17 Nov 2026): 65 unique 1/64 m heights around 158.3125 m are uploaded to an R32F
-// texture, passed through a highp texelFetch shader, and read back. A half-float path collapses them
-// to 0.125 m steps and we fall back to the Canvas2D renderer. A temporary canvas is used so a failed
-// test never attaches WebGL2 to the lens canvas (which would block the 2D fallback).
+// Start-up check (17 Nov 2026): 65 unique 1/64 m heights around 158.3125 m are uploaded to an
+// R32F texture, passed through a highp texelFetch shader, and read back. The same heights are then
+// run through the real VAL hillshade (Low sun) and Combined VAT shaders into an RGBA32F
+// framebuffer (the same path as a normal frame) and the result is checked for contour-like
+// banding. A half-float or mediump path collapses 1/64 m or terraces a smooth plane; we then fall
+// back to Canvas2D. A temporary canvas is used so a failed test never attaches WebGL2 to the lens
+// canvas (which would block the 2D fallback).
+function runValPipelineTest(gl, sh, texp){
+  const N=64, origin=158.3125, dx=0.08, dy=0.04, src=new Float32Array(N*N);
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++) src[y*N+x]=origin+(x-N/2)*dx+(y-N/2)*dy;
+  const vs=sh(gl.VERTEX_SHADER,GL_VS), fs=sh(gl.FRAGMENT_SHADER,GL_VAL);
+  const prog=gl.createProgram();gl.attachShader(prog,vs);gl.attachShader(prog,fs);gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  const H=gl.createTexture();texp(H);gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,N,N,0,gl.RED,gl.FLOAT,src);
+  const B=gl.createTexture();texp(B);gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,N,N,0,gl.RED,gl.FLOAT,src);
+  const VT=gl.createTexture();texp(VT);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,N,N,0,gl.RGBA,gl.FLOAT,null);
+  const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,VT,0);
+  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE) return {ok:false,label:'height test failed: VAT/hillshade framebuffer incomplete'};
+  const loc=n=>gl.getUniformLocation(prog,n);
+  function runMode(mode,ve,el,margin,limit,tag){
+    gl.useProgram(prog);
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,H);gl.uniform1i(loc('H'),0);
+    gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,B);gl.uniform1i(loc('B'),1);
+    gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,B);gl.uniform1i(loc('B4'),2);
+    gl.uniform1i(loc('mode'),mode);gl.uniform1i(loc('hnd'),8);gl.uniform1i(loc('hns'),6);gl.uniform1i(loc('msi'),0);
+    gl.uniform1f(loc('msd'),1);gl.uniform1f(loc('mpp'),1);gl.uniform1f(loc('ve'),ve);gl.uniform1f(loc('az'),315);gl.uniform1f(loc('el'),el);
+    gl.uniform1f(loc('radpx'),10);gl.uniform1f(loc('cr1'),CVAT_R1);gl.uniform1f(loc('cr2'),CVAT_R2);
+    gl.uniform1f(loc('ld0'),10);gl.uniform1f(loc('ld1'),20);gl.uniform1f(loc('ldh'),1.7);gl.uniform1i(loc('ldn'),8);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.viewport(0,0,N,N);gl.disable(gl.SCISSOR_TEST);
+    gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.drawArrays(gl.TRIANGLES,0,3);
+    const a=new Float32Array(N*N*4);gl.readPixels(0,0,N,N,gl.RGBA,gl.FLOAT,a);
+    let lo=Infinity,hi=-Infinity,n=0,bad=0;
+    for(let y=margin;y<N-margin;y++) for(let x=margin;x<N-margin;x++){
+      const i=(y*N+x)*4,v=a[i],al=a[i+3];
+      if(!(al>0.5)||!isFinite(v)){bad++;continue}
+      if(v<lo)lo=v;if(v>hi)hi=v;n++;
+    }
+    if(n<16) return {ok:false,label:'height test failed: '+tag+' pipeline produced no values'};
+    if(bad>0) return {ok:false,label:'height test failed: '+tag+' pipeline dropped '+(bad)+' cells'};
+    const range=hi-lo;
+    if(range>limit) return {ok:false,label:'height test failed: '+tag+' banding '+range.toFixed(3)+' on a smooth plane at 158.3 m (GPU path is stepping heights or slopes)'};
+    return {ok:true,range,tag};
+  }
+  const hs=runMode(0,3,20,3,0.03,'Low sun'); if(!hs.ok) return hs;
+  const vat=runMode(10,1,35,22,0.06,'Combined VAT'); if(!vat.ok) return vat;
+  return {ok:true,hs,vat};
+}
 function runHeightSelfTest(){
   const origin=158.3125, step=1/64, vals=[]; for(let i=-32;i<=32;i++) vals.push(origin+i*step);
   const w=vals.length,h=1,src=new Float32Array(vals);
-  const c=document.createElement('canvas');c.width=w;c.height=2;
+  const c=document.createElement('canvas');c.width=Math.max(w,64);c.height=64;
   let gl; try{gl=c.getContext('webgl2',{premultipliedAlpha:false,antialias:false,alpha:true})}catch(e){return {ok:false,label:'height test failed: no WebGL2'}}
   if(!gl) return {ok:false,label:'height test failed: no WebGL2'};
   if(!gl.getExtension('EXT_color_buffer_float')) return {ok:false,label:'height test failed: no float colour buffers'};
-  const VS=`#version 300 es\nvoid main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.0-1.0,0.0,1.0);}`;
-  const FS=`#version 300 es\nprecision highp float;precision highp int;uniform sampler2D H;out vec4 o;\nvoid main(){float h=texelFetch(H,ivec2(gl_FragCoord.xy),0).r;o=vec4(h,0.0,0.0,1.0);}`;
   function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s}
-  const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,VS));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(p);
+  const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,GL_VS));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,`#version 300 es\nprecision highp float;precision highp int;uniform sampler2D H;out vec4 o;\nvoid main(){float h=texelFetch(H,ivec2(gl_FragCoord.xy),0).r;o=vec4(h,0.0,0.0,1.0);}`));gl.linkProgram(p);
   if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   function texp(tex){gl.bindTexture(gl.TEXTURE_2D,tex);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE)}
   const tex=gl.createTexture();texp(tex);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,w,h,0,gl.RED,gl.FLOAT,src);
@@ -740,16 +783,20 @@ function runHeightSelfTest(){
   const tol=0.5/64; let worst=0,lost=0,got=[];
   for(let i=0;i<w;i++){const d=Math.abs(a[i*4]-vals[i]);if(d>worst)worst=d;if(d>tol)lost++;got.push(a[i*4])}
   const uniq=new Set(got.map(v=>Math.round(v*64)/64)).size, ok=lost===0&&uniq===vals.length;
-  if(ok) return {ok:true,label:'height test passed: 1/64 m at 158.3125',worst};
-  const u=[...new Set(got.map(v=>+v.toFixed(6)))].sort((x,y)=>x-y); const diffs=[]; for(let i=1;i<u.length;i++) diffs.push(u[i]-u[i-1]);
-  const est=diffs.length?diffs.sort((x,y)=>x-y)[Math.floor(diffs.length/2)]:worst;
-  return {ok:false,label:'height test failed: ~'+est.toFixed(3)+' m steps at 158.3125 (expected 1/64 m)',worst}
+  if(!ok){
+    const u=[...new Set(got.map(v=>+v.toFixed(6)))].sort((x,y)=>x-y); const diffs=[]; for(let i=1;i<u.length;i++) diffs.push(u[i]-u[i-1]);
+    const est=diffs.length?diffs.sort((x,y)=>x-y)[Math.floor(diffs.length/2)]:worst;
+    return {ok:false,label:'height test failed: ~'+est.toFixed(3)+' m steps at 158.3125 (expected 1/64 m)',worst}
+  }
+  const pipe=runValPipelineTest(gl,sh,texp);
+  if(!pipe.ok) return Object.assign({worst},pipe);
+  return {ok:true,label:'height test passed: 1/64 m and Low sun + VAT pipeline at 158.3125',worst,pipe};
 }
 
 try{heightTest=forceHitFail?{ok:false,label:'height test failed (forced, hittest=fail)'}:runHeightSelfTest()}catch(e){heightTest={ok:false,label:'height test failed: '+(e&&e.message||e)}}
 try{if(!forceCPU&&heightTest.ok)R=makeGL()}catch(e){console.error(e);R=null}
 if(!R){try{R=makeCPU();if(!cv.getContext('2d'))throw new Error('no 2d')}catch(e){R=null}
-  if(R)msg(forceCPU?'Using the basic (CPU) renderer (cpu=1).':heightTest.ok===false?'This browser failed the height precision test: using the basic (CPU) renderer so Low sun stays smooth. All modes still work.':'This browser has no WebGL2 float support: using the basic (slower) renderer. All modes still work.',6000);
+  if(R)msg(forceCPU?'Using the basic (CPU) renderer (?renderer=cpu).':heightTest.ok===false?'This browser failed the height precision test: using the basic (CPU) renderer so Low sun stays smooth. All modes still work.':'This browser has no WebGL2 float support: using the basic (slower) renderer. All modes still work.',6000);
 
   else{const nop=()=>{};R={kind:'none',newMosaic:nop,putTile:nop,decode:nop,compute:nop,readBox:()=>null,sample:()=>null,draw:nop,clear:nop};
     msg('This browser cannot draw the LiDAR (no WebGL or canvas). The background map, Go to and records still work; try an up-to-date Chrome, Firefox, Safari or Samsung Internet.',0)}}
@@ -993,7 +1040,7 @@ function drawProfile(hs,dist){const box=$('prof');box.style.display='block';cons
   g.fillText('Elevation (m OD), relief '+(Math.max(...v)-Math.min(...v)).toFixed(2)+' m over '+dist.toFixed(0)+' m (not exaggerated to scale)',m.l,12)}
 document.querySelector('#prof .x').onclick=()=>{clearProfile(true);if(tool==='profile')setTool(null)};
 // ---------- go ----------
-$('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>'+(heightTest&&heightTest.label? ' ('+heightTest.label+')':'')+'. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Combined VAT visualisation after Kokalj, Ž. &amp; Somrak, M. (2019) Why Not a Single Image? Combining Visualizations to Facilitate Fieldwork and On-Screen Mapping. Remote Sensing 11(7), 747. doi:<a href="https://doi.org/10.3390/rs11070747" target="_blank" rel="noopener noreferrer">10.3390/rs11070747</a>. Relief Visualization Toolbox (RVT), Apache 2.0. Here: general- and flat-terrain settings (horizon radii 10 m and 20 m, sun 315°), computed in the browser from the same DTM tiles, without vertical exaggeration. Openness difference = (positive − negative openness) / 2 from the same horizon search and radius: openness after Yokoyama, R., Shirasawa, M. &amp; Pike, R.J. (2002) Visualizing topography by openness. Photogrammetric Engineering &amp; Remote Sensing 68(3), 257–265; difference after Chiba, T., Kaneta, S. &amp; Suzuki, Y. (2008) Red relief image map: new visualization method for three dimensional data. ISPRS Archives 37(B2), 1071–1076. Centred on zero (ridges light, hollows dark); it can also use the red relief colours (slope in red). Multi-scale topographic position after Lindsay, J.B., Cockburn, J.M.H. &amp; Russell, H.A.J. (2015) An integral image approach to performing multi-scale topographic position analysis. Geomorphology 245, 51–61. doi:10.1016/j.geomorph.2015.05.025, with the colour composite of Guyot, A., Hubert-Moy, L. &amp; Lorho, T. (2018) Detecting Neolithic burial mounds from LiDAR-derived elevation data using a multi-scale approach and machine learning techniques. Remote Sensing 10, 225. doi:10.3390/rs10020225: deviation from mean elevation at local (1–5 m), meso (5–50 m) and broad (50–500 m) scales as blue, green and red (the default; any other colour ramp shows one size, or the strongest, on that ramp); brightness 1−exp(−lightness·|DEVmax|) as in the Relief Visualization Toolbox. Water level: in full screen, every LiDAR cell lower than the level chosen is shaded blue (a simple level, not a flood model), with the level in m OD and the share of the view under water; also as a sheet in the 3D view. Soft shading in the 3D view: sky-view factor after Zakšek, K., Oštir, K. &amp; Kokalj, Ž. (2011) Sky-view factor as a relief visualization technique. Remote Sensing 3, 398–415. doi:10.3390/rs3020398, within 10 m, as a gentle darkening. Red–cyan 3D in the 3D view: three.js AnaglyphEffect, using the least-squares colour matrices of Dubois, E. (2001) A projection method to generate anaglyph stereo images, Proc. IEEE ICASSP 3, 1661–1664. Multi-scale relief model after Orengo, H.A. &amp; Petrie, C.A. (2018) Multi-scale relief model (MSRM): a new algorithm for the visualization of subtle topographic change of variable size in digital elevation models. Earth Surface Processes and Landforms 43, 1361–1369. doi:10.1002/esp.4317: the difference of two mean (box) filtered surfaces for the chosen feature sizes (default 0–20 m, scaling 2), standard-deviation stretch (±2.5 σ), optionally at 70% over the multi-direction hillshade. Local dominance after Hesse, R. (2016) Visualisierung hochauflösender Digitaler Geländemodelle mit LiVT. In 3D-Anwendungen in der Archäologie, Berlin Studies of the Ancient World 34, 109–128. doi:10.18452/5368: the mean angle down from an observer 1.7 m above each point to the ground 10–20 m around it (24 directions, 12 on a phone; settings below the menu), true heights; default settings as in the Relief Visualization Toolbox. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
+$('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>'+(heightTest&&heightTest.label? ' ('+heightTest.label+')':'')+'. To compare, add <code>?renderer=cpu</code> to the URL to force the basic (Canvas2D) renderer. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Combined VAT visualisation after Kokalj, Ž. &amp; Somrak, M. (2019) Why Not a Single Image? Combining Visualizations to Facilitate Fieldwork and On-Screen Mapping. Remote Sensing 11(7), 747. doi:<a href="https://doi.org/10.3390/rs11070747" target="_blank" rel="noopener noreferrer">10.3390/rs11070747</a>. Relief Visualization Toolbox (RVT), Apache 2.0. Here: general- and flat-terrain settings (horizon radii 10 m and 20 m, sun 315°), computed in the browser from the same DTM tiles, without vertical exaggeration. Openness difference = (positive − negative openness) / 2 from the same horizon search and radius: openness after Yokoyama, R., Shirasawa, M. &amp; Pike, R.J. (2002) Visualizing topography by openness. Photogrammetric Engineering &amp; Remote Sensing 68(3), 257–265; difference after Chiba, T., Kaneta, S. &amp; Suzuki, Y. (2008) Red relief image map: new visualization method for three dimensional data. ISPRS Archives 37(B2), 1071–1076. Centred on zero (ridges light, hollows dark); it can also use the red relief colours (slope in red). Multi-scale topographic position after Lindsay, J.B., Cockburn, J.M.H. &amp; Russell, H.A.J. (2015) An integral image approach to performing multi-scale topographic position analysis. Geomorphology 245, 51–61. doi:10.1016/j.geomorph.2015.05.025, with the colour composite of Guyot, A., Hubert-Moy, L. &amp; Lorho, T. (2018) Detecting Neolithic burial mounds from LiDAR-derived elevation data using a multi-scale approach and machine learning techniques. Remote Sensing 10, 225. doi:10.3390/rs10020225: deviation from mean elevation at local (1–5 m), meso (5–50 m) and broad (50–500 m) scales as blue, green and red (the default; any other colour ramp shows one size, or the strongest, on that ramp); brightness 1−exp(−lightness·|DEVmax|) as in the Relief Visualization Toolbox. Water level: in full screen, every LiDAR cell lower than the level chosen is shaded blue (a simple level, not a flood model), with the level in m OD and the share of the view under water; also as a sheet in the 3D view. Soft shading in the 3D view: sky-view factor after Zakšek, K., Oštir, K. &amp; Kokalj, Ž. (2011) Sky-view factor as a relief visualization technique. Remote Sensing 3, 398–415. doi:10.3390/rs3020398, within 10 m, as a gentle darkening. Red–cyan 3D in the 3D view: three.js AnaglyphEffect, using the least-squares colour matrices of Dubois, E. (2001) A projection method to generate anaglyph stereo images, Proc. IEEE ICASSP 3, 1661–1664. Multi-scale relief model after Orengo, H.A. &amp; Petrie, C.A. (2018) Multi-scale relief model (MSRM): a new algorithm for the visualization of subtle topographic change of variable size in digital elevation models. Earth Surface Processes and Landforms 43, 1361–1369. doi:10.1002/esp.4317: the difference of two mean (box) filtered surfaces for the chosen feature sizes (default 0–20 m, scaling 2), standard-deviation stretch (±2.5 σ), optionally at 70% over the multi-direction hillshade. Local dominance after Hesse, R. (2016) Visualisierung hochauflösender Digitaler Geländemodelle mit LiVT. In 3D-Anwendungen in der Archäologie, Berlin Studies of the Ancient World 34, 109–128. doi:10.18452/5368: the mean angle down from an observer 1.7 m above each point to the ground 10–20 m around it (24 directions, 12 on a phone; settings below the menu), true heights; default settings as in the Relief Visualization Toolbox. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
 // config creditsFull: the full credit text lives in About / data; a .credlink in the short attribution opens it
 if(LC.fallback&&LC.fallback.about){const c=document.createElement('div');c.id='fbabout';c.style.marginTop='6px';c.innerHTML=LC.fallback.about;$('about').appendChild(c)}
 if(LC.seabed&&LC.seabed.about){const c=document.createElement('div');c.id='sbabout';c.style.marginTop='6px';c.innerHTML=LC.seabed.about;$('about').appendChild(c)}

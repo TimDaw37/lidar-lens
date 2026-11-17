@@ -9,10 +9,13 @@
   function addr(){return ['timdaw','lens'].join('+')+'@'+['mail','grokbot'].join('.')+'.'+'com'}
   function gl(){var o='none';try{var c=document.createElement('canvas'),g=c.getContext('webgl2');if(g)o='WebGL2, float RT '+(g.getExtension('EXT_color_buffer_float')?'yes':'no');else{g=c.getContext('webgl')||c.getContext('experimental-webgl');if(g)o='WebGL1 only, float tex '+(g.getExtension('OES_texture_float')?'yes':'no')}}catch(e){o='error '+e.message}return o}
   function report(){var n=navigator,s=screen,C=window.__lensCompat||{},r=document.querySelector&&document.querySelector('#about b');
+    var L=window.__lens||{},ht=L.heightTest?L.heightTest():null,rk=L.renderer?String(L.renderer()):(r&&r.textContent||'');
+    var md=L.S&&L.S.mode,ml=md==null?'':String(md)+(md==10?' Combined VAT':md==0?' Low sun / hillshade':'');
     var b=['What went wrong:','','','--- diagnostics (auto) ---','Lens: '+document.title+' | '+location.protocol+'//'+location.host+location.pathname,
       'Time: '+new Date().toString().slice(0,33),'UA: '+n.userAgent,'Platform: '+(n.platform||'?')+', touch '+(n.maxTouchPoints||0)+', lang '+n.language,
       'Screen '+s.width+'x'+s.height+', viewport '+window.innerWidth+'x'+window.innerHeight+', DPR '+(window.devicePixelRatio||1),
-      'GL: '+gl()+(r?', renderer '+r.textContent:''),'WebP: '+(C.webp===undefined?'?':C.webp)+', modern: '+C.modern,
+      'GL: '+gl(),'Renderer: '+(rk||'?')+(ht&&ht.label?'; '+ht.label:''),'Mode: '+(ml||'?'),
+      'WebP: '+(C.webp===undefined?'?':C.webp)+', modern: '+C.modern,
       'Geo: '+(n.geolocation?'yes':'no')+', secure '+(window.isSecureContext?'yes':'no'),'Map: '+String(location.hash).slice(0,300),
       'Msgs: '+(LOG.join(' | ')||'none'),'Errors: '+(ERR.join(' | ')||'none')].join('\n');
     if(b.length>1700)b=b.slice(0,1700)+'…';
