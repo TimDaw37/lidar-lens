@@ -1,8 +1,12 @@
 // Regression gate for the live Great Britain viewer.
 // Building site/ with scripts/build_site.mjs and gb/config.js must reproduce the
 // assets on https://lidarlens.sarsen.org (checked 8 Nov 2026; releases 6 and 7 checked 11 Nov 2026; GEM-15 release 13 Nov 2026; hillshade smoothing 14 Nov 2026; GEM-15 gap fill 14 Nov 2026, live-sw.js only;
-// zero-height fix 15 Nov 2026, live-sw.js only; Ireland release 16 Nov 2026; in-app browser search-box fix 17 Nov 2026):
-//   assets/app.d4cdd7b7.js  (in-app browser search-box fix, 17 Nov 2026 (Tim pt2317u, "That works, ship it"): the place-search box stays usable when a
+// zero-height fix 15 Nov 2026, live-sw.js only; Ireland release 16 Nov 2026; in-app browser search-box fix 17 Nov 2026; height-precision 17 Nov 2026):
+//   assets/app.778d077a.js  (height-precision, 17 Nov 2026 (Tim pt2323u, "Yes"): CPU Terrarium decode to R32F, self-test through the real Low sun
+//                            and Combined VAT pipeline with Canvas2D fallback, ?renderer=cpu, VAT highlight fix, extra fields in fault reports
+//                            (compat.1c25a018.js). live-sw.js, the config and field.js do not change. Trialled on live-test (pt2320u, pt2321u, pt2323u).
+//                            Before: assets/app.d4cdd7b7.js, compat.912d81c4.js.)
+//   Before: assets/app.d4cdd7b7.js  (in-app browser search-box fix, 17 Nov 2026 (Tim pt2317u, "That works, ship it"): the place-search box stays usable when a
 //                            Facebook (or other) in-app browser shrinks the viewport for the keyboard; field.85917501.js changes with it; live-sw.js and
 //                            the config do not. Trialled on live-test (t2316u). Before: assets/app.99ec9c17.js, assets/app.f66759dc.css, field.d3b38beb.js.)
 //   Before: assets/app.94aea9d9.js  (Ireland release, Tim pt2291u (16 Nov 2026): the island of Ireland (GEM-15 + 12 nm belt, Irish Grid/ITM readout and search,
@@ -47,9 +51,9 @@ const sha = b => crypto.createHash('sha256').update(b).digest('hex');
 const fail = m => { console.error(m); process.exit(1); };
 
 const EXPECT = {
-  'assets/app.d4cdd7b7.js': 'd4cdd7b7d45375dcf5cc19e7c5477a959ef463bce665c0e0907aa38a807ca719',
+  'assets/app.778d077a.js': '778d077a8da65466df14dbc61d50c3d0b2db360f9068e0f9cc2b2821223b42b2',
   'assets/app.25cc4b45.css': '25cc4b4572a35f526af330574252b0193d2b4f4754d11fe7bc0d7b4b2fa866ad',
-  'assets/compat.912d81c4.js': '912d81c41e1699925ff6e4861a318a4d7c89c21decb126ac4fd301da43c3452c',
+  'assets/compat.1c25a018.js': '1c25a018111b077074a1c1df2f5647bb4728daef760087ac3e80aaaaced8c777',
 };
 const CONFIG_SHA = '255565ff722f6782500c38cffc75baf220c06f5a06a339573f18d97da4653ce4';   // Ireland release 16 Nov 2026; before it 1fb6b29b... (seabed release 15 Nov 2026), before that abc55743..., before the 13 Nov 2026 zoom-out release: 1b3453eb..., before the GEM-15 release: 93c04c53...
 const REJECTED_CANDIDATE_SHA = 'a02cae18df35d633340bf2b1aa30d298def06752d04c317e75a6c34adc3c7301';
@@ -93,7 +97,7 @@ try {
   const builtCfg = fs.readFileSync(path.join(tmp, 'dist', 'assets', 'config.255565ff.js'));
   if (!builtCfg.equals(cfgBytes)) fail('built config bytes differ from gb/config.js');
   const html = fs.readFileSync(path.join(tmp, 'dist', 'index.html'), 'utf8');
-  for (const name of ['assets/compat.912d81c4.js', 'assets/config.255565ff.js', 'assets/app.d4cdd7b7.js', 'assets/app.25cc4b45.css']) {
+  for (const name of ['assets/compat.1c25a018.js', 'assets/config.255565ff.js', 'assets/app.778d077a.js', 'assets/app.25cc4b45.css']) {
     if (!html.includes(name)) fail('built index.html does not reference ' + name);
   }
   // 3D view: must stay a separate, additive script (the main bundle above must not change because of it)
@@ -118,7 +122,7 @@ try {
   }
   console.log('live-sw.js (gb/make_sw.mjs), towns-ie.json, towns.json (gb/towns.json) and nhle_places.json (gb/places.json) match the release');
   if (html.includes('config.198ea3a0.js')) fail('build renamed the config to the live MD5 filename; that step is not in this source');
-  console.log('gb viewer source reproduces the in-app browser search-box fix build (' + Object.keys(EXPECT).join(', ') + ')');
+  console.log('gb viewer source reproduces the height-precision build (' + Object.keys(EXPECT).join(', ') + ')');
   console.log('config bytes match gb/config.js; build filename is config.255565ff.js (SHA-256), the Ireland release config');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

@@ -263,17 +263,199 @@ function tileRange(z){const p1=map.project(CFG.bounds[1],z),p0=map.project(CFG.b
   return {x0:Math.floor(Math.min(p0.x,p1.x)/256),x1:Math.floor(Math.max(p0.x,p1.x)/256),y0:Math.floor(Math.min(p0.y,p1.y)/256),y1:Math.floor(Math.max(p0.y,p1.y)/256)}}
 // GEM-15 marker (blue = 2 mod 4) read from the tile itself, so the note and credit also show when the tile comes from a cache and the worker sends no message
 // Seabed (LC.seabed, live TEST): blue = 1 mod 4 (EMODnet) or 3 mod 4 (multibeam patch), counted the same way into SB (and SBM: any multibeam)
-let gemCv=null;function gemScan(k,img){if(typeof FB==='undefined'||!FB)return;const nG=!!LC.fallback&&!FB.get(k),nS=!!LC.seabed&&!SBD.has(k);if(!nG&&!nS)return;try{if(!gemCv){gemCv=document.createElement('canvas');gemCv.width=gemCv.height=256}
-  const g=gemCv.getContext('2d',{willReadFrequently:true});g.clearRect(0,0,256,256);g.drawImage(img,0,0);const d=g.getImageData(0,0,256,256).data;let c=null,sc=null,mb=false;
+
+// Terrarium tiles are fetched as PNG bytes and decoded on the CPU (17 Nov 2026), then the heights
+// are uploaded as float32, so a phone or in-app browser that would transcode <img> or shade in
+// half precision cannot stair-step the DTM. decodePngRgba handles the 8-bit RGBA tiles the worker
+// serves; inflate is a small zlib decoder used when DecompressionStream is absent.
+// Minimal 8-bit PNG (non-interlaced, colour types 2 and 6, and 0/4/3) to RGBA, plus zlib inflate.
+function inflateZlib(input){
+  const u8=input instanceof Uint8Array?input:new Uint8Array(input);
+  if(u8.length<6) throw new Error('short zlib');
+  const cmf=u8[0], flg=u8[1];
+  if((cmf&0x0f)!==8) throw new Error('zlib method');
+  if(((cmf<<8)|flg)%31!==0) throw new Error('zlib check');
+  if(flg&0x20) throw new Error('zlib dict');
+  return inflateRaw(u8.subarray(2, u8.length-4)); // drop adler32
+}
+
+function inflateRaw(src){
+  let p=0, bit=0, acc=0;
+  const bits=n=>{
+    while(bit<n){ if(p>=src.length) throw new Error('inflate eof'); acc|=src[p++]<<bit; bit+=8; }
+    const v=acc&((1<<n)-1); acc>>=n; bit-=n; return v;
+  };
+  const out=[];
+  const lensOrder=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+  const baseLen=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+  const extraLen=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+  const baseDist=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+  const extraDist=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+  function build(lengths){
+    const max=Math.max.apply(null,lengths), count=new Uint16Array(max+1), first=new Uint16Array(max+1);
+    for(let i=0;i<lengths.length;i++) if(lengths[i]) count[lengths[i]]++;
+    let code=0; first[0]=0;
+    for(let l=1;l<=max;l++){ code=(code+count[l-1])<<1; first[l]=code; }
+    const sym=new Int32Array(1<<max).fill(-1);
+    const off=first.slice();
+    // We'll decode slowly by walking bits (no table packing for clarity)
+    const map=new Map();
+    const next=first.slice();
+    for(let i=0;i<lengths.length;i++){ const l=lengths[i]; if(!l) continue; const c=next[l]++; map.set((l<<16)|c, i); }
+    return {max, map, decode(){
+      let c=0;
+      for(let l=1;l<=max;l++){ c=(c<<1)|bits(1); const s=map.get((l<<16)|c); if(s!==undefined) return s; }
+      throw new Error('bad huffman');
+    }};
+  }
+  const fixedLit=(function(){
+    const L=new Uint8Array(288);
+    for(let i=0;i<144;i++)L[i]=8; for(let i=144;i<256;i++)L[i]=9; for(let i=256;i<280;i++)L[i]=7; for(let i=280;i<288;i++)L[i]=8;
+    return L;
+  })();
+  const fixedDist=new Uint8Array(32).fill(5);
+  for(;;){
+    const bfinal=bits(1), typ=bits(2);
+    if(typ===3) throw new Error('bad block');
+    if(typ===0){
+      acc=0; bit=0;
+      if(p+4>src.length) throw new Error('stored');
+      const len=src[p]|(src[p+1]<<8), nlen=src[p+2]|(src[p+3]<<8); p+=4;
+      if((len^0xffff)!==nlen) throw new Error('stored nlen');
+      for(let i=0;i<len;i++) out.push(src[p++]);
+    } else {
+      let lit, dist;
+      if(typ===1){ lit=build(fixedLit); dist=build(fixedDist); }
+      else {
+        const hlit=bits(5)+257, hdist=bits(5)+1, hclen=bits(4)+4;
+        const cl=new Uint8Array(19);
+        for(let i=0;i<hclen;i++) cl[lensOrder[i]]=bits(3);
+        const clt=build(cl);
+        const lengths=new Uint8Array(hlit+hdist);
+        for(let i=0;i<lengths.length;){
+          const s=clt.decode();
+          if(s<16){ lengths[i++]=s; }
+          else if(s===16){ let n=bits(2)+3, v=lengths[i-1]; while(n--) lengths[i++]=v; }
+          else if(s===17){ let n=bits(3)+3; while(n--) lengths[i++]=0; }
+          else { let n=bits(7)+11; while(n--) lengths[i++]=0; }
+        }
+        lit=build(lengths.subarray(0,hlit));
+        dist=build(lengths.subarray(hlit));
+      }
+      for(;;){
+        const s=lit.decode();
+        if(s<256) out.push(s);
+        else if(s===256) break;
+        else {
+          const k=s-257, L=baseLen[k]+(extraLen[k]?bits(extraLen[k]):0);
+          const dsym=dist.decode(), D=baseDist[dsym]+(extraDist[dsym]?bits(extraDist[dsym]):0);
+          const start=out.length-D;
+          if(start<0) throw new Error('bad dist');
+          for(let i=0;i<L;i++) out.push(out[start+i]);
+        }
+      }
+    }
+    if(bfinal) break;
+  }
+  return new Uint8Array(out);
+}
+
+function decodePngRgba(buf){
+  const u8=buf instanceof Uint8Array?buf:new Uint8Array(buf);
+  const sig=[137,80,78,71,13,10,26,10];
+  for(let i=0;i<8;i++) if(u8[i]!==sig[i]) throw new Error('not png');
+  const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
+  let off=8,w=0,h=0,depth=0,ctype=0,inter=0,pal=null,trns=null;
+  const parts=[];
+  while(off+12<=u8.length){
+    const len=dv.getUint32(off), typ=String.fromCharCode(u8[off+4],u8[off+5],u8[off+6],u8[off+7]);
+    const data=u8.subarray(off+8,off+8+len);
+    if(typ==='IHDR'){ w=dv.getUint32(off+8); h=dv.getUint32(off+12); depth=u8[off+16]; ctype=u8[off+17]; inter=u8[off+20]; }
+    else if(typ==='PLTE') pal=data;
+    else if(typ==='tRNS') trns=data;
+    else if(typ==='IDAT') parts.push(data);
+    else if(typ==='IEND') break;
+    off+=12+len;
+  }
+  if(depth!==8) throw new Error('png depth '+depth);
+  if(inter) throw new Error('png interlace');
+  let clen=0; for(const p of parts) clen+=p.length;
+  const comp=new Uint8Array(clen); let o=0; for(const p of parts){ comp.set(p,o); o+=p.length; }
+  const raw=inflateZlib(comp);
+  const bpp=ctype===6?4:ctype===2?3:ctype===4?2:1; // 0 gray, 3 indexed, 4 grayA, 2 rgb, 6 rgba
+  const stride=w*bpp, rgba=new Uint8ClampedArray(w*h*4);
+  let rp=0, prev=new Uint8Array(stride), row=new Uint8Array(stride);
+  const paeth=(a,b,c)=>{const p=a+b-c,pa=Math.abs(p-a),pb=Math.abs(p-b),pc=Math.abs(p-c);return pa<=pb&&pa<=pc?a:pb<=pc?b:c};
+  for(let y=0;y<h;y++){
+    const filt=raw[rp++];
+    for(let x=0;x<stride;x++){
+      const v=raw[rp++], a=x>=bpp?row[x-bpp]:0, b=prev[x], c=x>=bpp?prev[x-bpp]:0;
+      let r;
+      if(filt===0) r=v;
+      else if(filt===1) r=(v+a)&255;
+      else if(filt===2) r=(v+b)&255;
+      else if(filt===3) r=(v+((a+b)>>1))&255;
+      else if(filt===4) r=(v+paeth(a,b,c))&255;
+      else throw new Error('png filter '+filt);
+      row[x]=r;
+    }
+    for(let x=0;x<w;x++){
+      const q=(y*w+x)*4;
+      if(ctype===6){ rgba[q]=row[x*4]; rgba[q+1]=row[x*4+1]; rgba[q+2]=row[x*4+2]; rgba[q+3]=row[x*4+3]; }
+      else if(ctype===2){ rgba[q]=row[x*3]; rgba[q+1]=row[x*3+1]; rgba[q+2]=row[x*3+2]; rgba[q+3]=255; }
+      else if(ctype===0){ rgba[q]=rgba[q+1]=rgba[q+2]=row[x]; rgba[q+3]=trns&&trns.length&&row[x]===trns[0]?0:255; }
+      else if(ctype===4){ rgba[q]=rgba[q+1]=rgba[q+2]=row[x*2]; rgba[q+3]=row[x*2+1]; }
+      else if(ctype===3){ const i=row[x]*3; rgba[q]=pal[i]; rgba[q+1]=pal[i+1]; rgba[q+2]=pal[i+2]; rgba[q+3]=trns&&x<trns.length? /* wrong */ (trns[row[x]]!==undefined?trns[row[x]]:255):255; if(trns&&row[x]<trns.length) rgba[q+3]=trns[row[x]]; }
+      else throw new Error('png ctype '+ctype);
+    }
+    prev.set(row);
+  }
+  if(rp!==raw.length) { /* trailing ok */ }
+  return {w,h,rgba};
+}
+
+function heightsFromRgba(rgba){
+  const n=rgba.length>>2, h=new Float32Array(n);
+  for(let i=0,o=0;i<n;i++,o+=4) h[i]=rgba[o+3]<128?-9999:rgba[o]*256+rgba[o+1]+rgba[o+2]/256-32768;
+  return h;
+}
+
+function tileUrl(z,x,y,fine){return CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)+(fine?'?fine=1':'')}
+function canvasFromRgba(rgba,w,h){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');
+  const data=rgba instanceof Uint8ClampedArray?rgba:new Uint8ClampedArray(rgba);
+  g.putImageData(new ImageData(data,w,h),0,0);c.rgba=data;c.h=heightsFromRgba(data);c.tw=w;c.th=h;return c}
+async function loadTileCanvas(url){
+  const r=await fetch(url);if(!r.ok)throw new Error('tile '+r.status);
+  const buf=await r.arrayBuffer();
+  try{const d=decodePngRgba(buf);return canvasFromRgba(d.rgba,d.w,d.h)}
+  catch(err){
+    const blob=new Blob([buf],{type:'image/png'});
+    let bmp=null;
+    if(typeof createImageBitmap==='function'){
+      try{bmp=await createImageBitmap(blob,{colorSpaceConversion:'none',premultiplyAlpha:'none'})}
+      catch(e){try{bmp=await createImageBitmap(blob)}catch(e2){bmp=null}}
+    }
+    if(!bmp)throw err;
+    const c=document.createElement('canvas');c.width=bmp.width;c.height=bmp.height;
+    const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(bmp,0,0);
+    const id=g.getImageData(0,0,c.width,c.height);if(bmp.close)bmp.close();
+    c.rgba=id.data;c.h=heightsFromRgba(id.data);c.tw=c.width;c.th=c.height;return c}
+}
+function finishTile(t,k,img){t.img=img;t.ok=true;t.failed=false;t.cbs.forEach(f=>f());t.cbs=[];pokeLens();if(LC.fallback||LC.seabed)setTimeout(()=>gemScan(k,img),0)}
+function failTile(t){t.failed=true;const c=t.cbs;t.cbs=[];c.forEach(f=>f());pokeLens()}
+
+let gemCv=null;function gemScan(k,img){if(typeof FB==='undefined'||!FB)return;const nG=!!LC.fallback&&!FB.get(k),nS=!!LC.seabed&&!SBD.has(k);if(!nG&&!nS)return;try{
+  let d=img&&img.rgba;if(!d){if(!gemCv){gemCv=document.createElement('canvas');gemCv.width=gemCv.height=256}
+    const g=gemCv.getContext('2d',{willReadFrequently:true});g.clearRect(0,0,256,256);g.drawImage(img,0,0);d=g.getImageData(0,0,256,256).data}
+  let c=null,sc=null,mb=false;
   for(let i=0;i<d.length;i+=4)if(d[i+3]>=128){const b=d[i+2]&3;if(!b)continue;const p=i>>2,q=((p>>12)<<4)|((p&255)>>4);if(b===2){if(nG)(c||(c=new Uint16Array(256)))[q]++}else if(nS){(sc||(sc=new Uint16Array(256)))[q]++;if(b===3)mb=true}}   // GEM-15 / seabed pixel counts in 16x16 cells of 16 px
   if(nS){SBD.add(k);if(sc)SB.set(k,sc);if(mb)SBM.add(k)}
   if(nG){if(c)FB.set(k,c);else if(FB.has(k))FB.set(k,new Uint16Array(256))}
   if(c||sc||nG&&FB.has(k)||nS)fbCheck()}catch(e){}}
 function getTile(z,x,y,cb){if(SW_WAIT)return null;const k=z+'/'+x+'/'+y;let t=tileCache.get(k);
   if(t){if(t.ok)return t.img; if(!t.failed&&cb)t.cbs.push(cb); return null}
-  const img=new Image();if(CFG.xo)img.crossOrigin=CFG.xo;t={img,ok:false,failed:false,cbs:cb?[cb]:[]};tileCache.set(k,t);img.decoding='async';
-  img.onload=()=>{t.ok=true;t.cbs.forEach(f=>f());t.cbs=[];pokeLens();if(LC.fallback||LC.seabed)setTimeout(()=>gemScan(k,img),0)};img.onerror=()=>{t.failed=true;const c=t.cbs;t.cbs=[];c.forEach(f=>f());pokeLens()};   // a failed tile also triggers a rebuild, so the loading count clears
-  img.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y);return null}
+  t={img:null,ok:false,failed:false,cbs:cb?[cb]:[]};tileCache.set(k,t);
+  loadTileCanvas(tileUrl(z,x,y)).then(img=>finishTile(t,k,img),()=>failTile(t));return null}
 // ---------- mosaic state ----------
 let MZ=null; // {zt,x0,y0,nx,ny,w,h,key}
 // Extra data px a mode looks beyond the lens (the 96 px margin already covers it unless the radius is large). Capped so a phone does not fetch many more tiles.
@@ -309,22 +491,15 @@ function rampBytes(name){const hex=(RAMPS[name]||RAMPS.grey);const st=hex.map(h=
     else{const t=i/255*(st.length-1),k=Math.min(st.length-2,Math.floor(t)),f=t-k;const c=oklabToRgb(st[k][0]*(1-f)+st[k+1][0]*f,st[k][1]*(1-f)+st[k+1][1]*f,st[k][2]*(1-f)+st[k+1][2]*f);R=c[0];G=c[1];B=c[2]}
     a[i*4]=R;a[i*4+1]=G;a[i*4+2]=B;a[i*4+3]=255}return a}
 // ---------- renderer ----------
-let R=null; const forceCPU=/[?&]cpu=1/.test(location.search);
+let R=null; const forceCPU=/[?&](?:cpu=1|renderer=cpu)\b/i.test(location.search); const forceHitFail=/[?&]hittest=fail/.test(location.search); let heightTest={ok:null,label:'height test not run'};
 function msg(t,ms){const m=$('msg');m.textContent=t;m.style.display=t?'block':'none';if(ms)setTimeout(()=>{if(m.textContent===t)m.style.display='none'},ms)}
 // ===== WebGL2 =====
 function glOK(){try{const t=document.createElement('canvas').getContext('webgl2');return !!(t&&t.getExtension('EXT_color_buffer_float'))}catch(e){return false}}
-function makeGL(){if(!glOK())return null;const gl=cv.getContext('webgl2',{premultipliedAlpha:false,preserveDrawingBuffer:true,antialias:false,alpha:true});
-  if(!gl)return null; if(!gl.getExtension('EXT_color_buffer_float'))return null;
-  const VS=`#version 300 es
+const GL_VS=`#version 300 es
 void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.0-1.0,0.0,1.0);}`;
-  const HEAD=`#version 300 es
+const GL_HEAD=`#version 300 es
 precision highp float;precision highp int;out vec4 o;`;
-  const DEC=HEAD+`uniform sampler2D T;void main(){ivec2 p=ivec2(gl_FragCoord.xy);vec4 c=texelFetch(T,p,0);
-float h=c.a<0.5?-9999.0:(round(c.r*255.0)*256.0+round(c.g*255.0)+round(c.b*255.0)/256.0-32768.0);o=vec4(h,0.0,0.0,1.0);}`;
-  const BLUR=HEAD+`uniform sampler2D H;uniform ivec2 dir;uniform float sig;uniform int rad,box;void main(){ivec2 p=ivec2(gl_FragCoord.xy);ivec2 sz=textureSize(H,0);
-float s=0.0,w=0.0;for(int k=-rad;k<=rad;k++){ivec2 q=clamp(p+dir*k,ivec2(0),sz-1);float h=texelFetch(H,q,0).r;if(h>-9000.0){float g=box==1?1.0:exp(-float(k*k)/(2.0*sig*sig));s+=g*h;w+=g;}}
-o=vec4(w>0.0?s/w:-9999.0,0.0,0.0,1.0);}`;
-  const VAL=HEAD+`uniform sampler2D H;uniform sampler2D B;uniform sampler2D B4;uniform int mode,hnd,hns,msi;uniform float msd;uniform float mpp,ve,az,el,radpx,cr1,cr2,ld0,ld1,ldh;uniform int ldn;
+const GL_VAL=GL_HEAD+`uniform sampler2D H;uniform sampler2D B;uniform sampler2D B4;uniform int mode,hnd,hns,msi;uniform float msd;uniform float mpp,ve,az,el,radpx,cr1,cr2,ld0,ld1,ldh;uniform int ldn;
 ivec2 SZ;float hh(ivec2 q){return texelFetch(H,clamp(q,ivec2(0),SZ-1),0).r;}
 float shade(vec3 n,float a,float e){return max(0.0,dot(n,vec3(sin(a)*cos(e),cos(a)*cos(e),sin(e))));}
 // One horizon search (Zaksek, Ostir, Kokalj 2011; Yokoyama, Shirasawa, Pike 2002). hnd/hns are smaller on a phone.
@@ -383,6 +558,15 @@ else if(mode==10){vec3 n1=normalize(vec3(-gx,-gn,1.0));float s1=degrees(atan(len
  float vg=vat(shade(n1,A1,radians(35.0)),s1,hz.y,hz.x,50.0,68.0,93.0,0.7);float vf=vat(shade(n1,A1,radians(15.0)),s1,hz.w,hz.z,15.0,85.0,93.0,0.9);
  r=0.5*vg+0.5*vf;G=s1;}
 o=vec4(r,G,Bc,1.0);}`;
+
+function makeGL(){if(!glOK())return null;const gl=cv.getContext('webgl2',{premultipliedAlpha:false,preserveDrawingBuffer:true,antialias:false,alpha:true});
+  if(!gl)return null; if(!gl.getExtension('EXT_color_buffer_float'))return null;
+  const VS=GL_VS,HEAD=GL_HEAD,VAL=GL_VAL;
+  const DEC=HEAD+`uniform sampler2D T;void main(){ivec2 p=ivec2(gl_FragCoord.xy);vec4 c=texelFetch(T,p,0);
+float h=c.a<0.5?-9999.0:(round(c.r*255.0)*256.0+round(c.g*255.0)+round(c.b*255.0)/256.0-32768.0);o=vec4(h,0.0,0.0,1.0);}`;
+  const BLUR=HEAD+`uniform sampler2D H;uniform ivec2 dir;uniform float sig;uniform int rad,box;void main(){ivec2 p=ivec2(gl_FragCoord.xy);ivec2 sz=textureSize(H,0);
+float s=0.0,w=0.0;for(int k=-rad;k<=rad;k++){ivec2 q=clamp(p+dir*k,ivec2(0),sz-1);float h=texelFetch(H,q,0).r;if(h>-9000.0){float g=box==1?1.0:exp(-float(k*k)/(2.0*sig*sig));s+=g*h;w+=g;}}
+o=vec4(w>0.0?s/w:-9999.0,0.0,0.0,1.0);}`;
   const SAMP=HEAD+`uniform sampler2D V;uniform sampler2D TR;uniform vec2 b0,bs,lc;uniform int mode,fs,n,sfb;uniform float rad;
 void main(){vec2 mp=b0+(gl_FragCoord.xy/float(max(n,1)))*bs;if(fs==0&&distance(mp,lc)>rad){o=vec4(0.0);return;}
 ivec2 sz=textureSize(V,0);ivec2 ip=ivec2(floor(mp));if(ip.x<0||ip.y<0||ip.x>=sz.x||ip.y>=sz.y){o=vec4(0.0);return;}
@@ -418,7 +602,7 @@ o=vec4(col,op*ea);}`;
     const f=fmt==='ramp'?gl.LINEAR:gl.NEAREST;gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,f);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,f);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t}
   function fbo(t){const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);return f}
-  let Hcpu=null,mstpKey=null,T={},rampTex=null,rampName=null,blurKey=null,haveBlur=false,sampTex=null,sampFb=null,sampN=0;
+  let Hcpu=null,Hmos=null,HmosW=0,HmosH=0,mstpKey=null,T={},rampTex=null,rampName=null,blurKey=null,haveBlur=false,sampTex=null,sampFb=null,sampN=0;
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,gl.NONE);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
   function allocate(w,h){for(const k in T){if(T[k].tex)gl.deleteTexture(T[k].tex);if(T[k].fb)gl.deleteFramebuffer(T[k].fb)}
     T={rgb:{tex:tex(w,h,'rgba8')}};T.w=w;T.h=h;['H','B1','B2'].forEach(k=>{const t=tex(w,h,'r32f');T[k]={tex:t,fb:fbo(t)}});const t=tex(w,h,'rgba32f');T.V={tex:t,fb:fbo(t)};blurKey=null}
@@ -427,9 +611,15 @@ o=vec4(col,op*ea);}`;
   function bindT(unit,t,prog,name){gl.useProgram(prog.p);gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(prog.u[name],unit)}
   return {
     kind:'WebGL2',
-    newMosaic(mz){allocate(mz.w,mz.h)},
-    putTile(img,x,y){gl.bindTexture(gl.TEXTURE_2D,T.rgb.tex);gl.texSubImage2D(gl.TEXTURE_2D,0,x,y,gl.RGBA,gl.UNSIGNED_BYTE,img)},
-    decode(mz){bindT(0,T.rgb.tex,P.dec,'T');quad(P.dec,T.H.fb,mz.w,mz.h);blurKey=null;Hcpu=null;mstpKey=null},
+    newMosaic(mz){allocate(mz.w,mz.h);Hmos=new Float32Array(mz.w*mz.h);Hmos.fill(-9999);HmosW=mz.w;HmosH=mz.h},
+    putTile(img,x,y){const tw=img.tw||img.width||256,th=img.th||img.height||256;
+      gl.bindTexture(gl.TEXTURE_2D,T.rgb.tex);
+      if(img.rgba){gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);gl.texSubImage2D(gl.TEXTURE_2D,0,x,y,tw,th,gl.RGBA,gl.UNSIGNED_BYTE,img.rgba)}
+      else gl.texSubImage2D(gl.TEXTURE_2D,0,x,y,gl.RGBA,gl.UNSIGNED_BYTE,img);
+      if(img.h&&Hmos){for(let row=0;row<th;row++){if(y+row<0||y+row>=HmosH)continue;const n=Math.min(tw,Math.max(0,HmosW-x));if(n>0)Hmos.set(img.h.subarray(row*tw,row*tw+n),(y+row)*HmosW+x)}}},
+    decode(mz){if(Hmos&&T.H){gl.bindTexture(gl.TEXTURE_2D,T.H.tex);gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,mz.w,mz.h,gl.RED,gl.FLOAT,Hmos);Hcpu=Hmos}
+      else{bindT(0,T.rgb.tex,P.dec,'T');quad(P.dec,T.H.fb,mz.w,mz.h);Hcpu=null}
+      blurKey=null;mstpKey=null},
     compute(mz,vw,box){if(isMSTP(S.mode)){const k=[box.x,box.y,box.w,box.h,vw.mpp,S.mtl,phoneLike(),mstpRGB(),S.mts].join();if(mstpKey===k)return;
         if(!Hcpu){const a=new Float32Array(mz.w*mz.h*4);gl.bindFramebuffer(gl.FRAMEBUFFER,T.H.fb);gl.readPixels(0,0,mz.w,mz.h,gl.RGBA,gl.FLOAT,a);Hcpu=new Float32Array(mz.w*mz.h);for(let i=0;i<Hcpu.length;i++)Hcpu[i]=a[i*4]}
         const f=mstpField(Hcpu,mz.w,mz.h,box,vw.mpp,S.mtl,mstpRGB()?0:1+(S.mts|0));mstpBroadM=f.broadM;gl.bindFramebuffer(gl.FRAMEBUFFER,T.V.fb);gl.disable(gl.SCISSOR_TEST);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
@@ -477,7 +667,7 @@ function makeCPU(){const ctx=cv.getContext('2d');const mc=document.createElement
       for(let a=0;a<L;a++){dst[at(a)]=c?s/c:-9999;const ad=a+r+1,rm=a-r;if(ad<L){const v=src[at(ad)];if(v>-9000){s+=v;c++}}if(rm>=0){const v=src[at(rm)];if(v>-9000){s-=v;c--}}}}}
   return {kind:'Canvas2D (CPU fallback)',
     newMosaic(mz){mc.width=mz.w;mc.height=mz.h;mx.clearRect(0,0,mz.w,mz.h);W=mz.w;Hgt=mz.h},
-    putTile(img,x,y){mx.drawImage(img,x,y)},
+    putTile(img,x,y){if(img&&img.rgba){const tw=img.tw||256,th=img.th||256,data=img.rgba instanceof Uint8ClampedArray?img.rgba:new Uint8ClampedArray(img.rgba);mx.putImageData(new ImageData(data,tw,th),x,y)}else mx.drawImage(img,x,y)},
     decode(mz){const d=mx.getImageData(0,0,W,Hgt).data;Hh=new Float32Array(W*Hgt);for(let i=0;i<W*Hgt;i++)Hh[i]=d[i*4+3]<128?-9999:d[i*4]*256+d[i*4+1]+d[i*4+2]/256-32768;blurKey=null},
     compute(mz,vw,bx){box=bx;if(isMSTP(S.mode)){const f=mstpField(Hh,W,Hgt,bx,vw.mpp,S.mtl,mstpRGB()?0:1+(S.mts|0));Vv=f.out;mstpBroadM=f.broadM;return}
       const w=bx.w,h=bx.h,mpp=vw.mpp,ve=S.ve,A=S.az*Math.PI/180,E=S.el*Math.PI/180;Vv=new Float32Array(w*h*4);
@@ -524,12 +714,93 @@ function makeCPU(){const ctx=cv.getContext('2d');const mc=document.createElement
       ox.putImageData(im,0,0);ctx.save();ctx.scale(cvDpr,cvDpr);if(!S.fs){ctx.beginPath();ctx.arc(lensC[0],lensC[1],S.ls/2,0,Math.PI*2);ctx.clip()}
       ctx.globalAlpha=S.op;ctx.imageSmoothingEnabled=vw.sc<1;ctx.translate(-vw.tl[0],-vw.tl[1]);ctx.scale(vw.sc,vw.sc);ctx.drawImage(oc,vw.org[0]+box.x,vw.org[1]+box.y);ctx.restore()},
     clear(){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height)}}}
-try{if(!forceCPU)R=makeGL()}catch(e){console.error(e);R=null}
+
+// Start-up check (17 Nov 2026): 65 unique 1/64 m heights around 158.3125 m are uploaded to an
+// R32F texture, passed through a highp texelFetch shader, and read back. The same heights are then
+// run through the real VAL hillshade (Low sun) and Combined VAT shaders into an RGBA32F
+// framebuffer (the same path as a normal frame) and the result is checked for contour-like
+// banding. A half-float or mediump path collapses 1/64 m or terraces a smooth plane; we then fall
+// back to Canvas2D. A temporary canvas is used so a failed test never attaches WebGL2 to the lens
+// canvas (which would block the 2D fallback).
+function runValPipelineTest(gl, sh, texp){
+  const N=64, origin=158.3125, dx=0.08, dy=0.04, src=new Float32Array(N*N);
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++) src[y*N+x]=origin+(x-N/2)*dx+(y-N/2)*dy;
+  const vs=sh(gl.VERTEX_SHADER,GL_VS), fs=sh(gl.FRAGMENT_SHADER,GL_VAL);
+  const prog=gl.createProgram();gl.attachShader(prog,vs);gl.attachShader(prog,fs);gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  const H=gl.createTexture();texp(H);gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,N,N,0,gl.RED,gl.FLOAT,src);
+  const B=gl.createTexture();texp(B);gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,N,N,0,gl.RED,gl.FLOAT,src);
+  const VT=gl.createTexture();texp(VT);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,N,N,0,gl.RGBA,gl.FLOAT,null);
+  const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,VT,0);
+  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE) return {ok:false,label:'height test failed: VAT/hillshade framebuffer incomplete'};
+  const loc=n=>gl.getUniformLocation(prog,n);
+  function runMode(mode,ve,el,margin,limit,tag){
+    gl.useProgram(prog);
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,H);gl.uniform1i(loc('H'),0);
+    gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,B);gl.uniform1i(loc('B'),1);
+    gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,B);gl.uniform1i(loc('B4'),2);
+    gl.uniform1i(loc('mode'),mode);gl.uniform1i(loc('hnd'),8);gl.uniform1i(loc('hns'),6);gl.uniform1i(loc('msi'),0);
+    gl.uniform1f(loc('msd'),1);gl.uniform1f(loc('mpp'),1);gl.uniform1f(loc('ve'),ve);gl.uniform1f(loc('az'),315);gl.uniform1f(loc('el'),el);
+    gl.uniform1f(loc('radpx'),10);gl.uniform1f(loc('cr1'),CVAT_R1);gl.uniform1f(loc('cr2'),CVAT_R2);
+    gl.uniform1f(loc('ld0'),10);gl.uniform1f(loc('ld1'),20);gl.uniform1f(loc('ldh'),1.7);gl.uniform1i(loc('ldn'),8);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.viewport(0,0,N,N);gl.disable(gl.SCISSOR_TEST);
+    gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.drawArrays(gl.TRIANGLES,0,3);
+    const a=new Float32Array(N*N*4);gl.readPixels(0,0,N,N,gl.RGBA,gl.FLOAT,a);
+    let lo=Infinity,hi=-Infinity,n=0,bad=0;
+    for(let y=margin;y<N-margin;y++) for(let x=margin;x<N-margin;x++){
+      const i=(y*N+x)*4,v=a[i],al=a[i+3];
+      if(!(al>0.5)||!isFinite(v)){bad++;continue}
+      if(v<lo)lo=v;if(v>hi)hi=v;n++;
+    }
+    if(n<16) return {ok:false,label:'height test failed: '+tag+' pipeline produced no values'};
+    if(bad>0) return {ok:false,label:'height test failed: '+tag+' pipeline dropped '+(bad)+' cells'};
+    const range=hi-lo;
+    if(range>limit) return {ok:false,label:'height test failed: '+tag+' banding '+range.toFixed(3)+' on a smooth plane at 158.3 m (GPU path is stepping heights or slopes)'};
+    return {ok:true,range,tag};
+  }
+  const hs=runMode(0,3,20,3,0.03,'Low sun'); if(!hs.ok) return hs;
+  const vat=runMode(10,1,35,22,0.06,'Combined VAT'); if(!vat.ok) return vat;
+  return {ok:true,hs,vat};
+}
+function runHeightSelfTest(){
+  const origin=158.3125, step=1/64, vals=[]; for(let i=-32;i<=32;i++) vals.push(origin+i*step);
+  const w=vals.length,h=1,src=new Float32Array(vals);
+  const c=document.createElement('canvas');c.width=Math.max(w,64);c.height=64;
+  let gl; try{gl=c.getContext('webgl2',{premultipliedAlpha:false,antialias:false,alpha:true})}catch(e){return {ok:false,label:'height test failed: no WebGL2'}}
+  if(!gl) return {ok:false,label:'height test failed: no WebGL2'};
+  if(!gl.getExtension('EXT_color_buffer_float')) return {ok:false,label:'height test failed: no float colour buffers'};
+  function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s}
+  const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,GL_VS));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,`#version 300 es\nprecision highp float;precision highp int;uniform sampler2D H;out vec4 o;\nvoid main(){float h=texelFetch(H,ivec2(gl_FragCoord.xy),0).r;o=vec4(h,0.0,0.0,1.0);}`));gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  function texp(tex){gl.bindTexture(gl.TEXTURE_2D,tex);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE)}
+  const tex=gl.createTexture();texp(tex);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,w,h,0,gl.RED,gl.FLOAT,src);
+  const fboTex=gl.createTexture();texp(fboTex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,w,h,0,gl.RGBA,gl.FLOAT,null);
+  const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,fboTex,0);
+  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE) return {ok:false,label:'height test failed: float framebuffer incomplete'};
+  gl.bindVertexArray(gl.createVertexArray());gl.useProgram(p);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.uniform1i(gl.getUniformLocation(p,'H'),0);gl.viewport(0,0,w,h);gl.drawArrays(gl.TRIANGLES,0,3);
+  const a=new Float32Array(w*h*4);gl.readPixels(0,0,w,h,gl.RGBA,gl.FLOAT,a);
+  const tol=0.5/64; let worst=0,lost=0,got=[];
+  for(let i=0;i<w;i++){const d=Math.abs(a[i*4]-vals[i]);if(d>worst)worst=d;if(d>tol)lost++;got.push(a[i*4])}
+  const uniq=new Set(got.map(v=>Math.round(v*64)/64)).size, ok=lost===0&&uniq===vals.length;
+  if(!ok){
+    const u=[...new Set(got.map(v=>+v.toFixed(6)))].sort((x,y)=>x-y); const diffs=[]; for(let i=1;i<u.length;i++) diffs.push(u[i]-u[i-1]);
+    const est=diffs.length?diffs.sort((x,y)=>x-y)[Math.floor(diffs.length/2)]:worst;
+    return {ok:false,label:'height test failed: ~'+est.toFixed(3)+' m steps at 158.3125 (expected 1/64 m)',worst}
+  }
+  const pipe=runValPipelineTest(gl,sh,texp);
+  if(!pipe.ok) return Object.assign({worst},pipe);
+  return {ok:true,label:'height test passed: 1/64 m and Low sun + VAT pipeline at 158.3125',worst,pipe};
+}
+
+try{heightTest=forceHitFail?{ok:false,label:'height test failed (forced, hittest=fail)'}:runHeightSelfTest()}catch(e){heightTest={ok:false,label:'height test failed: '+(e&&e.message||e)}}
+try{if(!forceCPU&&heightTest.ok)R=makeGL()}catch(e){console.error(e);R=null}
 if(!R){try{R=makeCPU();if(!cv.getContext('2d'))throw new Error('no 2d')}catch(e){R=null}
-  if(R)msg('This browser has no WebGL2 float support: using the basic (slower) renderer. All modes still work.',6000);
+  if(R)msg(forceCPU?'Using the basic (CPU) renderer (?renderer=cpu).':heightTest.ok===false?'This browser failed the height precision test: using the basic (CPU) renderer so Low sun stays smooth. All modes still work.':'This browser has no WebGL2 float support: using the basic (slower) renderer. All modes still work.',6000);
+
   else{const nop=()=>{};R={kind:'none',newMosaic:nop,putTile:nop,decode:nop,compute:nop,readBox:()=>null,sample:()=>null,draw:nop,clear:nop};
     msg('This browser cannot draw the LiDAR (no WebGL or canvas). The background map, Go to and records still work; try an up-to-date Chrome, Firefox, Safari or Samsung Internet.',0)}}
-window.__lens={layersCtl,bases:{BASES,baseById,set:id=>{if(!baseById[id]||id===S.base)return;map.removeLayer(baseById[S.base]);S.base=id;baseById[id].addTo(map);map.fire('baselayerchange',{layer:baseById[id]})}},country:()=>CT?ctryName():(LC.layerCountry||'england'),renderer:()=>R.kind,stretch:()=>lastStretch,S,map,CFG,LC,msg,lensState:()=>({c:lensC.slice(),ls:S.ls,fs:S.fs})};
+window.__lens={layersCtl,bases:{BASES,baseById,set:id=>{if(!baseById[id]||id===S.base)return;map.removeLayer(baseById[S.base]);S.base=id;baseById[id].addTo(map);map.fire('baselayerchange',{layer:baseById[id]})}},country:()=>CT?ctryName():(LC.layerCountry||'england'),renderer:()=>R.kind,heightTest:()=>heightTest,stretch:()=>lastStretch,S,map,CFG,LC,msg,lensState:()=>({c:lensC.slice(),ls:S.ls,fs:S.fs})};
 // ---------- render loop ----------
 let cvDpr=1,mosaicReady=false,pending=false,lastStretch=null;
 function resizeCanvas(){cvDpr=Math.min(2,window.devicePixelRatio||1);const [w,h]=mapSize();cv.style.width=w+'px';cv.style.height=h+'px';cv.width=Math.round(w*cvDpr);cv.height=Math.round(h*cvDpr)}
@@ -585,8 +856,8 @@ function sbCheck(){const w=MZ;let on=false,mb=false;fbA=0;
   if(B.mbAttribution){if(mb)map.attributionControl.addAttribution(B.mbAttribution);else map.attributionControl.removeAttribution(B.mbAttribution)}}
 if(LC.live&&navigator.serviceWorker)navigator.serviceWorker.addEventListener('message',e=>{const d=e.data||{};if(d.fb&&LC.fallback){if(!FB.has(d.fb)){FB.set(d.fb,null);const t=tileCache.get(d.fb);if(t&&t.ok)gemScan(d.fb,t.img)}fbCheck()}
   if(d.drop){const t=tileCache.get(d.drop);if(t&&!t.ok){tileCache.delete(d.drop);scheduleMosaic()}}
-  if(d.refine){const t=tileCache.get(d.refine);if(!t)return;const [z,x,y]=d.refine.split('/'),im=new Image();if(CFG.xo)im.crossOrigin=CFG.xo;im.decoding='async';
-    im.onload=()=>{t.img=im;t.ok=true;t.failed=false;scheduleMosaic()};im.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)+'?fine=1'}});
+  if(d.refine){const t=tileCache.get(d.refine);if(!t)return;const [z,x,y]=d.refine.split('/');
+    loadTileCanvas(tileUrl(z,x,y,true)).then(img=>{t.img=img;t.ok=true;t.failed=false;scheduleMosaic()},()=>{})}});
 function buildMosaic(){const want=wantMosaic();if(!want){MZ=null;mosaicReady=false;R.clear();lensWait=null;fbCheck();return}
   const all=[];for(let j=0;j<want.ny;j++)for(let i=0;i<want.nx;i++)all.push([want.x0+i,want.y0+j,i*256,j*256]);
   const lens=[],rest=[];if(!LC.live&&!S.fs)all.forEach(t=>(tileInLens(want.zt,t[0],t[1])?lens:rest).push(t));else lens.push(...all);
@@ -662,9 +933,10 @@ map.on('zoomstart',()=>{cv.style.visibility='hidden'});map.on('zoomend',()=>{cv.
 map.on('resize',()=>{resizeCanvas();placeLens();scheduleMosaic()});
 // ---------- controls ----------
 const ctl=[['mode','',v=>+v],['el','°',v=>+v],['ve','x',v=>+v],['rad',' m',v=>+v],['ct','x',v=>+v],['gm','',v=>+v],['op','',v=>+v],['ls',' px',v=>+v]].concat(MP.map(([k,u])=>[k,u,v=>+v]));
-function paintPresets(){const k=presetKey();document.querySelectorAll('[data-preset]').forEach(b=>{const on=b.dataset.preset===k;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)})}
+function paintPresets(){const k=presetKey();document.querySelectorAll('[data-preset]').forEach(b=>{const on=b.dataset.preset===k;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});
+  document.querySelectorAll('#modes [data-m]').forEach(b=>{const on=String(S.mode)===String(b.dataset.m);b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)})}
 function applyPreset(k){const p=PRESETS[k];if(!p)return;flip=null;if(p.mode!==S.mode){keepView(S.mode);S.mode=p.mode;loadView(S.mode)}
-  PKEYS.forEach(q=>{if(p[q]!==undefined)S[q]=p[q]});Object.assign(S,presetLook(p));S.auto=true;delete manual[S.mode];bumpShade();syncUI();requestRender();saveHashSoon()}
+  PKEYS.forEach(q=>{if(p[q]!==undefined)S[q]=p[q]});Object.assign(S,presetLook(p));S.auto=true;delete manual[S.mode];bumpShade();syncUI();if(window.__lens&&typeof window.__lens.paintModes==='function')window.__lens.paintModes();requestRender();saveHashSoon()}
 function syncUI(){paintPresets();ctl.forEach(([k,u])=>{const e=$(k);if(e)e.value=S[k];const o=$(k+'v');if(o)o.textContent=(k==='op'?Math.round(S[k]*100)+'%':S[k]+u)});
   const sv=(id,p,v)=>{const e=$(id);if(e)e[p]=v};sv('ramp','value',S.ramp);sv('auto','checked',isCVAT(S.mode)?S.va:S.auto);sv('fs','checked',S.fs);sv('wat','checked',S.wat);if($('waterbox'))$('waterbox').hidden=!S.fs;sv('msh','checked',S.msh);sv('sm','checked',S.sm);sv('azv','textContent',Math.round(S.az)+'°');drawDial();
   $('sunbox').style.display=(S.mode===0||S.mode===1||S.mode===5||S.mode===7)?'':'none';$('radbox').style.display=(isLRM(S.mode)||isHeavy(S.mode))&&!isCVAT(S.mode)?'':'none';if($('ve'))$('ve').disabled=trueHeights(S.mode);document.querySelectorAll('#modeparams .mp').forEach(b=>{b.hidden=+b.dataset.m!==S.mode});
@@ -716,8 +988,15 @@ $('share').onclick=()=>{saveHash();const u=location.href;(navigator.clipboard?na
 // ---------- elevation profile ----------
 const ptile=new Map(),pgem=new Map(),psea=new Map();   // psea: seabed depths per tile (EMODnet / multibeam; only the seabed readout uses them)   // pgem: GEM-15 fallback heights per tile (only an estimate readout uses them)
 function tileData(z,x,y){const k=z+'/'+x+'/'+y;if(ptile.has(k))return ptile.get(k);
-  const pr=new Promise(res=>{const im=new Image();if(CFG.xo)im.crossOrigin=CFG.xo;im.onload=()=>{const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d',{willReadFrequently:true});if(!g)return res(null);g.drawImage(im,0,0);const dd=g.getImageData(0,0,256,256).data;if(LC.fallback){let gh=null;for(let i=0;i<dd.length;i+=4)if((dd[i+2]&3)===2&&dd[i+3]>=128){if(!gh)gh=new Float32Array(65536).fill(NaN);gh[i>>2]=dd[i]*256+dd[i+1]+dd[i+2]/256-32768;dd[i+3]=0}if(gh)pgem.set(k,gh)}
-    if(LC.seabed){let sh=null,sm=null;for(let i=0;i<dd.length;i+=4){const b=dd[i+2]&3;if((b===1||b===3)&&dd[i+3]>=128){if(!sh){sh=new Float32Array(65536).fill(NaN);sm=new Uint8Array(65536)}sh[i>>2]=dd[i]*256+dd[i+1]+(dd[i+2]&252)/256-32768;sm[i>>2]=b;dd[i+3]=0}}if(sh)psea.set(k,{h:sh,m:sm})}res(dd)};im.onerror=()=>res(null);im.src=CFG.tiles.replace('{z}',z).replace('{x}',x).replace('{y}',y)});ptile.set(k,pr);return pr}
+  const pr=(async()=>{
+    const cached=tileCache.get(k);let rgba=cached&&cached.ok&&cached.img&&cached.img.rgba;
+    if(!rgba){const c=await loadTileCanvas(tileUrl(z,x,y));rgba=c.rgba}
+    if(!rgba)return null;
+    const dd=new Uint8ClampedArray(rgba);   // copy so GEM-15 / seabed masking does not mutate the mosaic tile
+    if(LC.fallback){let gh=null;for(let i=0;i<dd.length;i+=4)if((dd[i+2]&3)===2&&dd[i+3]>=128){if(!gh)gh=new Float32Array(65536).fill(NaN);gh[i>>2]=dd[i]*256+dd[i+1]+dd[i+2]/256-32768;dd[i+3]=0}if(gh)pgem.set(k,gh)}
+    if(LC.seabed){let sh=null,sm=null;for(let i=0;i<dd.length;i+=4){const b=dd[i+2]&3;if((b===1||b===3)&&dd[i+3]>=128){if(!sh){sh=new Float32Array(65536).fill(NaN);sm=new Uint8Array(65536)}sh[i>>2]=dd[i]*256+dd[i+1]+(dd[i+2]&252)/256-32768;sm[i>>2]=b;dd[i+3]=0}}if(sh)psea.set(k,{h:sh,m:sm})}
+    return dd})().catch(()=>null);
+  ptile.set(k,pr);return pr}
 async function heightAt(ll){const z=CFG.maxz,p=map.project(ll,z),x=Math.floor(p.x/256),y=Math.floor(p.y/256),d=await tileData(z,x,y);if(!d)return null;
   const i=Math.min(255,Math.floor(p.x-x*256)),j=Math.min(255,Math.floor(p.y-y*256)),o=(j*256+i)*4;if(d[o+3]<128)return null;return d[o]*256+d[o+1]+d[o+2]/256-32768}
 // GEM-15 estimate (EGM96, metres out): only where the tile holds GEM-15 at that spot; null elsewhere, including wherever LiDAR has a height
@@ -761,7 +1040,7 @@ function drawProfile(hs,dist){const box=$('prof');box.style.display='block';cons
   g.fillText('Elevation (m OD), relief '+(Math.max(...v)-Math.min(...v)).toFixed(2)+' m over '+dist.toFixed(0)+' m (not exaggerated to scale)',m.l,12)}
 document.querySelector('#prof .x').onclick=()=>{clearProfile(true);if(tool==='profile')setTool(null)};
 // ---------- go ----------
-$('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Combined VAT visualisation after Kokalj, Ž. &amp; Somrak, M. (2019) Why Not a Single Image? Combining Visualizations to Facilitate Fieldwork and On-Screen Mapping. Remote Sensing 11(7), 747. doi:<a href="https://doi.org/10.3390/rs11070747" target="_blank" rel="noopener noreferrer">10.3390/rs11070747</a>. Relief Visualization Toolbox (RVT), Apache 2.0. Here: general- and flat-terrain settings (horizon radii 10 m and 20 m, sun 315°), computed in the browser from the same DTM tiles, without vertical exaggeration. Openness difference = (positive − negative openness) / 2 from the same horizon search and radius: openness after Yokoyama, R., Shirasawa, M. &amp; Pike, R.J. (2002) Visualizing topography by openness. Photogrammetric Engineering &amp; Remote Sensing 68(3), 257–265; difference after Chiba, T., Kaneta, S. &amp; Suzuki, Y. (2008) Red relief image map: new visualization method for three dimensional data. ISPRS Archives 37(B2), 1071–1076. Centred on zero (ridges light, hollows dark); it can also use the red relief colours (slope in red). Multi-scale topographic position after Lindsay, J.B., Cockburn, J.M.H. &amp; Russell, H.A.J. (2015) An integral image approach to performing multi-scale topographic position analysis. Geomorphology 245, 51–61. doi:10.1016/j.geomorph.2015.05.025, with the colour composite of Guyot, A., Hubert-Moy, L. &amp; Lorho, T. (2018) Detecting Neolithic burial mounds from LiDAR-derived elevation data using a multi-scale approach and machine learning techniques. Remote Sensing 10, 225. doi:10.3390/rs10020225: deviation from mean elevation at local (1–5 m), meso (5–50 m) and broad (50–500 m) scales as blue, green and red (the default; any other colour ramp shows one size, or the strongest, on that ramp); brightness 1−exp(−lightness·|DEVmax|) as in the Relief Visualization Toolbox. Water level: in full screen, every LiDAR cell lower than the level chosen is shaded blue (a simple level, not a flood model), with the level in m OD and the share of the view under water; also as a sheet in the 3D view. Soft shading in the 3D view: sky-view factor after Zakšek, K., Oštir, K. &amp; Kokalj, Ž. (2011) Sky-view factor as a relief visualization technique. Remote Sensing 3, 398–415. doi:10.3390/rs3020398, within 10 m, as a gentle darkening. Red–cyan 3D in the 3D view: three.js AnaglyphEffect, using the least-squares colour matrices of Dubois, E. (2001) A projection method to generate anaglyph stereo images, Proc. IEEE ICASSP 3, 1661–1664. Multi-scale relief model after Orengo, H.A. &amp; Petrie, C.A. (2018) Multi-scale relief model (MSRM): a new algorithm for the visualization of subtle topographic change of variable size in digital elevation models. Earth Surface Processes and Landforms 43, 1361–1369. doi:10.1002/esp.4317: the difference of two mean (box) filtered surfaces for the chosen feature sizes (default 0–20 m, scaling 2), standard-deviation stretch (±2.5 σ), optionally at 70% over the multi-direction hillshade. Local dominance after Hesse, R. (2016) Visualisierung hochauflösender Digitaler Geländemodelle mit LiVT. In 3D-Anwendungen in der Archäologie, Berlin Studies of the Ancient World 34, 109–128. doi:10.18452/5368: the mean angle down from an observer 1.7 m above each point to the ground 10–20 m around it (24 directions, 12 on a phone; settings below the menu), true heights; default settings as in the Relief Visualization Toolbox. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
+$('about').innerHTML=(LC.elevationNote||'Elevation: Environment Agency LiDAR Composite DTM 1 m (OGL), ')+(LC.dataNote||'')+' Terrarium-encoded lossless WebP tiles. Beyond z17 the lens magnifies the z17 data. Heights quantised to 1/64 m. Renderer: <b>'+R.kind+'</b>'+(heightTest&&heightTest.label? ' ('+heightTest.label+')':'')+'. To compare, add <code>?renderer=cpu</code> to the URL to force the basic (Canvas2D) renderer. Hillshade uses Horn gradients; multi-direction = 8 suns 45° apart; LRM = DTM minus a Gaussian blur (σ = radius; Hesse 2010); sky-view factor and positive and negative openness share one horizon search (Zakšek, Oštir and Kokalj 2011; Yokoyama, Shirasawa and Pike 2002; the same method as the Relief Visualization Toolbox, Apache 2.0). The search uses 16 directions and 14 steps, or 8 and 6 on a phone, and runs again when panning stops. Combined VAT visualisation after Kokalj, Ž. &amp; Somrak, M. (2019) Why Not a Single Image? Combining Visualizations to Facilitate Fieldwork and On-Screen Mapping. Remote Sensing 11(7), 747. doi:<a href="https://doi.org/10.3390/rs11070747" target="_blank" rel="noopener noreferrer">10.3390/rs11070747</a>. Relief Visualization Toolbox (RVT), Apache 2.0. Here: general- and flat-terrain settings (horizon radii 10 m and 20 m, sun 315°), computed in the browser from the same DTM tiles, without vertical exaggeration. Openness difference = (positive − negative openness) / 2 from the same horizon search and radius: openness after Yokoyama, R., Shirasawa, M. &amp; Pike, R.J. (2002) Visualizing topography by openness. Photogrammetric Engineering &amp; Remote Sensing 68(3), 257–265; difference after Chiba, T., Kaneta, S. &amp; Suzuki, Y. (2008) Red relief image map: new visualization method for three dimensional data. ISPRS Archives 37(B2), 1071–1076. Centred on zero (ridges light, hollows dark); it can also use the red relief colours (slope in red). Multi-scale topographic position after Lindsay, J.B., Cockburn, J.M.H. &amp; Russell, H.A.J. (2015) An integral image approach to performing multi-scale topographic position analysis. Geomorphology 245, 51–61. doi:10.1016/j.geomorph.2015.05.025, with the colour composite of Guyot, A., Hubert-Moy, L. &amp; Lorho, T. (2018) Detecting Neolithic burial mounds from LiDAR-derived elevation data using a multi-scale approach and machine learning techniques. Remote Sensing 10, 225. doi:10.3390/rs10020225: deviation from mean elevation at local (1–5 m), meso (5–50 m) and broad (50–500 m) scales as blue, green and red (the default; any other colour ramp shows one size, or the strongest, on that ramp); brightness 1−exp(−lightness·|DEVmax|) as in the Relief Visualization Toolbox. Water level: in full screen, every LiDAR cell lower than the level chosen is shaded blue (a simple level, not a flood model), with the level in m OD and the share of the view under water; also as a sheet in the 3D view. Soft shading in the 3D view: sky-view factor after Zakšek, K., Oštir, K. &amp; Kokalj, Ž. (2011) Sky-view factor as a relief visualization technique. Remote Sensing 3, 398–415. doi:10.3390/rs3020398, within 10 m, as a gentle darkening. Red–cyan 3D in the 3D view: three.js AnaglyphEffect, using the least-squares colour matrices of Dubois, E. (2001) A projection method to generate anaglyph stereo images, Proc. IEEE ICASSP 3, 1661–1664. Multi-scale relief model after Orengo, H.A. &amp; Petrie, C.A. (2018) Multi-scale relief model (MSRM): a new algorithm for the visualization of subtle topographic change of variable size in digital elevation models. Earth Surface Processes and Landforms 43, 1361–1369. doi:10.1002/esp.4317: the difference of two mean (box) filtered surfaces for the chosen feature sizes (default 0–20 m, scaling 2), standard-deviation stretch (±2.5 σ), optionally at 70% over the multi-direction hillshade. Local dominance after Hesse, R. (2016) Visualisierung hochauflösender Digitaler Geländemodelle mit LiVT. In 3D-Anwendungen in der Archäologie, Berlin Studies of the Ancient World 34, 109–128. doi:10.18452/5368: the mean angle down from an observer 1.7 m above each point to the ground 10–20 m around it (24 directions, 12 on a phone; settings below the menu), true heights; default settings as in the Relief Visualization Toolbox. Red relief = LRM lightness with slope as red. Colour ramps are spaced evenly in Oklab; the relief ramp is blue–grey–red with grey on zero. Auto contrast reads a small downsampled copy of the on-screen values and uses the 2nd–98th percentile (relief stays centred on zero). Untick it to type a range.<br><br><b>What is it?</b> On click only (no candidate lists): measures the shape around the spot from the z17 tiles (multi-scale local relief, footprint at ~20% height, height above a plane fitted just outside, length/width, plateau fraction for domed vs flat, 90th-percentile slope for edge sharpness, radial rim test for hollows, cross-axis step for lynchets) and adds OS OpenMap / OSM context. Records within 100 m: '+(LC.herLong||'local HER (information only)').replace(/&/g,'&amp;')+', NHLE scheduled monuments and listed buildings, HE Aerial Investigation &amp; Mapping, OSM historic features (community map). Grid refs use OSTN15 (correction grid) on top of a Helmert transform. Place search: Nominatim (submit only, max 1 request/s) and postcodes.io.';
 // config creditsFull: the full credit text lives in About / data; a .credlink in the short attribution opens it
 if(LC.fallback&&LC.fallback.about){const c=document.createElement('div');c.id='fbabout';c.style.marginTop='6px';c.innerHTML=LC.fallback.about;$('about').appendChild(c)}
 if(LC.seabed&&LC.seabed.about){const c=document.createElement('div');c.id='sbabout';c.style.marginTop='6px';c.innerHTML=LC.seabed.about;$('about').appendChild(c)}
