@@ -499,11 +499,6 @@ const GL_VS=`#version 300 es
 void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.0-1.0,0.0,1.0);}`;
 const GL_HEAD=`#version 300 es
 precision highp float;precision highp int;out vec4 o;`;
-  const DEC=HEAD+`uniform sampler2D T;void main(){ivec2 p=ivec2(gl_FragCoord.xy);vec4 c=texelFetch(T,p,0);
-float h=c.a<0.5?-9999.0:(round(c.r*255.0)*256.0+round(c.g*255.0)+round(c.b*255.0)/256.0-32768.0);o=vec4(h,0.0,0.0,1.0);}`;
-  const BLUR=HEAD+`uniform sampler2D H;uniform ivec2 dir;uniform float sig;uniform int rad,box;void main(){ivec2 p=ivec2(gl_FragCoord.xy);ivec2 sz=textureSize(H,0);
-float s=0.0,w=0.0;for(int k=-rad;k<=rad;k++){ivec2 q=clamp(p+dir*k,ivec2(0),sz-1);float h=texelFetch(H,q,0).r;if(h>-9000.0){float g=box==1?1.0:exp(-float(k*k)/(2.0*sig*sig));s+=g*h;w+=g;}}
-o=vec4(w>0.0?s/w:-9999.0,0.0,0.0,1.0);}`;
 const GL_VAL=GL_HEAD+`uniform sampler2D H;uniform sampler2D B;uniform sampler2D B4;uniform int mode,hnd,hns,msi;uniform float msd;uniform float mpp,ve,az,el,radpx,cr1,cr2,ld0,ld1,ldh;uniform int ldn;
 ivec2 SZ;float hh(ivec2 q){return texelFetch(H,clamp(q,ivec2(0),SZ-1),0).r;}
 float shade(vec3 n,float a,float e){return max(0.0,dot(n,vec3(sin(a)*cos(e),cos(a)*cos(e),sin(e))));}
@@ -567,6 +562,11 @@ o=vec4(r,G,Bc,1.0);}`;
 function makeGL(){if(!glOK())return null;const gl=cv.getContext('webgl2',{premultipliedAlpha:false,preserveDrawingBuffer:true,antialias:false,alpha:true});
   if(!gl)return null; if(!gl.getExtension('EXT_color_buffer_float'))return null;
   const VS=GL_VS,HEAD=GL_HEAD,VAL=GL_VAL;
+  const DEC=HEAD+`uniform sampler2D T;void main(){ivec2 p=ivec2(gl_FragCoord.xy);vec4 c=texelFetch(T,p,0);
+float h=c.a<0.5?-9999.0:(round(c.r*255.0)*256.0+round(c.g*255.0)+round(c.b*255.0)/256.0-32768.0);o=vec4(h,0.0,0.0,1.0);}`;
+  const BLUR=HEAD+`uniform sampler2D H;uniform ivec2 dir;uniform float sig;uniform int rad,box;void main(){ivec2 p=ivec2(gl_FragCoord.xy);ivec2 sz=textureSize(H,0);
+float s=0.0,w=0.0;for(int k=-rad;k<=rad;k++){ivec2 q=clamp(p+dir*k,ivec2(0),sz-1);float h=texelFetch(H,q,0).r;if(h>-9000.0){float g=box==1?1.0:exp(-float(k*k)/(2.0*sig*sig));s+=g*h;w+=g;}}
+o=vec4(w>0.0?s/w:-9999.0,0.0,0.0,1.0);}`;
   const SAMP=HEAD+`uniform sampler2D V;uniform sampler2D TR;uniform vec2 b0,bs,lc;uniform int mode,fs,n,sfb;uniform float rad;
 void main(){vec2 mp=b0+(gl_FragCoord.xy/float(max(n,1)))*bs;if(fs==0&&distance(mp,lc)>rad){o=vec4(0.0);return;}
 ivec2 sz=textureSize(V,0);ivec2 ip=ivec2(floor(mp));if(ip.x<0||ip.y<0||ip.x>=sz.x||ip.y>=sz.y){o=vec4(0.0);return;}
