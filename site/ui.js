@@ -16,6 +16,7 @@ if(modeBar){   // phone: the four presets, labelled, plus Combined VAT (the full
   {const b=document.createElement('button');b.type='button';b.dataset.m='10';b.textContent='VAT';b.title='Combined VAT';b.setAttribute('aria-label','Combined VAT, key V');
     b.onclick=()=>{ms.value='10';ms.dispatchEvent(new Event('change'));paintModes();flashMode('Combined VAT')};modeBar.appendChild(b)}
   function paintModes(){[...modeBar.querySelectorAll('[data-m]')].forEach(b=>b.classList.toggle('on',ms.value===b.dataset.m));LZ.paintPresets()}
+  LZ.paintModes=paintModes;
   function flashMode(name){if(!matchMedia('(pointer:coarse)').matches)return;const m=$('msg');
     const up=matchMedia('(max-width:700px) and (pointer:coarse)').matches&&!$('panel').classList.contains('hide');
     m.style.top='auto';m.style.bottom=up?'calc(50vh + 60px)':'72px';LZ.msg(name,1200);
