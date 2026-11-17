@@ -126,7 +126,9 @@ LZ.ui={showHelp,mark};})();
   ['gesturestart','gesturechange'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
   document.addEventListener('touchmove',e=>{if(e.touches&&e.touches.length>1)stop(e)},{passive:false});
   const meta=document.querySelector('meta[name=viewport]'),vv=window.visualViewport;let t=null;
-  function fix(){t=null;if(vv&&vv.scale>1.01&&meta){const c=meta.content;meta.content=c.replace(/,?\s*maximum-scale=[^,]*/,'')+', maximum-scale=1';setTimeout(()=>{meta.content=c},50)}
+  function typing(){const a=document.activeElement;return a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable)}
+  function fix(){t=null;if(typing())return;   // leave the caret alone: snapping scroll or toggling the viewport while a search box is focused (in-app browsers, on-screen keyboard) can re-render the input and type letters backwards
+    if(vv&&vv.scale>1.01&&meta){const c=meta.content;meta.content=c.replace(/,?\s*maximum-scale=[^,]*/,'')+', maximum-scale=1';setTimeout(()=>{meta.content=c},50)}
     if(window.scrollX||window.scrollY)window.scrollTo(0,0);document.documentElement.scrollTop=document.body.scrollTop=0;document.documentElement.scrollLeft=document.body.scrollLeft=0;
     const Z=window.__lens;if(Z&&Z.map)Z.map.invalidateSize();if(Z&&Z.placeLens)Z.placeLens()}
   const later=()=>{clearTimeout(t);t=setTimeout(fix,250)};

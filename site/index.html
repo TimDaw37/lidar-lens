@@ -127,7 +127,7 @@ a.lookup{display:inline-block;margin:4px 0;padding:2px 8px;border:1px solid #1d4
 #panel{bottom:136px;max-height:calc(100% - 290px)}
 body:has(#card[style*="block"]) #toggle{display:none}
 }
-@media (max-height:500px) and (pointer:coarse){ /* phone held sideways: compact title/search box at the left, panel and card at the right */
+@media (max-height:500px) and (min-width:600px) and (pointer:coarse){ /* phone held sideways: compact title/search box at the left, panel and card at the right. min-width:600px so a portrait phone with the keyboard open (short visual/layout viewport, as in the Facebook in-app browser) does not use this compact width and crush the search box. */
 #titlebox{width:min(400px,calc(50vw - 10px))!important;padding:4px 7px!important}
 #titlebox h1{font-size:12px}#titlebox .xlinks{margin:0 0 3px}
 #goto input#gotoq{height:40px;min-height:40px}#goto button{top:2px;height:36px;min-height:36px}
