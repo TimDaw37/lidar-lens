@@ -22,9 +22,9 @@ const CSS=
 'body.field.fold #lens,body.field.fold #gl{display:none!important}'+
 'body.field #lens{display:none!important}'+   // the LiDAR is full screen in field mode; the (invisible) lens disc sits on the target and must not widen the page
 'body.field .mbox,body.field .mpin{display:none!important}'+   // Wiltshire's 3D-model boxes and pins would swallow a tap meant to set the target
-'body.field #titlebox{width:min(460px,calc(100vw - 20px));box-sizing:border-box;padding:8px;border-radius:12px}'+
-'body.field #goto{display:flex!important;gap:8px;align-items:stretch;margin:0;width:100%}'+
-'body.field #gotoq{flex:1;min-width:0;width:auto!important;font-size:18px!important;min-height:56px!important;height:56px;box-sizing:border-box;padding:0 12px!important;border:2px solid #111!important;border-radius:10px!important;background:#fff;color:#111}'+
+'body.field #titlebox{width:min(460px,calc(100vw - 20px))!important;box-sizing:border-box;padding:8px;border-radius:12px}'+
+'body.field #goto{display:flex!important;flex-wrap:wrap;gap:8px;align-items:stretch;margin:0;width:100%}'+
+'body.field #gotoq{flex:1 1 160px;min-width:160px;width:auto!important;font-size:18px!important;min-height:56px!important;height:56px;box-sizing:border-box;padding:0 12px!important;border:2px solid #111!important;border-radius:10px!important;background:#fff;color:#111}'+
 'body.field #gores{font-size:17px}body.field #gores>div{min-height:48px;display:flex;align-items:center;padding:4px 6px;border-bottom:1px solid #ddd}'+
 'body.field #card{font-size:16px}body.field #card .x{display:flex;align-items:center;justify-content:center;width:56px;height:56px;font-size:34px;top:0;right:0}'+
 '#fieldsw{display:inline-flex;border:2px solid #111;border-radius:10px;overflow:hidden;flex:none;background:#fff}'+
